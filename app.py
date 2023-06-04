@@ -47,11 +47,11 @@ with gr.Blocks() as demo:
             parent_run_id = None,
             **kwargs,
         ) -> None:
-            print(f'My_id is {my_id} for token {token}')
+            #print(f'My_id is {my_id} for token {token}')
             self.q.put((token,my_id))
         
         def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
-            self.q.put(END)
+            self.q.put((END, my_id))
 
     my_id = str(uuid.uuid4())
     history = [["", GREETING]]
@@ -83,7 +83,7 @@ with gr.Blocks() as demo:
         thread.start() 
         token = q.get() # Get rid of crap token. 
         while True: 
-            token, qid = q.get()
+            (token, qid) = q.get()
             # print(f'Got {token} with {my_id} and {qid}')
             if(qid != my_id):
                 print(f'!!!! Mismatched on {token}')
