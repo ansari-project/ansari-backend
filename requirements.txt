@@ -3,4 +3,5 @@ gradio
 langchain
 openai
 tiktoken
+anthropic
 
