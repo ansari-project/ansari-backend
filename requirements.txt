@@ -2,4 +2,5 @@ promptlayer
 gradio
 langchain
 openai
+tiktoken
 
