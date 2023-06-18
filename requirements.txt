@@ -4,4 +4,5 @@ langchain
 openai
 tiktoken
 anthropic
+rich
 
