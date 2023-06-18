@@ -1,6 +1,8 @@
 from typing import Any, Optional
 from uuid import UUID
 import gradio as gr
+from rich import print
+import re
 import random
 import time
 import asyncio
@@ -8,6 +10,7 @@ from asyncio import Queue
 from threading import Thread
 from queue import SimpleQueue
 from langchain.chat_models import ChatOpenAI, PromptLayerChatOpenAI
+from langchain.llms import OpenAI
 from langchain.callbacks.base import AsyncCallbackHandler, BaseCallbackHandler
 from langchain import PromptTemplate, LLMChain
 from langchain.prompts.chat import (
@@ -16,6 +19,7 @@ from langchain.prompts.chat import (
     AIMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+from langchain.vectorstores.vectara import Vectara
 from langchain.schema import (
     AIMessage,
     HumanMessage,
@@ -24,7 +28,8 @@ from langchain.schema import (
 )
 import uuid
 
-MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off midway. 
+MODEL = 'gpt-3.5-turbo'
+MAX_LENGTH = 15000 # have to leave some space for answers or they get chopped off midway. 
 
 END = '-- END --'
 
@@ -35,7 +40,8 @@ and Qur'an and from the opinions of great scholars in the Sunni Islamic traditio
 Al Ghazali, Ibn Taymiyah, Imam Shafiee, Imam Nawawi, Imam Abu Hanifah, Ibn Hajr al Asqalani, 
 Ibn Hazm and others. Be gentle, forbearing and non-judgemental. 
 
-Be concise in your answers. 
+Be concise. Do not embellish.  
+
 """
 
 GREETING ="""Assalamu alaikum! My name is Ansari. I can help you with your questions about Islam.
@@ -46,7 +52,8 @@ Ask me about:
 
 But I still get things wrong sometimes. It is always best to consult a real Islamic Scholar. """
 
-with gr.Blocks() as demo:
+with gr.Blocks(title='Ansari') as demo:
+
     def get_new_id():
         return str(uuid.uuid4())
     
@@ -67,21 +74,62 @@ with gr.Blocks() as demo:
         def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
             self.q.put(END, my_id)
 
+    def pp_ayah(doc_score):
+        doc, score = doc_score
+        if 'is_title' in doc.metadata and doc.metadata['is_title'] == 'true': 
+            return '' 
+        print(f'Doc is {doc}')
+        verse_number = doc.metadata['title'] #re.findall('\d+:\d+', doc.metadata["breadcrumb"])[0]
+        #print('verse number is: ' + verse_number)
+        content = re.sub('\d+:\d+$', '', doc.page_content)
+        #print(f'Content is: {content}')
+        result = f'Verse: {verse_number}\nConfidence: {score}\nContent: {content}\n'
+        return result
+    
+    def lookup_quran(question):
+        vs = Vectara()
+        results = vs.similarity_search_with_score(
+            query=question,
+            lambd_val=0.1)
+        #print(f'Results are {results}')
+        rstring = '\n'.join([pp_ayah(r) for r in results])
+        return rstring
+        
+
     my_id = gr.State(get_new_id)
     history = gr.State([['', GREETING]])
     openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])    
     chatbot_ui = gr.Chatbot(value=[[None, GREETING]])
-    msg_ui = gr.Textbox() 
+    msg_ui = gr.Textbox(show_label=False) 
 
 
     state_vars = [history, openai_history, my_id]
     def user(user_message, chatbot_ui, history, openai_history, my_id):
+        oai = OpenAI(temperature=0, model_name=MODEL)
+        quranic = oai.predict('Determine if the following question is about the Qur\'an. '
+                              'Example: Does the Qur\'an mention rubies?\nYes\n\Example: I am tired.\nNo\n'
+                              'Please answer only Yes or No. The question to consider: ' + user_message)
+        print(f'oai returned {quranic}')
+        if (quranic.startswith('Yes')):
+            topic = oai.predict('Extract the best query to use for a keyword search about the Qur\'an from the following question. '
+                                'Do not include the word Qur\'an. '
+                                'Examples: '
+                                'Question: Does the Qur\'an mention rubies?\nAnswer: rubies\n'
+                                'Question: What does the Qur\'an say about adultery?\nAnswer: Adultery.\n\n\Question: ' + user_message + '\nAnswer: ')
+            print(f'gpt-3.5-turbo recommended topic is {topic}')
+            quran_results = lookup_quran(topic)
+            quran_message = \
+f"""Here are some potentially relevant verses from the Qur\'an.\n{quran_results}
+Please use them to answer the following question. If you cite any verses, include the Arabic and the English translation."""
+            print(f'Augmented message is: {quran_message}')
+            openai_history.append(AIMessage(content=quran_message))
+
         openai_history.append(HumanMessage(content=user_message))
         return gr.update(value=""), history + [[user_message, None]],  history + [[user_message, None]], openai_history, my_id
 
     def bot(chatbot_ui, history, openai_history, my_id):
         q = SimpleQueue() 
-        oai = PromptLayerChatOpenAI(streaming=True, temperature=0, model_name='gpt-3.5-turbo',
+        oai = PromptLayerChatOpenAI(streaming=True, temperature=0, model_name=MODEL,
                     callbacks=[MyCBH(q)], pl_tags=[f'ansari-{my_id}'])
         #print(f'History is {history}')
         history[-1][1] =''
@@ -104,7 +152,7 @@ with gr.Blocks() as demo:
             history[-1][1] += token
             yield history, history, openai_history, my_id
         openai_history.append(AIMessage(content=history[-1][1]))
-        print(f'OpenAI history is: {openai_history}')
+        #print(f'OpenAI history is: {openai_history}')
         return chatbot_ui, history, openai_history, my_id
 
 
@@ -116,4 +164,4 @@ with gr.Blocks() as demo:
     )
 
 demo.queue(concurrency_count=8)
-demo.launch()
+demo.launch(favicon_path='.')
