@@ -29,7 +29,7 @@ from langchain.schema import (
 import uuid
 
 MODEL = 'gpt-3.5-turbo'
-MAX_LENGTH = 15000 # have to leave some space for answers or they get chopped off midway. 
+MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off midway. 
 
 END = '-- END --'
 
@@ -52,7 +52,14 @@ Ask me about:
 
 But I still get things wrong sometimes. It is always best to consult a real Islamic Scholar. """
 
-with gr.Blocks(title='Ansari') as demo:
+
+CSS ="""
+.contain { display: flex; flex-direction: column; }
+#component-0 { height: 100%; }
+#chatbot { flex-grow: 1; }
+"""
+
+with gr.Blocks(title='Ansari', css=CSS) as demo:
 
     def get_new_id():
         return str(uuid.uuid4())
@@ -76,8 +83,13 @@ with gr.Blocks(title='Ansari') as demo:
 
     def pp_ayah(doc_score):
         doc, score = doc_score
+        # Ignore title matches
         if 'is_title' in doc.metadata and doc.metadata['is_title'] == 'true': 
             return '' 
+        #ignore low scoring matches. 
+        if score < 0.2:
+            print(f'Dropped {doc.page_content} because of score: {score}')
+            return ''
         print(f'Doc is {doc}')
         verse_number = doc.metadata['title'] #re.findall('\d+:\d+', doc.metadata["breadcrumb"])[0]
         #print('verse number is: ' + verse_number)
@@ -98,8 +110,9 @@ with gr.Blocks(title='Ansari') as demo:
 
     my_id = gr.State(get_new_id)
     history = gr.State([['', GREETING]])
-    openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])    
-    chatbot_ui = gr.Chatbot(value=[[None, GREETING]])
+    openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])
+    gr.Markdown(value="**News 2023-06-18**: Added automatic Qur'an search. Sign up for the [Google Group](http://walee.dk/asu) for updates/discussion!")
+    chatbot_ui = gr.Chatbot(value=[[None, GREETING]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
 
@@ -119,10 +132,19 @@ with gr.Blocks(title='Ansari') as demo:
             print(f'gpt-3.5-turbo recommended topic is {topic}')
             quran_results = lookup_quran(topic)
             quran_message = \
-f"""Here are some potentially relevant verses from the Qur\'an.\n{quran_results}
-Please use them to answer the following question. If you cite any verses, include the Arabic and the English translation."""
-            print(f'Augmented message is: {quran_message}')
+f"""Here are some relevant verses from the Qur\'an.\n{quran_results}
+Use them to answer the next question from the user. Do not use external sources unless you are highly confident. Include the Arabic text and the English translation of any verse mentions.
+Example: Does the Qur'an mention rubies? 
+Answer: Yes, the Qur'an mentions rubies. 
+Verse: 55:58
+Arabic: كَأَنَّهُنَّ ٱلْيَاقُوتُ وَٱلْمَرْجَان 
+English: As if they were rubies and coral.
+
+"""
+            print(f'Retrieved result:\n{quran_message}')
             openai_history.append(AIMessage(content=quran_message))
+        else: 
+            quran_message = ''
 
         openai_history.append(HumanMessage(content=user_message))
         return gr.update(value=""), history + [[user_message, None]],  history + [[user_message, None]], openai_history, my_id
@@ -164,4 +186,4 @@ Please use them to answer the following question. If you cite any verses, includ
     )
 
 demo.queue(concurrency_count=8)
-demo.launch(favicon_path='.')
+demo.launch(favicon_path='./favicon.ico')
