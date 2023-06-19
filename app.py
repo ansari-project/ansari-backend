@@ -106,7 +106,7 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         #print('verse number is: ' + verse_number)
         content = re.sub('\d+:\d+$', '', doc.page_content)
         #print(f'Content is: {content}')
-        result = f'Ayah: {verse_number}\n Content: {content}\n'
+        result = f'Ayah: {verse_number}\nEnglish: {content}\n'
         return result
     
     def lookup_quran(question):
@@ -203,7 +203,7 @@ Question: """ + user_message
         print(f'oai returned {quranic}')
         if quranic: 
             quran_message = quranic_results(user_message)
-            openai_history.append(AIMessage(content=quran_message))
+            openai_history.append(SystemMessage(content=quran_message))
         return gr.update(value=""), history + [[user_message, None]],  history + [[user_message, None]], openai_history, my_id
 
     def bot(chatbot_ui, history, openai_history, my_id):
