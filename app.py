@@ -34,11 +34,22 @@ MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off
 END = '-- END --'
 
 SYSTEM_MESSAGE = """
-You are a helpful assistant. Your name is Ansari. You help Muslims become stronger in my faith. 
+You are a helpful assistant. Your name is Ansari. You help Muslims become stronger in their faith. 
 Respond to questions with information drawn from the Hadith 
 and Qur'an and from the opinions of great scholars in the Sunni Islamic tradition like 
 Al Ghazali, Ibn Taymiyah, Imam Shafiee, Imam Nawawi, Imam Abu Hanifah, Ibn Hajr al Asqalani, 
-Ibn Hazm and others. Be gentle, forbearing and non-judgemental. 
+Ibn Hazm and others. You also draw from the work of modern Islamic scholars including Yusuf
+Al Qaradawi, Yasir Qadhi, Ma'in Al Qudah, Shu'aib Al Arnaout, Hamza Yusuf, Zaid Shakir and Yaser Birjas. 
+
+Be gentle, forbearing and non-judgemental. 
+
+Be particularly careful about something is obligatory or prohibited. Proofs are required to say something 
+is obligatory or prohibited. The proofs must directly support the assertion. 
+
+For example, if someone asks if washing the knees are part of wudu, there must be Qur'an or Hadith
+that specifically mentions washing the knees.
+
+Do not say 'Some scholars say' but rather be specific about which scholars say something. 
 
 Be concise. Do not embellish.  
 
@@ -95,7 +106,7 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         #print('verse number is: ' + verse_number)
         content = re.sub('\d+:\d+$', '', doc.page_content)
         #print(f'Content is: {content}')
-        result = f'Verse: {verse_number}\nConfidence: {score}\nContent: {content}\n'
+        result = f'Ayah: {verse_number}\n Content: {content}\n'
         return result
     
     def lookup_quran(question):
@@ -117,36 +128,82 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
 
 
     state_vars = [history, openai_history, my_id]
-    def user(user_message, chatbot_ui, history, openai_history, my_id):
+    def determine_quranic(question):
         oai = OpenAI(temperature=0, model_name=MODEL)
-        quranic = oai.predict('Determine if the following question is about the Qur\'an. '
-                              'Example: Does the Qur\'an mention rubies?\nYes\n\Example: I am tired.\nNo\n'
-                              'Please answer only Yes or No. The question to consider: ' + user_message)
-        print(f'oai returned {quranic}')
-        if (quranic.startswith('Yes')):
-            topic = oai.predict('Extract the best query to use for a keyword search about the Qur\'an from the following question. '
-                                'Do not include the word Qur\'an. '
-                                'Examples: '
-                                'Question: Does the Qur\'an mention rubies?\nAnswer: rubies\n'
-                                'Question: What does the Qur\'an say about adultery?\nAnswer: Adultery.\n\n\Question: ' + user_message + '\nAnswer: ')
-            print(f'gpt-3.5-turbo recommended topic is {topic}')
-            quran_results = lookup_quran(topic)
-            quran_message = \
-f"""Here are some relevant verses from the Qur\'an.\n{quran_results}
-Use them to answer the next question from the user. Do not use external sources unless you are highly confident. Include the Arabic text and the English translation of any verse mentions.
-Example: Does the Qur'an mention rubies? 
-Answer: Yes, the Qur'an mentions rubies. 
-Verse: 55:58
-Arabic: كَأَنَّهُنَّ ٱلْيَاقُوتُ وَٱلْمَرْجَان 
+        prompt = 'Determine if the following question is about the Qur\'an. ' \
+                        'Examples: \n\n' \
+                        'Question: Does the Qur\'an mention rubies?\nAnswer: Yes\n\n'  \
+                        "Question: What does the Qur\'an say about the day of Judgement?\nAnswer: Yes\n\n" \
+                        'Question: What does Islam say about birthdays?\nAnswer: No\n\n' \
+                        'Question: I am tired.\nAnswer: No\n\n' \
+                        'Question: Is washing the knees obligatory?\n Answer: No\n\n' \
+                        'Question: ' + question + '\n' \
+                        'Answer: '
+        print(f'Prompt is: {prompt}')
+        quranic = oai.predict(prompt)
+        print(f'Result is: {quranic}')
+        return quranic.startswith('Yes')
+    
+    def quranic_results(user_message):
+        oai = OpenAI(temperature=0, model_name=MODEL)
+        prompt = f"""Extract the best query to use for a keyword search about the Qur\'an from the following question.
+
+Do not include the word Qur'an.
+Examples: 
+
+Question: Does the Qur'an mention rubies?
+Answer: rubies
+
+Question: What does the Qur'an say about adultery?
+Answer: Adultery
+
+Question: {user_message} 
+Answer: """ 
+        
+        topic = oai.predict(prompt)
+        print(f'gpt-3.5-turbo recommended topic is {topic}')
+        quran_results = lookup_quran(topic)
+        quran_message = """Here is some context from the Qur'an.
+
+""" + quran_results + """
+
+Use this context to answer the next question from the user.
+Do not use external sources unless you are highly confident. 
+Include the Arabic text and the English translation.
+
+Examples: 
+
+Question: Does the Qur'an mention corals? 
+
+Answer: Yes, the Qur'an mentions corals in ayah 55:22 in ayah 55:58.
+
+Ayah: 55:22
+Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
+English: From both of them emerge pearl and coral.
+
+Ayah 55:58
+Arabic: كَأَنَّهُنَّ ٱلْيَاقُوتُ وَٱلْمَرْجَان  
 English: As if they were rubies and coral.
 
-"""
-            print(f'Retrieved result:\n{quran_message}')
-            openai_history.append(AIMessage(content=quran_message))
-        else: 
-            quran_message = ''
+Question: Where in the Qur'an are elephants discussed? 
 
+Answer: The Qur'an discusses elephants in: 
+
+Ayah: 105:1
+Arabic: أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ بِأَصْحَابِ الْفِيلِ
+English: Have you not seen how your Lord dealt with the companions of the elephant?
+
+Question: """ + user_message
+        
+        return quran_message
+
+    def user(user_message, chatbot_ui, history, openai_history, my_id):
         openai_history.append(HumanMessage(content=user_message))
+        quranic = determine_quranic(user_message)
+        print(f'oai returned {quranic}')
+        if quranic: 
+            quran_message = quranic_results(user_message)
+            openai_history.append(AIMessage(content=quran_message))
         return gr.update(value=""), history + [[user_message, None]],  history + [[user_message, None]], openai_history, my_id
 
     def bot(chatbot_ui, history, openai_history, my_id):
@@ -159,9 +216,10 @@ English: As if they were rubies and coral.
         num_tokens = oai.get_num_tokens_from_messages(openai_history)
         print(f'Num tokens is: {num_tokens}')
         # Loop repeatedly cutting history til it's less
+        # Note: There is no need to trim the history. 
+        # We just need to trim the openAI history. 
         while num_tokens > MAX_LENGTH: 
             openai_history.pop(0)
-            history.pop(0)
             num_tokens = oai.get_num_tokens_from_messages(openai_history)
             print(f'Reduced num_tokens to {num_tokens}')
 
