@@ -26,49 +26,17 @@ from langchain.schema import (
     LLMResult,
     SystemMessage
 )
+from constants import (
+    GREETING, 
+    MAX_LENGTH, 
+    END, 
+    SYSTEM_MESSAGE, 
+    CSS, 
+    MODEL
+)
+from kalemat_api import KalematAPI
 import uuid
 
-MODEL = 'gpt-3.5-turbo'
-MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off midway. 
-
-END = '-- END --'
-
-SYSTEM_MESSAGE = """
-You are a helpful assistant. Your name is Ansari. You help Muslims become stronger in their faith. 
-Respond to questions with information drawn from the Hadith 
-and Qur'an and from the opinions of great scholars in the Sunni Islamic tradition like 
-Al Ghazali, Ibn Taymiyah, Imam Shafiee, Imam Nawawi, Imam Abu Hanifah, Ibn Hajr al Asqalani, 
-Ibn Hazm and others. You also draw from the work of modern Islamic scholars including Yusuf
-Al Qaradawi, Yasir Qadhi, Ma'in Al Qudah, Shu'aib Al Arnaout, Hamza Yusuf, Zaid Shakir and Yaser Birjas. 
-
-Be gentle, forbearing and non-judgemental. 
-
-Be particularly careful about something is obligatory or prohibited. Proofs are required to say something 
-is obligatory or prohibited. The proofs must directly support the assertion. 
-
-For example, if someone asks if washing the knees are part of wudu, there must be Qur'an or Hadith
-that specifically mentions washing the knees.
-
-Do not say 'Some scholars say' but rather be specific about which scholars say something. 
-
-Be concise. Do not embellish.  
-
-"""
-
-GREETING ="""Assalamu alaikum! My name is Ansari. I can help you with your questions about Islam.
-Ask me about: 
-- Dua to make in particular situation
-- Spiritual remedies for challenges you are facing. 
-- Islamic perspectives on topics
-
-But I still get things wrong sometimes. It is always best to consult a real Islamic Scholar. """
-
-
-CSS ="""
-.contain { display: flex; flex-direction: column; }
-#component-0 { height: 100%; }
-#chatbot { flex-grow: 1; }
-"""
 
 with gr.Blocks(title='Ansari', css=CSS) as demo:
 
@@ -92,6 +60,14 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
             self.q.put(END, my_id)
 
+
+    def pp_ayah_ka(ayah):
+        ayah_num = ayah['id']
+        ayah_ar = ayah['text']
+        ayah_en = ayah['en_text']
+        result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n'
+        return result
+
     def pp_ayah(doc_score):
         doc, score = doc_score
         # Ignore title matches
@@ -110,19 +86,17 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         return result
     
     def lookup_quran(question):
-        vs = Vectara()
-        results = vs.similarity_search_with_score(
-            query=question,
-            lambd_val=0.1)
+        ka = KalematAPI()
+        results = ka.search(question)
         #print(f'Results are {results}')
-        rstring = '\n'.join([pp_ayah(r) for r in results])
+        rstring = '\n'.join([pp_ayah_ka(r) for r in results])
         return rstring
         
 
     my_id = gr.State(get_new_id)
     history = gr.State([['', GREETING]])
     openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])
-    gr.Markdown(value="**News 2023-06-18**: Added automatic Qur'an search. Sign up for the [Google Group](http://walee.dk/asu) for updates/discussion!")
+    gr.Markdown(value="** News 2023-06-27 **: Improved Qur'an search quality thanks to Hossam Hassan and Amin Ahmad. May Allah bless them!")
     chatbot_ui = gr.Chatbot(value=[[None, GREETING]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
@@ -203,6 +177,7 @@ Question: """ + user_message
         print(f'oai returned {quranic}')
         if quranic: 
             quran_message = quranic_results(user_message)
+            print(f'quran message is: {quran_message}')
             openai_history.append(SystemMessage(content=quran_message))
         return gr.update(value=""), history + [[user_message, None]],  history + [[user_message, None]], openai_history, my_id
 
