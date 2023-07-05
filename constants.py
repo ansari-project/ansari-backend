@@ -1,4 +1,6 @@
 MODEL = 'gpt-3.5-turbo'
+STRONG_MODEL = 'gpt-4'
+ORG_ID = 'org-BfNO2cdUvbUJTkECzYL3v9g6'
 MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off midway. 
 
 END = '-- END --'

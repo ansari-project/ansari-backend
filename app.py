@@ -32,7 +32,9 @@ from constants import (
     END, 
     SYSTEM_MESSAGE, 
     CSS, 
-    MODEL
+    MODEL, 
+    STRONG_MODEL, 
+    ORG_ID
 )
 from kalemat_api import KalematAPI
 import uuid
@@ -190,7 +192,7 @@ Question: """ + user_message
 
     def bot(chatbot_ui, history, openai_history, my_id):
         q = SimpleQueue() 
-        oai = PromptLayerChatOpenAI(streaming=True, temperature=0, model_name=MODEL,
+        oai = PromptLayerChatOpenAI(streaming=True, temperature=0, model_name=STRONG_MODEL, openai_organization=ORG_ID, 
                     callbacks=[MyCBH(q)], pl_tags=[f'ansari-{my_id}'])
         #print(f'History is {history}')
         history[-1][1] =''
