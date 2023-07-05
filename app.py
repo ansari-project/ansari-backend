@@ -34,7 +34,8 @@ from constants import (
     CSS, 
     MODEL, 
     STRONG_MODEL, 
-    ORG_ID
+    ORG_ID,
+    NEWS
 )
 from kalemat_api import KalematAPI
 import uuid
@@ -98,7 +99,7 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
     my_id = gr.State(get_new_id)
     history = gr.State([['', GREETING]])
     openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])
-    gr.Markdown(value="**News 2023-06-27**: Improved Qur'an search quality thanks to Hossam Hassan and Amin Ahmad. May Allah bless them!")
+    gr.Markdown(value=NEWS)
     chatbot_ui = gr.Chatbot(value=[[None, GREETING]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
