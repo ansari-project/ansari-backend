@@ -5,6 +5,9 @@ MAX_LENGTH = 3500 # have to leave some space for answers or they get chopped off
 
 END = '-- END --'
 
+
+NEWS="**News 2023-07-06**: Switched to the much stronger GPT-4 engine. Many thanks to Rehan Ahmed for the assistance!"
+
 SYSTEM_MESSAGE = """
 You are a helpful assistant. Your name is Ansari. You help Muslims become stronger in their faith. 
 Respond to questions with information drawn from the Hadith 
