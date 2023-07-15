@@ -37,6 +37,7 @@ from constants import (
     NEWS
 )
 from kalemat_api import KalematAPI
+from quran_search import lookup_quran, determine_quranic, quranic_results
 import uuid
 
 
@@ -61,38 +62,6 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         
         def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
             self.q.put(END, my_id)
-
-
-    def pp_ayah_ka(ayah):
-        ayah_num = ayah['id']
-        ayah_ar = ayah['text']
-        ayah_en = ayah['en_text']
-        result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n'
-        return result
-
-    def pp_ayah(doc_score):
-        doc, score = doc_score
-        # Ignore title matches
-        if 'is_title' in doc.metadata and doc.metadata['is_title'] == 'true': 
-            return '' 
-        #ignore low scoring matches. 
-        if score < 0.2:
-            print(f'Dropped {doc.page_content} because of score: {score}')
-            return ''
-        print(f'Doc is {doc}')
-        verse_number = doc.metadata['title'] #re.findall('\d+:\d+', doc.metadata["breadcrumb"])[0]
-        #print('verse number is: ' + verse_number)
-        content = re.sub('\d+:\d+$', '', doc.page_content)
-        #print(f'Content is: {content}')
-        result = f'Ayah: {verse_number}\nEnglish: {content}\n'
-        return result
-    
-    def lookup_quran(question):
-        ka = KalematAPI()
-        results = ka.search(question)
-        #print(f'Results are {results}')
-        rstring = '\n'.join([pp_ayah_ka(r) for r in results])
-        return rstring
         
 
     my_id = gr.State(get_new_id)
@@ -104,81 +73,6 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
 
 
     state_vars = [history, openai_history, my_id]
-    def determine_quranic(question):
-        oai = OpenAI(temperature=0, model_name=MODEL)
-        prompt = 'Determine if the following question is about the Qur\'an. ' \
-                        'Examples: \n\n' \
-                        'Question: Does the Qur\'an mention rubies?\nAnswer: Yes\n\n'  \
-                        "Question: What does the Qur\'an say about the day of Judgement?\nAnswer: Yes\n\n" \
-                        'Question: What does Islam say about birthdays?\nAnswer: No\n\n' \
-                        'Question: I am tired.\nAnswer: No\n\n' \
-                        'Question: Is washing the knees obligatory?\n Answer: No\n\n' \
-                        'Question: Can I continue behind the imam in sajdah?\n Answer: No\n\n' \
-                        'Question: ' + question + '\n' \
-                        'Answer: '
-        print(f'Prompt is: {prompt}')
-        quranic = oai.predict(prompt)
-        print(f'Result is: {quranic}')
-        return quranic.startswith('Yes')
-    
-    def quranic_results(user_message):
-        oai = OpenAI(temperature=0, model_name=MODEL)
-        prompt = f"""Extract the best query to use for a keyword search about the Qur\'an from the following question.
-
-Do not include the word Qur'an.
-Examples: 
-
-Question: Does the Qur'an mention rubies?
-Answer: rubies
-
-Question: What does the Qur'an say about adultery?
-Answer: Adultery
-
-Question: {user_message} 
-Answer: """ 
-        
-        topic = oai.predict(prompt)
-        print(f'gpt-3.5-turbo recommended topic is {topic}')
-        quran_results = lookup_quran(topic)
-        quran_message = """Here is some context from the Qur'an.
-
-""" + quran_results + """
-
-Use this context to answer the next question from the user.
-Do not use external sources unless you are highly confident. 
-Include the Arabic text and the English translation.
-
-Also here are some facts to consider: 
-- Washing knees is definitely not part of wudu and there 
-is no evidence whatsoever in the Qur'an or Sunnah that says
-it is required, recommended or even optional. It would be considered 
-a bid'a -- an innovation -- to suggest otherwise. 
-
-Examples: 
-
-Question: Does the Qur'an mention corals? 
-
-Answer: Yes, the Qur'an mentions corals in ayah 55:22 in ayah 55:58.
-
-Ayah: 55:22
-Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
-English: From both of them emerge pearl and coral.
-
-Ayah 55:58
-Arabic: كَأَنَّهُنَّ ٱلْيَاقُوتُ وَٱلْمَرْجَان  
-English: As if they were rubies and coral.
-
-Question: Where in the Qur'an are elephants discussed? 
-
-Answer: The Qur'an discusses elephants in: 
-
-Ayah: 105:1
-Arabic: أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ بِأَصْحَابِ الْفِيلِ
-English: Have you not seen how your Lord dealt with the companions of the elephant?
-
-Question: """ + user_message
-        
-        return quran_message
 
     def user(user_message, chatbot_ui, history, openai_history, my_id):
         openai_history.append(HumanMessage(content=user_message))
@@ -192,7 +86,7 @@ Question: """ + user_message
 
     def bot(chatbot_ui, history, openai_history, my_id):
         q = SimpleQueue() 
-        oai = PromptLayerChatOpenAI(streaming=True, temperature=0, model_name=STRONG_MODEL,
+        oai = ChatOpenAI(streaming=True, temperature=0, model_name=STRONG_MODEL,
                     callbacks=[MyCBH(q)], pl_tags=[f'ansari-{my_id}'])
         #print(f'History is {history}')
         history[-1][1] =''
