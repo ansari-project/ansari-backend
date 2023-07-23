@@ -33,7 +33,8 @@ from constants import (
     SYSTEM_MESSAGE, 
     CSS, 
     MODEL, 
-    STRONG_MODEL, 
+    RICH_MODEL, 
+    RICH_MAX_LENGTH,
     NEWS
 )
 from kalemat_api import KalematAPI
@@ -86,8 +87,8 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
 
     def bot(chatbot_ui, history, openai_history, my_id):
         q = SimpleQueue() 
-        oai = ChatOpenAI(streaming=True, temperature=0, model_name=STRONG_MODEL,
-                    callbacks=[MyCBH(q)], pl_tags=[f'ansari-{my_id}'])
+        oai = ChatOpenAI(streaming=True, temperature=0, model_name=RICH_MODEL,
+                    callbacks=[MyCBH(q)])
         #print(f'History is {history}')
         history[-1][1] =''
         # Now we have to drop our history
@@ -96,7 +97,7 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         # Loop repeatedly cutting history til it's less
         # Note: There is no need to trim the history. 
         # We just need to trim the openAI history. 
-        while num_tokens > MAX_LENGTH: 
+        while num_tokens > RICH_MAX_LENGTH: 
             openai_history.pop(0)
             num_tokens = oai.get_num_tokens_from_messages(openai_history)
             print(f'Reduced num_tokens to {num_tokens}')
