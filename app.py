@@ -40,9 +40,13 @@ from constants import (
 from kalemat_api import KalematAPI
 from quran_search import lookup_quran, determine_quranic, quranic_results
 import uuid
+from hermetic.core.prompt_mgr import PromptMgr, Prompt
 
 
 with gr.Blocks(title='Ansari', css=CSS) as demo:
+    pm = PromptMgr(hot_reload=True)
+    system_msg = pm.bind('system_msg')
+    greeting = pm.bind('greeting')
 
     def get_new_id():
         return str(uuid.uuid4())
@@ -66,10 +70,10 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
         
 
     my_id = gr.State(get_new_id)
-    history = gr.State([['', GREETING]])
-    openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])
+    history = gr.State([['', greeting.render()]])
+    openai_history = gr.State([SystemMessage(content=system_msg.render()), AIMessage(content=GREETING)])
     gr.Markdown(value=NEWS)
-    chatbot_ui = gr.Chatbot(value=[[None, GREETING]],elem_id="chatbot")
+    chatbot_ui = gr.Chatbot(value=[[None, greeting.render()]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
 
