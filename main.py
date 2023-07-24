@@ -1,7 +1,7 @@
 from hermetic.presenters.gradio_presenter import GradioPresenter
-from agents.ansari_agent import AnsariAgent
+from agents.ansari import Ansari
 
-ta = AnsariAgent()
+ta = Ansari()
 gp = GradioPresenter(app_name='Ansari')
 
 gp.present(ta)
