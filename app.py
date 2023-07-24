@@ -27,15 +27,12 @@ from langchain.schema import (
     SystemMessage
 )
 from constants import (
-    GREETING, 
     MAX_LENGTH, 
     END, 
-    SYSTEM_MESSAGE, 
     CSS, 
     MODEL, 
     RICH_MODEL, 
     RICH_MAX_LENGTH,
-    NEWS
 )
 from kalemat_api import KalematAPI
 from quran_search import lookup_quran, determine_quranic, quranic_results
@@ -47,6 +44,7 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
     pm = PromptMgr(hot_reload=True)
     system_msg = pm.bind('system_msg')
     greeting = pm.bind('greeting')
+    news = pm.bind('news')
 
     def get_new_id():
         return str(uuid.uuid4())
@@ -71,8 +69,8 @@ with gr.Blocks(title='Ansari', css=CSS) as demo:
 
     my_id = gr.State(get_new_id)
     history = gr.State([['', greeting.render()]])
-    openai_history = gr.State([SystemMessage(content=system_msg.render()), AIMessage(content=GREETING)])
-    gr.Markdown(value=NEWS)
+    openai_history = gr.State([SystemMessage(content=system_msg.render()), AIMessage(content=greeting.render())])
+    gr.Markdown(value=news.render)
     chatbot_ui = gr.Chatbot(value=[[None, greeting.render()]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
