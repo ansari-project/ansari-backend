@@ -1,0 +1,12 @@
+.vscode/
+bin/
+lib/
+share/
+.env
+*.pyc
+pyvenv.cfg
+example_projects/
+abandoned/
+data/
+datasources/
+etc/

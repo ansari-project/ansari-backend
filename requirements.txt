@@ -5,4 +5,5 @@ openai
 tiktoken
 anthropic
 rich
+git+https://github.com/anyscale/hermetic.git
 
