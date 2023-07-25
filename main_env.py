@@ -10,7 +10,7 @@ from hermetic.core.prompt_mgr import PromptMgr
 # Note: I am hoping this will be migrated to a config file
 # in the future. But for now this is code-as-configuration. 
 
-env = Environment(presenter = GradioPresenter(app_name='Ansari'),
+env = Environment(presenter = GradioPresenter(app_name='Ansari', favicon_path='./favicon.ico'),
                   store =  FileStore(root_dir = 'ansari-stores'), 
                   prompt_mgr = PromptMgr(hot_reload=True))
 
