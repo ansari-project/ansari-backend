@@ -3,9 +3,13 @@ import os
 from constants import KALEMAT_BASE_URL
 from hermetic.core.tool import Tool
 
+NAME = 'kalemat'
 class Kalemat(Tool):
 
-    def __init__(self):
+    def __init__(self, env):
+        super().__init__(env = env)
+        self.env.add_tool(NAME, self)
+
         self.api_key = os.environ.get('KALEMAT_API_KEY')
         self.base_url = KALEMAT_BASE_URL # replace with actual base url
     
@@ -28,11 +32,11 @@ class Kalemat(Tool):
     
     def run_as_string(self, query: str, numResults: int=5,getText: int=1):
         def pp_ayah(ayah):
-            ayah_num = ayah['id']
-            ayah_ar = ayah['text']
-            ayah_en = ayah['en_text']
-            result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n'
-            return result
+                ayah_num = ayah['id']
+                ayah_ar = ayah['text']
+                ayah_en = ayah['en_text']
+                result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n'
+                return result
         results =  self.run(query, numResults, getText)
         rstring = '\n'.join([pp_ayah(r) for r in results])
         return rstring
