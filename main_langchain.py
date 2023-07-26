@@ -1,5 +1,5 @@
 from hermetic.presenters.gradio_presenter import GradioPresenter
-from agents.ansari import Ansari
+from agents.ansari_langchain import AnsariLangchain
 from agents.quran_decider import QuranDecider
 from agents.query_extractor import QueryExtractor
 from tools.kalemat import Kalemat
@@ -14,8 +14,8 @@ env = Environment(store =  FileStore(root_dir = 'ansari-stores'),
                   prompt_mgr = PromptMgr(hot_reload=True))
 
 # This work involves 3 agents, with Ansari as primary. 
-ansari = Ansari(env)
-env.set_primary_agent('ansari')
+ansari = AnsariLangchain(env)
+env.set_primary_agent('ansari-langchain')
 decider = QuranDecider(env)
 query_extractor = QueryExtractor(env)
 

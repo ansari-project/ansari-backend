@@ -1,22 +1,22 @@
-from hermetic.agents.openai_chat_agent import OpenAIChatAgent
+from hermetic.agents.langchain_chat_agent import LangchainChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
 from constants import MODEL, RICH_MODEL
 from tools.kalemat import Kalemat
+from langchain.chat_models import ChatOpenAI
 
-NAME = 'ansari'
-class Ansari(OpenAIChatAgent): 
+from langchain.schema import SystemMessage, HumanMessage
+
+NAME = 'ansari-langchain'
+class AnsariLangchain(LangchainChatAgent): 
     def __init__(self, env):
-        super().__init__(model = 'gpt-4',
-            environment = env, id=NAME)
+        super().__init__(environment = env, id=NAME)
         env.add_agent(NAME, self)
         self.pm = self.env.prompt_mgr
         sys_msg = self.pm.bind('system_msg')
+        self.llm = ChatOpenAI(temperature=0, model_name='gpt-4', streaming=True)
         
 
-        self.message_history = [{
-            'role': 'system',
-            'content': sys_msg.render()
-        }]
+        self.message_history = [SystemMessage(content=sys_msg.render())]
         
     def greet(self):
         self.greeting = self.pm.bind('greeting')
@@ -37,15 +37,8 @@ class Ansari(OpenAIChatAgent):
             eq = self.pm.bind('ansari_expanded_query')
             expanded_query = eq.render(quran_results=results, user_question=inp)
             print(f'expanded query is {expanded_query}')
-            self.message_history.append({
-                'role': 'user', 
-                'content': expanded_query
-                })
-
+            self.message_history.append(HumanMessage(content=expanded_query))
         else: 
-            self.message_history.append({
-                'role': 'user', 
-                'content': inp
-                })
+            self.message_history.append(HumanMessage(content=inp))
 
 

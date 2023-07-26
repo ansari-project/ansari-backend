@@ -1,2 +1,2 @@
-web: source setup.sh && python main_env.py
+web: source setup.sh && python main_langchain.py
 

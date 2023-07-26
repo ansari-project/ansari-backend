@@ -5,7 +5,7 @@ from constants import MODEL, RICH_MODEL
 NAME = 'query_extractor'
 class QueryExtractor(OpenAIChatAgent): 
     def __init__(self, env):
-        super().__init__(model = 'gpt-3.5-turbo', environment = env)
+        super().__init__(model = 'gpt-3.5-turbo', environment = env, id=NAME)
         self.env.add_agent(NAME, self)
         self.extract = self.env.prompt_mgr.bind('extract_query_from_question')
         
