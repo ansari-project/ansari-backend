@@ -4,7 +4,9 @@ from constants import MODEL, RICH_MODEL
 from tools.kalemat import Kalemat
 from langchain.chat_models import ChatOpenAI
 
+
 from langchain.schema import SystemMessage, HumanMessage
+
 
 NAME = 'ansari-langchain'
 class AnsariLangchain(LangchainChatAgent): 
@@ -14,7 +16,6 @@ class AnsariLangchain(LangchainChatAgent):
         self.pm = self.env.prompt_mgr
         sys_msg = self.pm.bind('system_msg')
         self.llm = ChatOpenAI(temperature=0, model_name='gpt-4', streaming=True)
-        
 
         self.message_history = [SystemMessage(content=sys_msg.render())]
         
@@ -40,5 +41,6 @@ class AnsariLangchain(LangchainChatAgent):
             self.message_history.append(HumanMessage(content=expanded_query))
         else: 
             self.message_history.append(HumanMessage(content=inp))
+        print(f'Message history is: {self.message_history}')
 
 
