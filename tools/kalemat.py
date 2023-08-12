@@ -1,6 +1,6 @@
 import requests
 import os
-from .constants import KALEMAT_BASE_URL
+from ..constants import KALEMAT_BASE_URL
 from hermetic.core.tool import Tool
 
 NAME = 'kalemat'
