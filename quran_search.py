@@ -1,6 +1,6 @@
 from kalemat_api import KalematAPI
 from langchain.llms import OpenAI
-from constants import MODEL
+from .constants import MODEL
 
 def lookup_quran(query):
     ka = KalematAPI()
