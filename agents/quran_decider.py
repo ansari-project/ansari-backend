@@ -1,6 +1,6 @@
 from hermetic.agents.openai_chat_agent import OpenAIChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
-from constants import MODEL, RICH_MODEL
+from ..constants import MODEL, RICH_MODEL
 
 NAME = 'quran_decider'
 class QuranDecider(OpenAIChatAgent): 

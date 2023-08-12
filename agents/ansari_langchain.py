@@ -1,6 +1,6 @@
 from hermetic.agents.langchain_chat_agent import LangchainChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
-from constants import MODEL, RICH_MODEL
+from ..constants import MODEL, RICH_MODEL
 from tools.kalemat import Kalemat
 from langchain.chat_models import ChatOpenAI
 
