@@ -27,49 +27,30 @@ from langchain.schema import (
     SystemMessage
 )
 from constants import (
-    GREETING, 
     MAX_LENGTH, 
     END, 
-    SYSTEM_MESSAGE, 
     CSS, 
     MODEL, 
     RICH_MODEL, 
     RICH_MAX_LENGTH,
-    NEWS
 )
-from kalemat_api import KalematAPI
-from quran_search import lookup_quran, determine_quranic, quranic_results
+from tools.kalemat_api import KalematAPI
 import uuid
+from hermetic.core.prompt_mgr import PromptMgr, Prompt
 
 
 with gr.Blocks(title='Ansari', css=CSS) as demo:
+    pm = PromptMgr(hot_reload=True)
+    system_msg = pm.bind('system_msg')
+    greeting = pm.bind('greeting')
+    news = pm.bind('news')
 
     def get_new_id():
         return str(uuid.uuid4())
     
-    class MyCBH(BaseCallbackHandler):
-        def __init__(self, q):
-            self.q = q
-
-        def on_llm_new_token(
-            self,
-            token,
-            *,
-            run_id,
-            parent_run_id = None,
-            **kwargs,
-        ) -> None:
-            self.q.put(token,my_id)
-        
-        def on_llm_end(self, response, *, run_id, parent_run_id, **kwargs):
-            self.q.put(END, my_id)
-        
-
     my_id = gr.State(get_new_id)
-    history = gr.State([['', GREETING]])
-    openai_history = gr.State([SystemMessage(content=SYSTEM_MESSAGE), AIMessage(content=GREETING)])
-    gr.Markdown(value=NEWS)
-    chatbot_ui = gr.Chatbot(value=[[None, GREETING]],elem_id="chatbot")
+    gr.Markdown(value=news.render)
+    chatbot_ui = gr.Chatbot(value=[[None, greeting.render()]],elem_id="chatbot")
     msg_ui = gr.Textbox(show_label=False) 
 
 
