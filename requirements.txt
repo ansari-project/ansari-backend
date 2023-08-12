@@ -1,5 +1,5 @@
 gradio==3.34.0
-gradio_client==0.2.5
+gradio_client>=0.2.5
 langchain
 openai
 tiktoken
