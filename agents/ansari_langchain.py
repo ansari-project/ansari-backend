@@ -37,10 +37,8 @@ class AnsariLangchain(LangchainChatAgent):
             print(f'kalemat returned {results}')
             eq = self.pm.bind('ansari_expanded_query')
             expanded_query = eq.render(quran_results=results, user_question=inp)
-            print(f'expanded query is {expanded_query}')
+            #print(f'expanded query is {expanded_query}')
             self.message_history.append(HumanMessage(content=expanded_query))
         else: 
             self.message_history.append(HumanMessage(content=inp))
-        print(f'Message history is: {self.message_history}')
-
 

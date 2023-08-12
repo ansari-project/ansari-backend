@@ -3,7 +3,7 @@ gradio_client==0.2.5
 langchain
 openai
 tiktoken
-anthropic
 rich
+pyislam
 git+https://github.com/anyscale/hermetic.git
 

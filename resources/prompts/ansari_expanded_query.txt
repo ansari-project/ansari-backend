@@ -6,12 +6,6 @@ Use this context to answer the next question from the user.
 Do not use external sources unless you are highly confident. 
 Include the Arabic text and the English translation.
 
-Also here are some facts to consider: 
-- Washing knees is definitely not part of wudu and there 
-is no evidence whatsoever in the Qur'an or Sunnah that says
-it is required, recommended or even optional. It would be considered 
-a bid'a -- an innovation -- to suggest otherwise. 
-
 Examples: 
 
 Question: Does the Qur'an mention corals? 
