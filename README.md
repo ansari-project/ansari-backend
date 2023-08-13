@@ -21,7 +21,7 @@ It is not always correct and can get things wrong.  The list below includes some
 
 * It is **very good** at languages and you can freely switch languages between Arabic, English and many other languages. 
 * It is **very good** at writing khutbahs (some people have ranked it better than many human khateebs). 
-* It is **very good **in its knowledge of Islamic books and scholars (e.g. ask it for a summary of _Madaarij al Saalikeen_, or ask it about _Fath Al Bari_).  
+* It is **very good** in its knowledge of Islamic books and scholars (e.g. ask it for a summary of _Madaarij al Saalikeen_, or ask it about _Fath Al Bari_).  
 * It is **good** at finding dua to read in particular situations. 
 * It is **good** for consoling yourself in times of hardship (though it can be a bit repetitive). 
 * It is **good** at identifying a topic as controversial amongst scholars (e.g. music) and will generally give an overview of all opinions. 
@@ -62,7 +62,7 @@ This roadmap is preliminary, but it gives you an idea of where Ansari is heading
 * Add prayer times. 
 * Add login support
 * Add personalization – remembers who you are, what scholars you turn to etc.
-* Separate frontend from backend in preparation for mobile app. 
+* ~~Separate frontend from backend in preparation for mobile app.~~
 * Replace Gradio interface with Flutter. 
 * Ship Android and iOS versions of Ansari. 
 * Add notifications (e.g. around prayer times). 
