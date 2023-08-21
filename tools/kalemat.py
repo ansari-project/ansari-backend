@@ -1,8 +1,8 @@
 import requests
 import os
-from ..constants import KALEMAT_BASE_URL
 from hermetic.core.tool import Tool
 
+KALEMAT_BASE_URL='https://api.kalimat.dev/search'
 NAME = 'kalemat'
 class Kalemat(Tool):
 
@@ -11,7 +11,7 @@ class Kalemat(Tool):
         self.env.add_tool(NAME, self)
 
         self.api_key = os.environ.get('KALEMAT_API_KEY')
-        self.base_url = KALEMAT_BASE_URL # replace with actual base url
+        self.base_url = KALEMAT_BASE_URL 
     
     def run(self, query: str, numResults: int=5,getText: int=1):
 

@@ -1,6 +1,5 @@
 from hermetic.agents.openai_chat_agent import OpenAIChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
-from constants import MODEL, RICH_MODEL
 from tools.kalemat import Kalemat
 
 NAME = 'ansari'

@@ -5,10 +5,3 @@ RICH_MAX_LENGTH = 7500
 
 END = '-- END --'
 
-CSS ="""
-.contain { display: flex; flex-direction: column; }x
-#component-0 { height: 100%; }
-#chatbot { flex-grow: 1; }
-"""
-
-KALEMAT_BASE_URL='https://api.kalimat.dev/search'
