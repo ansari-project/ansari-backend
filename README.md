@@ -33,8 +33,7 @@ It is not always correct and can get things wrong.  The list below includes some
 
 
 * It is **not good** at Islamic dates, prayer times, etc. This could be fixed, we just haven’t built it yet. 
-* While Ansari is OK at quoting hadith, sometimes the hadith it quotes do not prove the logical point being asserted (e.g. it will quote the hadith about how to do wudu and use it to say that it encourages washing the knees even though knees are not mentioned in the hadith). In some cases it will not quote Hadith correctly. **Please verify references to hadith for now. We are working on fixing this. **
-* Sometimes has strange ideas (e.g. washing knees is part of wudu). 
+* While Ansari is OK at quoting hadith, sometimes the hadith it quotes do not prove the logical point being asserted. In addition while it usually gets hadith quotes correct (the hadith usually exists), the citation of the source is sometimes off (e.g. if it says Hadith Muslim number 3456, the hadith exists, but 3456 might be another hadith).  
 * It is **not good** at complex calculations (e.g. edge cases of inheritance or zakat) or counting (e.g. how many ayahs of the Qur’an mention X). 
 
 
@@ -56,7 +55,7 @@ This roadmap is preliminary, but it gives you an idea of where Ansari is heading
 * Add feedback buttons to the UI (thumbs up, thumbs down, explanation)
 * Add “share” button to the UI that captures a conversation and gives you a URL for it to share with friends. 
 * Add “share Ansari” web site. 
-* Improve logging of chats – move away from PromptLayer. 
+* ~~Improve logging of chats – move away from PromptLayer.~~
 * Add Hadith Search. 
 * Improve source citation. 
 * Add prayer times. 
