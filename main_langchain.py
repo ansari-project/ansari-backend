@@ -10,6 +10,12 @@ from hermetic.core.prompt_mgr import PromptMgr
 # Note: I am hoping this will be migrated to a config file
 # in the future. But for now this is code-as-configuration. 
 
+CSS ="""
+.contain { display: flex; flex-direction: column; }x
+#component-0 { height: 100%; }
+#chatbot { flex-grow: 1; }
+"""
+
 env = Environment(store =  FileStore(root_dir = 'ansari-stores'), 
                   prompt_mgr = PromptMgr(hot_reload=True))
 

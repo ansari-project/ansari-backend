@@ -1,11 +1,11 @@
 from hermetic.agents.openai_chat_agent import OpenAIChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
-from ..constants import MODEL, RICH_MODEL
 
+MODEL = 'gpt-3.5-turbo'
 NAME = 'quran_decider'
 class QuranDecider(OpenAIChatAgent): 
     def __init__(self, env):
-        super().__init__(model = 'gpt-3.5-turbo', environment = env, id=NAME)
+        super().__init__(model = MODEL, environment = env, id=NAME)
 
         self.env = env
         self.env.add_agent(NAME, self)

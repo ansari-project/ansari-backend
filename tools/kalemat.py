@@ -41,9 +41,6 @@ class Kalemat(Tool):
         rstring = '\n'.join([pp_ayah(r) for r in results])
         return rstring
 
-
-
-
 # Example usage:
 #api = KalematAPI() 
 #result = api.search(query='Coral', numResults=10)

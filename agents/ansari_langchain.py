@@ -1,13 +1,12 @@
 from hermetic.agents.langchain_chat_agent import LangchainChatAgent
 from hermetic.core.prompt_mgr import PromptMgr
-from ..constants import MODEL, RICH_MODEL
 from tools.kalemat import Kalemat
 from langchain.chat_models import ChatOpenAI
 
 
 from langchain.schema import SystemMessage, HumanMessage
 
-
+MODEL = 'gpt-4'
 NAME = 'ansari-langchain'
 class AnsariLangchain(LangchainChatAgent): 
     def __init__(self, env):
@@ -15,7 +14,7 @@ class AnsariLangchain(LangchainChatAgent):
         env.add_agent(NAME, self)
         self.pm = self.env.prompt_mgr
         sys_msg = self.pm.bind('system_msg')
-        self.llm = ChatOpenAI(temperature=0, model_name='gpt-4', streaming=True)
+        self.llm = ChatOpenAI(temperature=0, model_name=MODEL, streaming=True)
 
         self.message_history = [SystemMessage(content=sys_msg.render())]
         
@@ -24,6 +23,7 @@ class AnsariLangchain(LangchainChatAgent):
         return self.greeting.render()
     
     def update_message_history(self, inp): 
+        
         quran_decider = self.env.agents['quran_decider']
         result = quran_decider.process_all(inp)
         print(f'quran decider returned {result}')
