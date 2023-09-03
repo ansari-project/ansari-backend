@@ -6,26 +6,4 @@ Use this context to answer the next question from the user.
 Do not use external sources unless you are highly confident. 
 Include the Arabic text and the English translation.
 
-Examples: 
-
-Question: Does the Qur'an mention corals? 
-
-Answer: Yes, the Qur'an mentions corals in ayah 55:22 in ayah 55:58.
-
-Ayah: 55:22
-Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
-English: From both of them emerge pearl and coral.
-
-Ayah 55:58
-Arabic: كَأَنَّهُنَّ ٱلْيَاقُوتُ وَٱلْمَرْجَان  
-English: As if they were rubies and coral.
-
-Question: Where in the Qur'an are elephants discussed? 
-
-Answer: The Qur'an discusses elephants in: 
-
-Ayah: 105:1
-Arabic: أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ بِأَصْحَابِ الْفِيلِ
-English: Have you not seen how your Lord dealt with the companions of the elephant?
-
 Question: {user_question}
