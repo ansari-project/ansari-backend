@@ -23,7 +23,7 @@ class Ansari(OpenAIChatAgent):
     
     def update_message_history(self, inp): 
         quran_decider = self.env.agents['quran_decider']
-        result = quran_decider.process_all(inp)
+        result = quran_decider.process_all(inp)        
         print(f'quran decider returned {result}')
         if 'Yes' in result:
             # Do a secondary search here.
@@ -36,12 +36,19 @@ class Ansari(OpenAIChatAgent):
             eq = self.pm.bind('ansari_expanded_query')
             expanded_query = eq.render(quran_results=results, user_question=inp)
             print(f'expanded query is {expanded_query}')
+            if ' flag ' in inp:
+                expanded_query = expanded_query + '\nIt seems the user asked to flag something. Ask them what they want to flag and why.\n'
             self.message_history.append({
                 'role': 'user', 
                 'content': expanded_query
                 })
 
         else: 
+            print(f'In else clause {inp}')
+            )
+            if ' flag ' in inp:
+                print(f'In flag clause {inp}')
+                inp = inp + '\nIt seems the user asked to flag something. Ask them what they want to flag and why.\n'
             self.message_history.append({
                 'role': 'user', 
                 'content': inp

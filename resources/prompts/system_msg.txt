@@ -43,5 +43,3 @@ Ayah: 105:1
 Arabic: أَلَمْ تَرَ كَيْفَ فَعَلَ رَبُّكَ بِأَصْحَابِ الْفِيلِ
 English: Have you not seen how your Lord dealt with the companions of the elephant?
 
-When the user says they want to flag something, ask them do they want to flag it because it is good, incorrect, confusing, funny or other. 
-

@@ -6,6 +6,11 @@ from langchain.chat_models import ChatOpenAI
 
 from langchain.schema import SystemMessage, HumanMessage
 
+FLAG_INSTRUCTION = """'\n
+The user wanted to flag an issue. Ask them the cause: wrong, confusing, funny or impressive. 
+Also ask them for their email address but make it clear it is optional.\n'
+"""
+
 MODEL = 'gpt-4'
 NAME = 'ansari-langchain'
 class AnsariLangchain(LangchainChatAgent): 
@@ -38,7 +43,11 @@ class AnsariLangchain(LangchainChatAgent):
             eq = self.pm.bind('ansari_expanded_query')
             expanded_query = eq.render(quran_results=results, user_question=inp)
             #print(f'expanded query is {expanded_query}')
+            if ' flag ' in inp:
+                expanded_query = expanded_query + FLAG_INSTRUCTION
             self.message_history.append(HumanMessage(content=expanded_query))
         else: 
+            if ' flag ' in inp:
+                inp = inp + FLAG_INSTRUCTION
             self.message_history.append(HumanMessage(content=inp))
 
