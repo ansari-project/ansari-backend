@@ -42,7 +42,10 @@ class MyClient(discord.Client):
                 print(f'Elapsed time: {et}')
                 if et > 3:
                     print('Enough time has passed. Sending message so far.')
-                    await msg.edit(content=msg_so_far)
+                    if msg_so_far:
+                        await msg.edit(content=msg_so_far)
+                    else: 
+                        print(f'For some reason response was empty. {msg_so_far}, {et}')
                     st = time.time()
             if msg_so_far:
                 await msg.edit(content=msg_so_far)
