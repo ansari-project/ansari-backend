@@ -5,5 +5,7 @@ openai
 tiktoken
 rich
 pyislam
+discord.py
 git+https://github.com/anyscale/hermetic.git
+
 
