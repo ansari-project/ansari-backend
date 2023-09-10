@@ -10,6 +10,7 @@ from hermetic.stores.file_store import FileStore
 from hermetic.core.prompt_mgr import PromptMgr
 from hermetic.core.presenter import Presenter
 import time
+import copy
 
 
 load_dotenv('/Users/mwk/Development/ansari/.env')
@@ -26,13 +27,14 @@ class MyClient(discord.Client):
     async def on_message(self, message):
         if message.author == self.user:
             return
-        agent = self.env.agents[self.env.primary_agent]
+        agent = copy.deepcopy(self.env.agents[self.env.primary_agent])
         print(f'User said: {message.content} and mentioned {message.mentions}')
         st = time.time() 
         if isinstance(message.channel,discord.channel.DMChannel) or \
+        message.content.startswith('<@&1150526640552673324>') or \
         (message.mentions and message.mentions[0] and message.mentions[0].name == 'Ansari'):
             msg = await message.channel.send(f'Thinking, {message.author}...')
-            msg_so_far = 'Thinking ... ' 
+            msg_so_far = '' 
             for token in agent.process_input(message.content): 
                 msg_so_far = msg_so_far + token
                 print(f'Message so far: {msg_so_far}')
@@ -42,7 +44,10 @@ class MyClient(discord.Client):
                     print('Enough time has passed. Sending message so far.')
                     await msg.edit(content=msg_so_far)
                     st = time.time()
-            await msg.edit(content=msg_so_far)
+            if msg_so_far:
+                await msg.edit(content=msg_so_far)
+            else: 
+                await msg.edit(content='Something went wrong. Flagging.')
         else:
             print(f'Got a message. Not for me: {message.content}')
     
