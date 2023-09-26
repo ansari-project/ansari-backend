@@ -88,4 +88,5 @@ class AnsariLangchain(LangchainChatAgent):
         num_tokens = len(self.tiktoken_encoding.encode(msg.content))
         self.message_history_token_counts.append(num_tokens)
         self.message_history_tokens_total += num_tokens
+        return msg
 
