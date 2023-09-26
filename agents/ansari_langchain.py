@@ -1,3 +1,4 @@
+import logging
 from typing import Union
 
 import tiktoken
@@ -10,6 +11,8 @@ from langchain.chat_models import ChatOpenAI
 
 
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
+
+LOG = logging.getLogger(__name__)
 
 FLAG_INSTRUCTION = """'\n
 The user wanted to flag an issue. Ask them the cause: wrong, confusing, funny or impressive. 
@@ -39,10 +42,15 @@ class AnsariLangchain(LangchainChatAgent):
 
         See: https://help.openai.com/en/articles/7127966-what-is-the-difference-between-the-gpt-4-models
         """
-        if self.message_history_tokens_total > 8000:
+        if self.message_history_tokens_total < 8000:
+            return self.llm_8k
+        elif self.message_history_tokens_total < 32000:
             return self.llm_32k
         else:
-            return self.llm_8k
+            LOG.debug(
+                f"The conversation became too long, and we should summarize it: {self.message_history_tokens_total}."
+            )
+            raise Exception("The conversation became too long")
 
     def greet(self):
         self.greeting = self.pm.bind('greeting')
