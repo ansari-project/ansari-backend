@@ -6,6 +6,6 @@ tiktoken
 rich
 pyislam
 discord.py
-git+https://github.com/anyscale/hermetic.git
+git+https://github.com/younos-anaga/hermetic.git@use-gpt-large-context-window-as-needed
 
 
