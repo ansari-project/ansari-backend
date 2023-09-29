@@ -56,8 +56,7 @@ class AnsariLangchain(LangchainChatAgent):
         self.greeting = self.pm.bind('greeting')
         return self.greeting.render()
 
-    def update_message_history(self, inp):
-
+    def create_human_message_for_input(self, inp) -> HumanMessage:
         quran_decider = self.env.agents['quran_decider']
         result = quran_decider.process_all(inp)
         print(f'quran decider returned {result}')
@@ -74,19 +73,18 @@ class AnsariLangchain(LangchainChatAgent):
             #print(f'expanded query is {expanded_query}')
             if ' flag ' in inp:
                 expanded_query = expanded_query + FLAG_INSTRUCTION
-            self.message_history.append(HumanMessage(content=expanded_query))
+            return HumanMessage(content=expanded_query)
         else:
             if ' flag ' in inp:
                 inp = inp + FLAG_INSTRUCTION
-            self.message_history.append(HumanMessage(content=inp))
+            return HumanMessage(content=inp)
 
-    def on_message_history_append(self,  msg: Union[AIMessage, HumanMessage, SystemMessage]):
+    def update_message_history(self, msg: Union[AIMessage, HumanMessage, SystemMessage]):
         """Add the number of tokens in the new message to the counts of tokens and to the total tokens of the history.
 
         Follows https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
         """
+        super().update_message_history(msg)
         num_tokens = len(self.tiktoken_encoding.encode(msg.content))
         self.message_history_token_counts.append(num_tokens)
         self.message_history_tokens_total += num_tokens
-        return msg
-
