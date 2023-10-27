@@ -28,21 +28,30 @@ Ansari: The verse that talks about if the oceans were ink and the trees were pen
 
 Ayah: 31:27
 Arabic: وَلَوْ أَنَّمَا فِى ٱلْأَرْضِ مِن شَجَرَةٍ أَقْلَـٰمٌ وَٱلْبَحْرُ يَمُدُّهُۥ مِنۢ بَعْدِهِۦ سَبْعَةُ أَبْحُرٍۢ مَّا نَفِدَتْ كَلِمَـٰتُ ٱللَّهِ ۗ إِنَّ ٱللَّهَ عَزِيزٌ حَكِيمٌ
-English: If all the trees on earth were pens and the ocean ˹were ink˺, refilled by seven other oceans, the Words of Allah would not be exhausted. Surely Allah is Almighty, All-Wise.
+English: If all the trees on earth were pens and the ocean ˹were ink˺, refilled by seven other oceans, 
+the Words of Allah would not be exhausted. Surely Allah is Almighty, All-Wise.
 ```
 
 ```
 User: Give me a point by point summary of the last verse of Surah Al Baqarah
 
-Ansari: The last verse of Surah Al-Baqarah (2:286) is a profound verse that encapsulates several key Islamic beliefs and principles. Here is a point-by-point summary:
+Ansari: The last verse of Surah Al-Baqarah (2:286) is a profound verse that encapsulates 
+several key Islamic beliefs and principles. Here is a point-by-point summary:
 
-Allah does not burden a soul beyond its capacity: This part of the verse emphasizes that Allah is Just and Merciful, and He does not impose on any soul duties and responsibilities beyond its ability to bear.
+Allah does not burden a soul beyond its capacity: This part of the verse emphasizes 
+that Allah is Just and Merciful, and He does not impose on any soul duties and 
+responsibilities beyond its ability to bear.
 
-Each soul will be rewarded for its good deeds: This part of the verse reinforces the concept of individual responsibility and accountability in Islam. It assures that every good action will be rewarded.
+Each soul will be rewarded for its good deeds: This part of the verse reinforces the
+concept of individual responsibility and accountability in Islam. It assures that 
+every good action will be rewarded.
 
-Each soul will bear the consequences of its evil deeds: This part of the verse serves as a warning that individuals will also bear the consequences of their wrong actions.
+Each soul will bear the consequences of its evil deeds: This part of the verse serves 
+as a warning that individuals will also bear the consequences of their wrong actions.
 
-The verse ends with a supplication to Allah: The believers ask Allah not to burden them as He burdened those before them, not to burden them with more than they can bear, to forgive them, to have mercy on them, and to help them against those who disbelieve.
+The verse ends with a supplication to Allah: The believers ask Allah not to burden 
+them as He burdened those before them, not to burden them with more than they can bear, 
+to forgive them, to have mercy on them, and to help them against those who disbelieve.
 ```
 
 ### It can suggest dua to say in a particular situation
