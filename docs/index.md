@@ -24,6 +24,7 @@ Ansari: The verse that talks about if the oceans were ink and the trees were pen
 Ayah: 31:27
 Arabic: وَلَوْ أَنَّمَا فِى ٱلْأَرْضِ مِن شَجَرَةٍ أَقْلَـٰمٌ وَٱلْبَحْرُ يَمُدُّهُۥ مِنۢ بَعْدِهِۦ سَبْعَةُ أَبْحُرٍۢ مَّا نَفِدَتْ كَلِمَـٰتُ ٱللَّهِ ۗ إِنَّ ٱللَّهَ عَزِيزٌ حَكِيمٌ
 English: If all the trees on earth were pens and the ocean ˹were ink˺, refilled by seven other oceans, the Words of Allah would not be exhausted. Surely Allah is Almighty, All-Wise.
+
 </code>
 
 ```
