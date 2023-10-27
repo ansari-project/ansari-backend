@@ -16,7 +16,7 @@ Ansari is a chatbot designed to help answer non-Muslims' questions about Islam a
 
 You can ask it questions like this: 
 
-``` 
+<code> 
 User: What is the verse that talks about if the oceans were ink and the trees were pens? 
 
 Ansari: The verse that talks about if the oceans were ink and the trees were pens is found in Surah Luqman:
@@ -24,7 +24,7 @@ Ansari: The verse that talks about if the oceans were ink and the trees were pen
 Ayah: 31:27
 Arabic: وَلَوْ أَنَّمَا فِى ٱلْأَرْضِ مِن شَجَرَةٍ أَقْلَـٰمٌ وَٱلْبَحْرُ يَمُدُّهُۥ مِنۢ بَعْدِهِۦ سَبْعَةُ أَبْحُرٍۢ مَّا نَفِدَتْ كَلِمَـٰتُ ٱللَّهِ ۗ إِنَّ ٱللَّهَ عَزِيزٌ حَكِيمٌ
 English: If all the trees on earth were pens and the ocean ˹were ink˺, refilled by seven other oceans, the Words of Allah would not be exhausted. Surely Allah is Almighty, All-Wise.
-```
+</code>
 
 ```
 User: Give me a point by point summary of the last verse of Surah Al Baqarah
