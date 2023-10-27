@@ -59,12 +59,16 @@ to forgive them, to have mercy on them, and to help them against those who disbe
 ```
 User: What is the dua I should say when I leave home?
 
-Ansari: When leaving home, it is recommended to say the following dua, as taught by Prophet Muhammad (peace be upon him):
+Ansari: When leaving home, it is recommended to say the following dua, 
+as taught by Prophet Muhammad (peace be upon him):
 
 Arabic: بِسْمِ اللهِ، تَوَكَّلْتُ عَلَى اللهِ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللهِ
-English: "In the name of Allah, I place my trust in Allah, and there is no might nor power except with Allah."
+English: "In the name of Allah, I place my trust in Allah, 
+and there is no might nor power except with Allah."
 
-This dua is reported in Jami` at-Tirmidhi and other Hadith collections. It is a way of seeking Allah's protection and expressing trust in Him when leaving the safety of one's home.
+This dua is reported in Jami` at-Tirmidhi and other Hadith 
+collections. It is a way of seeking Allah's protection and
+ expressing trust in Him when leaving the safety of one's home.
 ```
 
 ### It can answer basic fiqh questions
@@ -72,27 +76,46 @@ This dua is reported in Jami` at-Tirmidhi and other Hadith collections. It is a 
 ```
 What are the etiquettes of going to the bathroom in Islam?
 
-Islamic teachings provide guidance on all aspects of life, including personal hygiene and etiquette in the bathroom. Here are some of the key etiquettes based on Hadiths and the teachings of scholars:
+Islamic teachings provide guidance on all aspects of life, 
+including personal hygiene and etiquette in the bathroom. 
+Here are some of the key etiquettes based on Hadiths and 
+the teachings of scholars:
 
-1. Entering with the left foot: It is recommended to enter the bathroom with the left foot and to exit with the right foot, as reported in a Hadith narrated by Aisha (may Allah be pleased with her) in Sahih Muslim.
+1. Entering with the left foot: It is recommended to enter 
+the bathroom with the left foot and to exit with the right foot,
+as reported in a Hadith narrated by Aisha (may Allah be pleased 
+with her) in Sahih Muslim.
 
-2. Seeking refuge in Allah: Before entering the bathroom, it is recommended to say: "Bismillah, Allahumma inni a'udhu bika minal khubuthi wal khaba'ith" (In the name of Allah, O Allah, I seek refuge in You from the male and female unclean spirits).
+2. Seeking refuge in Allah: Before entering the bathroom, it is
+recommended to say: "Bismillah, Allahumma inni a'udhu bika minal 
+khubuthi wal khaba'ith" (In the name of Allah, O Allah, I seek 
+refuge in You from the male and female unclean spirits).
 
-3. Privacy and modesty: One should ensure privacy and maintain modesty by keeping the body covered as much as possible.
+3. Privacy and modesty: One should ensure privacy and maintain 
+modesty by keeping the body covered as much as possible.
 
-4. Using the left hand for cleaning: It is recommended to use the left hand for cleaning oneself and the right hand for other activities to maintain cleanliness and hygiene.
+4. Using the left hand for cleaning: It is recommended to use 
+the left hand for cleaning oneself and the right hand for other 
+activities to maintain cleanliness and hygiene.
 
-5. Avoiding soiling clothes: Care should be taken to avoid any splashes or soiling of clothes.
+5. Avoiding soiling clothes: Care should be taken to avoid any 
+splashes or soiling of clothes.
 
-6. Not facing or turning one's back towards the Qibla: While relieving oneself, one should not face or turn their back towards the Qibla (the direction of the Kaaba in Mecca).
+6. Not facing or turning one's back towards the Qibla: While 
+relieving oneself, one should not face or turn their back 
+towards the Qibla (the direction of the Kaaba in Mecca).
 
-7. Cleaning with water: It is highly recommended to clean oneself with water after using the toilet.
+7. Cleaning with water: It is highly recommended to clean oneself 
+with water after using the toilet.
 
-8. Not talking: It is recommended to avoid unnecessary talking in the bathroom.
+8. Not talking: It is recommended to avoid unnecessary talking 
+in the bathroom.
 
-9. Saying a prayer upon exiting: Upon exiting, it is recommended to say "Ghufraanak" (I seek Your forgiveness).
+9. Saying a prayer upon exiting: Upon exiting, it is recommended 
+to say "Ghufraanak" (I seek Your forgiveness).
 
-These etiquettes are based on various Hadiths and the teachings of scholars like Imam Nawawi and Ibn Qayyim.
+These etiquettes are based on various Hadiths and the teachings of 
+scholars like Imam Nawawi and Ibn Qayyim.
 ```
 
 ### It can provide answers that covers multiple opinions on modern topics
@@ -100,17 +123,31 @@ These etiquettes are based on various Hadiths and the teachings of scholars like
 ```
 User: Is music halal or haram?
 
-Ansari: The issue of music in Islam is a complex one and scholars have different opinions.
+Ansari: The issue of music in Islam is a complex one and scholars have 
+different opinions.
 
-Imam Al Ghazali in his book "Ihya Ulum al-Din" argued that music in itself is not haram (prohibited), but it becomes so if it leads to sinful behavior, such as neglecting one's duties towards Allah or indulging in immoral activities.
+Imam Al Ghazali in his book "Ihya Ulum al-Din" argued that music in 
+itself is not haram (prohibited), but it becomes so if it leads to 
+sinful behavior, such as neglecting one's duties towards Allah or 
+indulging in immoral activities.
 
-On the other hand, Ibn Taymiyah, a prominent scholar of the Hanbali school, held a stricter view. He believed that most music is haram, especially if it includes sinful or misleading content.
+On the other hand, Ibn Taymiyah, a prominent scholar of the Hanbali 
+school, held a stricter view. He believed that most music is haram, 
+especially if it includes sinful or misleading content.
 
-In the modern era, Sheikh Yusuf Al Qaradawi, in his book "The Lawful and the Prohibited in Islam", states that not all music is haram. He argues that music is permissible as long as it does not lead to sinful behavior or thoughts, and does not include any haram content.
+In the modern era, Sheikh Yusuf Al Qaradawi, in his book 
+"The Lawful and the Prohibited in Islam", states that not all music 
+is haram. He argues that music is permissible as long as it does not 
+lead to sinful behavior or thoughts, and does not include any haram 
+content.
 
-It's important to note that all scholars agree that any form of music that includes haram content (such as promoting immorality, sinful behavior, or containing foul language) is prohibited.
+It's important to note that all scholars agree that any form of 
+music that includes haram content (such as promoting immorality, 
+sinful behavior, or containing foul language) is prohibited.
 
-As a Muslim, it's important to seek knowledge and make informed decisions based on the Qur'an, Hadith, and the advice of knowledgeable scholars.
+As a Muslim, it's important to seek knowledge and make informed 
+decisions based on the Qur'an, Hadith, and the advice of knowledgeable 
+scholars.
 ```
 
 ### It can reassure/console you when you have doubts/worries (with supporting evidence)
@@ -118,33 +155,50 @@ As a Muslim, it's important to seek knowledge and make informed decisions based 
 ```
 User: I have really made many major mistakes. Can Allah still forgive me?
 
-Ansari: Yes, Allah can certainly forgive you. The Qur'an repeatedly emphasizes Allah's boundless mercy and forgiveness.
+Ansari: Yes, Allah can certainly forgive you. The Qur'an repeatedly 
+emphasizes Allah's boundless mercy and forgiveness.
 
 Ayah: 4:106
 Arabic Text: وَٱسْتَغْفِرِ ٱللَّهَ ۖ إِنَّ ٱللَّهَ كَانَ غَفُورًا رَّحِيمًا
-English Text: And seek Allah’s forgiveness—indeed, Allah is All-Forgiving, Most Merciful.
+English Text: And seek Allah’s forgiveness—indeed, Allah is All-Forgiving, 
+Most Merciful.
 
 Ayah: 5:74
 Arabic Text: أَفَلَا يَتُوبُونَ إِلَى ٱللَّهِ وَيَسْتَغْفِرُونَهُۥ ۚ وَٱللَّهُ غَفُورٌ رَّحِيمٌ
-English Text: Will they not turn to Allah in repentance and seek His forgiveness? And Allah is All-Forgiving, Most Merciful.
+English Text: Will they not turn to Allah in repentance and seek His 
+forgiveness? And Allah is All-Forgiving, Most Merciful.
 
-These verses clearly indicate that Allah is All-Forgiving and Most Merciful. No matter how major your mistakes are, if you sincerely repent and seek His forgiveness, Allah can forgive you. It's never too late to turn back to Allah.
+These verses clearly indicate that Allah is All-Forgiving and Most Merciful.
+No matter how major your mistakes are, if you sincerely repent and seek His 
+forgiveness, Allah can forgive you. It's never too late to turn back to Allah.
 ```
 
 ```
 User: Lots of bad things keep happening to me. Does Allah still love me?
 
-Ansari: Yes, Allah's love for His creation is immense and enduring. Experiencing difficulties or trials does not mean that Allah does not love you. In fact, the Prophet Muhammad (peace be upon him) said in a Hadith recorded by Imam Tirmidhi and Imam Ibn Majah: "When Allah loves a servant, He tests him."
+Ansari: Yes, Allah's love for His creation is immense and enduring. Experiencing
+ difficulties or trials does not mean that Allah does not love you. In fact, 
+ the Prophet Muhammad (peace be upon him) said in a Hadith recorded by Imam 
+ Tirmidhi and Imam Ibn Majah: "When Allah loves a servant, He tests him."
 
-Sheikh Salman Al-Awdah, a contemporary scholar, explains that trials can be a means of purification and a way to attain a higher rank in the sight of Allah. They can also serve as a reminder for us to turn back to Allah and strengthen our relationship with Him.
+Sheikh Salman Al-Awdah, a contemporary scholar, explains that trials can be
+a means of purification and a way to attain a higher rank in the sight of Allah. 
+They can also serve as a reminder for us to turn back to Allah and strengthen our relationship with Him.
 
 Remember the words of Allah in the Qur'an:
 
 Ayah: 2:286
 Arabic Text: لَا يُكَلِّفُ ٱللَّهُ نَفْسًا إِلَّا وُسْعَهَا ۚ لَهَا مَا كَسَبَتْ وَعَلَيْهَا مَا ٱكْتَسَبَتْ ۗ رَبَّنَا لَا تُؤَاخِذْنَآ إِن نَّسِينَآ أَوْ أَخْطَأْنَا ۚ رَبَّنَا وَلَا تَحْمِلْ عَلَيْنَآ إِصْرًا كَمَا حَمَلْتَهُۥ عَلَى ٱلَّذِينَ مِن قَبْلِنَا ۚ رَبَّنَا وَلَا تُحَمِّلْنَا مَا لَا طَاقَةَ لَنَا بِهِۦ ۖ وَٱعْفُ عَنَّا وَٱغْفِرْ لَنَا وَٱرْحَمْنَآ ۚ أَنتَ مَوْلَىٰنَا فَٱنصُرْنَا عَلَى ٱلْقَوْمِ ٱلْكَـٰفِرِينَ
-English Text: Allah does not burden any soul with more than it can bear. Each will enjoy the good they have earned and suffer the evil they have wrought. O our Lord! Do not punish us if we forget or make a mistake. O our Lord! Do not burden us as You burdened those before us. O our Lord! Do not impose on us what we do not have the strength to bear. Pardon us, forgive us, have mercy on us. You are our Protector, so help us against the disbelieving people.
+English Text: Allah does not burden any soul with more than it can bear. 
+Each will enjoy the good they have earned and suffer the evil they have wrought. 
+O our Lord! Do not punish us if we forget or make a mistake. O our Lord! Do not 
+burden us as You burdened those before us. O our Lord! Do not impose on us what 
+we do not have the strength to bear. Pardon us, forgive us, have mercy on us. 
+You are our Protector, so help us against the disbelieving people.
 
-So, be patient, keep faith in Allah's wisdom and mercy, and remember that every difficulty is an opportunity for growth and spiritual elevation. May Allah ease your difficulties and grant you patience.
+So, be patient, keep faith in Allah's wisdom and mercy, and remember that every 
+difficulty is an opportunity for growth and spiritual elevation. May Allah ease 
+your difficulties and grant you patience.
 ```
 
 
@@ -152,16 +206,29 @@ So, be patient, keep faith in Allah's wisdom and mercy, and remember that every 
 ```
 User: What is the root word of اتستبدلون
 
-Ansari: The root word of اتستبدلون (Tastabdiloon) is ب-د-ل (B-D-L). This root in Arabic carries the basic meaning of changing, substituting, or replacing something.
+Ansari: The root word of اتستبدلون (Tastabdiloon) is ب-د-ل (B-D-L). 
+This root in Arabic carries the basic meaning of changing, substituting, 
+or replacing something.
 
-The word اتستبدلون is in the form of the 10th verb form (Istif'al), which often conveys the meaning of seeking or asking for the action of the root. So, in this case, it would mean "you seek to replace" or "you wish to substitute".
+The word اتستبدلون is in the form of the 10th verb form (Istif'al), which often 
+conveys the meaning of seeking or asking for the action of the root. So, in this case, 
+it would mean "you seek to replace" or "you wish to substitute".
 
 This word is used in the Qur'an in several places, such as in Ayah 2:61 of Surah Al-Baqarah:
 
 Arabic: وَإِذْ قُلْتُمْ يَا مُوسَىٰ لَن نَّصْبِرَ عَلَىٰ طَعَامٍ وَاحِدٍ فَادْعُ لَنَا رَبَّكَ يُخْرِجْ لَنَا مِمَّا تُنبِتُ الْأَرْضُ مِن بَقْلِهَا وَقِثَّائِهَا وَفُومِهَا وَعَدَسِهَا وَبَصَلِهَا ۖ قَالَ أَتَسْتَبْدِلُونَ الَّذِي هُوَ أَدْنَىٰ بِالَّذِي هُوَ خَيْرٌ ۚ اهْبِطُوا مِصْرًا فَإِنَّ لَكُم مَّا سَأَلْتُمْ ۗ وَضُرِبَتْ عَلَيْهِمُ الذِّلَّةُ وَالْمَسْكَنَةُ وَبَاءُوا بِغَضَبٍ مِّنَ اللَّهِ ۗ ذَٰلِكَ بِأَنَّهُمْ كَانُوا يَكْفُرُونَ بِآيَاتِ اللَّهِ وَيَقْتُلُونَ النَّبِيِّينَ بِغَيْرِ حَقٍّ ۗ ذَٰلِكَ بِمَا عَصَوا وَّكَانُوا يَعْتَدُونَ
-English: And [recall] when you said, "O Moses, we can never endure one [kind of] food. So call upon your Lord to bring forth for us from the earth its green herbs and its cucumbers and its garlic and its lentils and its onions." [Moses] said, "Would you exchange what is better for what is less? Go into [any] settlement and indeed, you will have what you have asked." And they were covered with humiliation and poverty and returned with anger from Allah [upon them]. That was because they [repeatedly] disbelieved in the signs of Allah and killed the prophets without right. That was because they disobeyed and were [habitually] transgressing.
+English: And [recall] when you said, "O Moses, we can never endure one [kind of] food. 
+So call upon your Lord to bring forth for us from the earth its green herbs 
+and its cucumbers and its garlic and its lentils and its onions." [Moses] said, 
+"Would you exchange what is better for what is less? Go into [any] settlement and 
+indeed, you will have what you have asked." And they were covered with humiliation 
+and poverty and returned with anger from Allah [upon them]. That was because they 
+[repeatedly] disbelieved in the signs of Allah and killed the prophets without right. 
+That was because they disobeyed and were [habitually] transgressing.
 
-In this context, "أَتَسْتَبْدِلُونَ" (Atastabdiloon) is translated as "Would you exchange", referring to the Israelites' wish to exchange the manna and quails they were provided with for the vegetables of the earth.
+In this context, "أَتَسْتَبْدِلُونَ" (Atastabdiloon) is translated as "Would you exchange", 
+referring to the Israelites' wish to exchange the manna and quails they were provided 
+with for the vegetables of the earth.
 ```
 
 ### It can generate ideas
@@ -170,17 +237,29 @@ In this context, "أَتَسْتَبْدِلُونَ" (Atastabdiloon) is transla
 User: Give me 5 topics for an upcoming youth seminar on Iman in the modern age.
 
 Ansari: 
-1. "Understanding Iman: Its Pillars and Impact on Character" - This topic can provide a foundational understanding of Iman (faith), its six pillars, and how it shapes a Muslim's character and behavior.
+1. "Understanding Iman: Its Pillars and Impact on Character" - This topic
+ can provide a foundational understanding of Iman (faith), its six pillars, 
+ and how it shapes a Muslim's character and behavior.
 
-2. "Iman and Science: Harmonizing Faith and Reason" - This topic can explore how Islam encourages the pursuit of knowledge, including scientific knowledge, and how this can strengthen one's Iman.
+2. "Iman and Science: Harmonizing Faith and Reason" - This topic 
+can explore how Islam encourages the pursuit of knowledge, 
+including scientific knowledge, and how this can strengthen one's Iman.
 
-3. "Maintaining Iman in a Digital Age" - This topic can discuss the challenges and opportunities posed by social media and the internet, and provide practical tips on how to use these platforms in a way that strengthens Iman.
+3. "Maintaining Iman in a Digital Age" - This topic can discuss 
+the challenges and opportunities posed by social media and the internet, 
+and provide practical tips on how to use these platforms in a way that strengthens Iman.
 
-4. "Iman and Social Justice: The Role of Faith in Advocacy" - This topic can explore the Islamic principles of justice and equality, and how Iman motivates Muslims to work for social justice.
+4. "Iman and Social Justice: The Role of Faith in Advocacy" - This topic
+ can explore the Islamic principles of justice and equality, and how Iman
+  motivates Muslims to work for social justice.
 
-5. "Crisis of Faith: Addressing Doubts and Misconceptions" - This topic can address common doubts and misconceptions about Islam that young people may encounter, and provide guidance on how to deal with them in a way that strengthens Iman.
+5. "Crisis of Faith: Addressing Doubts and Misconceptions" - This topic 
+can address common doubts and misconceptions about Islam that young people 
+may encounter, and provide guidance on how to deal with them in a way 
+that strengthens Iman.
 
-These topics are inspired by the teachings of scholars like Imam Nawawi, Imam Abu Hanifah, and contemporary scholars like Yasir Qadhi and Omar Suleiman.
+These topics are inspired by the teachings of scholars like Imam Nawawi, 
+Imam Abu Hanifah, and contemporary scholars like Yasir Qadhi and Omar Suleiman.
 ```
 
 ### It can write a short khatira
@@ -190,26 +269,39 @@ User: write a short khaatira on the importance of perseverance
 
 Ansari: Bismillah al-Rahman al-Rahim,
 
-Today, let's reflect on the importance of perseverance, a quality highly valued in Islam.
+Today, let's reflect on the importance of perseverance, a quality 
+highly valued in Islam.
 
-Perseverance, or Sabr in Arabic, is often translated as patience, but it encompasses much more. It's about resilience, steadfastness, and enduring difficulties while remaining faithful to Allah's commands.
+Perseverance, or Sabr in Arabic, is often translated as patience, but 
+it encompasses much more. It's about resilience, steadfastness, and 
+enduring difficulties while remaining faithful to Allah's commands.
 
 Allah says in the Qur'an in Surah Al-Baqarah (2:153):
 
 Arabic: يَا أَيُّهَا الَّذِينَ آمَنُوا اسْتَعِينُوا بِالصَّبْرِ وَالصَّلَاةِ ۚ إِنَّ اللَّهَ مَعَ الصَّابِرِينَ
-English: O you who have believed, seek help through patience and prayer. Indeed, Allah is with the patient.
+English: O you who have believed, seek help through patience and prayer. 
+Indeed, Allah is with the patient.
 
-This verse reminds us that perseverance is not a passive state, but an active one. It's about seeking help through patience and prayer, and knowing that Allah is with us in our struggles.
+This verse reminds us that perseverance is not a passive state, but an 
+active one. It's about seeking help through patience and prayer, and 
+knowing that Allah is with us in our struggles.
 
-Imam Ahmad bin Hanbal, a great scholar, once said, "Allah has mentioned patience in the Qur'an in 90 places."
+Imam Ahmad bin Hanbal, a great scholar, once said, "Allah has mentioned
+ patience in the Qur'an in 90 places."
 
-Perseverance is the key to overcoming challenges. It's the quality that helps us maintain our faith during times of hardship and uncertainty. It's what allows us to continue doing good, even when it's difficult.
+Perseverance is the key to overcoming challenges. It's the quality that 
+helps us maintain our faith during times of hardship and uncertainty. 
+It's what allows us to continue doing good, even when it's difficult.
 
-Remember the words of the Prophet Muhammad (peace be upon him) as recorded in Sahih Bukhari: "The real patience is at the first stroke of a calamity."
+Remember the words of the Prophet Muhammad (peace be upon him) as r
+ecorded in Sahih Bukhari: "The real patience is at the first stroke of a calamity."
 
-So, let's strive to cultivate this quality of perseverance. Let's be patient in our trials, steadfast in our prayers, and resilient in our faith. For indeed, Allah is with the patient.
+So, let's strive to cultivate this quality of perseverance. Let's be 
+patient in our trials, steadfast in our prayers, and resilient in our faith. 
+For indeed, Allah is with the patient.
 
-May Allah grant us all the strength to persevere through our trials and tribulations. Ameen.
+May Allah grant us all the strength to persevere through our trials 
+and tribulations. Ameen.
 
 Wa Allahu 'Alam (And Allah knows best).
 ```
@@ -231,7 +323,8 @@ Answer: Iftar
 Question: Can you name one thing that breaks the fast?
 Answer: Eating, drinking, etc.
 
-Question: What special night occurs in the last ten days of Ramadan, which is better than a thousand months?
+Question: What special night occurs in the last ten days of Ramadan, which 
+is better than a thousand months?
 Answer: Laylat al-Qadr (The Night of Power)
 ```
 
@@ -259,23 +352,47 @@ Answer: ليلة القدر
 ### It can generate Islamized stories
 
 ```
-User: Write a brief islamized version of the story of the boy who cried wolf.
+User: Write a brief islamized version of the story of the boy 
+who cried wolf.
 
 Ansari: In the name of Allah, the Most Gracious, the Most Merciful,
 
-Once upon a time, in a small village, there lived a young boy named Ahmed. Ahmed was responsible for looking after his family's flock of sheep. His father, a wise and pious man, always reminded him of the importance of honesty as taught in our beautiful religion, Islam. He would often quote the Hadith of the Prophet Muhammad (peace be upon him) recorded by Imam Bukhari and Imam Muslim, "Truthfulness leads to righteousness, and righteousness leads to Paradise."
+Once upon a time, in a small village, there lived a young boy named Ahmed. 
+Ahmed was responsible for looking after his family's flock of sheep. His 
+father, a wise and pious man, always reminded him of the importance of 
+honesty as taught in our beautiful religion, Islam. He would often quote 
+the Hadith of the Prophet Muhammad (peace be upon him) recorded by Imam 
+Bukhari and Imam Muslim, "Truthfulness leads to righteousness, and 
+righteousness leads to Paradise."
 
-However, Ahmed, being a playful and mischievous boy, thought it would be amusing to trick the villagers. One day, he cried out, "Wolf! Wolf!" The villagers, hearing his cries, rushed to help him, only to find out there was no wolf. Ahmed laughed at their confused and annoyed faces.
+However, Ahmed, being a playful and mischievous boy, thought it would be 
+amusing to trick the villagers. One day, he cried out, "Wolf! Wolf!" 
+The villagers, hearing his cries, rushed to help him, only to find out 
+there was no wolf. Ahmed laughed at their confused and annoyed faces.
 
-He repeated this trick a few times, each time causing distress among the villagers. They reminded him of the verse from the Qur'an, Surah Al-Baqarah (2:42), "And do not mix the truth with falsehood or conceal the truth while you know [it]."
+He repeated this trick a few times, each time causing distress 
+among the villagers. They reminded him of the verse from the Qur'an, Surah 
+Al-Baqarah (2:42), "And do not mix the truth with falsehood or conceal 
+the truth while you know [it]."
 
-One day, a wolf really did come. Terrified, Ahmed cried out for help, "Wolf! Wolf!" But this time, no one came to his aid. They thought it was another one of his tricks. The wolf attacked the flock, and Ahmed could do nothing but watch in despair.
+One day, a wolf really did come. Terrified, Ahmed cried out for help,
+"Wolf! Wolf!" But this time, no one came to his aid. They thought it was 
+another one of his tricks. The wolf attacked the flock, and Ahmed could 
+do nothing but watch in despair.
 
-When his father found out, he reminded Ahmed of the consequences of lying. He quoted a Hadith from Sahih Bukhari and Sahih Muslim, "Beware of lying, for lying leads to wickedness and wickedness leads to Hell."
+When his father found out, he reminded Ahmed of the consequences of lying. 
+He quoted a Hadith from Sahih Bukhari and Sahih Muslim, "Beware of lying, 
+for lying leads to wickedness and wickedness leads to Hell."
 
-From that day forward, Ahmed learned his lesson. He understood the wisdom in the teachings of Islam about truthfulness and honesty. He promised never to lie again and grew up to be a truthful and trustworthy man, just as our beloved Prophet Muhammad (peace be upon him) was known as Al-Sadiq (the truthful) and Al-Amin (the trustworthy).
+From that day forward, Ahmed learned his lesson. He understood the wisdom 
+in the teachings of Islam about truthfulness and honesty. He promised never 
+to lie again and grew up to be a truthful and trustworthy man, just as our 
+beloved Prophet Muhammad (peace be upon him) was known as 
+Al-Sadiq (the truthful) and Al-Amin (the trustworthy).
 
-And this story serves as a reminder for us all about the importance of honesty and the consequences of lying. May Allah guide us to be among the truthful. Ameen.
+And this story serves as a reminder for us all about the importance of 
+honesty and the consequences of lying. May Allah guide us to be among 
+the truthful. Ameen.
 
 ```
 
