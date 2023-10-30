@@ -30,12 +30,12 @@ class Kalemat(Tool):
         
         return response.json()
     
-    def run_as_string(self, query: str, numResults: int=5,getText: int=1):
+    def run_as_string(self, query: str, numResults: int=10, getText: int=1):
         def pp_ayah(ayah):
                 ayah_num = ayah['id']
                 ayah_ar = ayah['text']
                 ayah_en = ayah['en_text']
-                result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n'
+                result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n\n'
                 return result
         results =  self.run(query, numResults, getText)
         rstring = '\n'.join([pp_ayah(r) for r in results])

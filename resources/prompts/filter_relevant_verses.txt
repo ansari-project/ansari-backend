@@ -1,0 +1,7 @@
+Below are ayahs from the Qur'an. Some of them are relevant
+to answering the question: {question}. 
+
+In your output include all the ones that are relevant 
+and drop any that are irrelevant.
+
+{ayahs}

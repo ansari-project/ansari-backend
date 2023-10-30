@@ -45,7 +45,6 @@ class Ansari(OpenAIChatAgent):
 
         else: 
             print(f'In else clause {inp}')
-            )
             if ' flag ' in inp:
                 print(f'In flag clause {inp}')
                 inp = inp + '\nIt seems the user asked to flag something. Ask them what they want to flag and why.\n'

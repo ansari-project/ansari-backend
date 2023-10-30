@@ -1,0 +1,7 @@
+Here are the results from the quran: 
+
+{kalemat_results}
+
+Not all answers may be relevant. 
+
+Would you like me to answer your original question: \"{orig_question}\" from these results?'
