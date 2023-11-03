@@ -12,7 +12,7 @@ Ansari is a chatbot designed to help answer non-Muslims' questions about Islam a
 ## Key points before we go any further
 
 - Ansari is not perfect. It can and will make mistakes. 
-- We have gone to some trouble to validate that it does say things that are *mostly* correct. We have reviewed over 2,500 user interactions. Of those questions, we found 8 that we weren't sure were correct or not (mostly on fiqh questions like inheritance etc). We sent those 8 to some religious scholars, and it turned out Ansari was correct on all 8. 
+- We have gone to some trouble to validate that it does say things that are *mostly* correct. We have reviewed over 2,500 user interactions. Of those questions, we found 9 that we weren't sure were correct or not (mostly on fiqh questions like inheritance etc). We sent those 9 to some religious scholars, and it turned out Ansari was correct on 8 (the one it got wrong was a complex inheritance questions). 
 - If you see it say something you're not sure about or wrong, just tell Ansari that you want to flag this (as in "I want to flag this") and a human will review the conversation. Or send e-mail to feedback@ansari.chat. 
 
 ## What can Ansari do?

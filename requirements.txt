@@ -5,6 +5,8 @@ openai
 tiktoken
 rich
 pyislam
+fastapi
+uvicorn
 discord.py
 git+https://github.com/anyscale/hermetic.git
 
