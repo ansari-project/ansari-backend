@@ -1,4 +1,3 @@
-web: source setup.sh && python api_presenter.py
-
+web: source setup.sh && uvicorn api_presenter:app
 
 

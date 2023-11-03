@@ -24,14 +24,16 @@ class Messages(BaseModel):
 
 class ApiPresenter(Presenter): 
     def __init__(self, 
-                env: Environment, port):
+                env: Environment, app, port):
         self.env = env
         self.port = port
+        self.app = app
         self.router = APIRouter()
         self.router.add_api_route("/api/v1/complete", self.complete, methods=["POST"])
 
 
     def complete(self, messages: Messages):
+        print('Complete called.')
         pm = self.env.prompt_mgr
         system_prompt = pm.bind('system_msg_fn').render()
         myansari = copy.deepcopy(ansari)
@@ -39,10 +41,7 @@ class ApiPresenter(Presenter):
        
 
     def present(self):
-        self.agent = self.env.agents[self.env.primary_agent]
-        app = FastAPI()
-        app.include_router(self.router)
-        uvicorn.run(app, host="0.0.0.0", port=self.port)
+        pass
 
 
 env = Environment(store =  FileStore(root_dir = 'ansari-stores'), 
@@ -53,11 +52,17 @@ env = Environment(store =  FileStore(root_dir = 'ansari-stores'),
 kalemat = Kalemat(env)
 ansari = AnsariFn(env)
 env.set_primary_agent('ansarifn')
+app = FastAPI()
 
-port = os.getenv('API_SERVER_PORT',8000)
+port = int(os.getenv('API_SERVER_PORT',8000))
+@app.post("/api/v1/complete")
+def complete(messages: Messages):
+    return presenter.complete(messages)
 
-presenter = ApiPresenter(env, port)
+presenter = ApiPresenter(env, app, port)
 presenter.present()
+#uvicorn.run(app, host="0.0.0.0", port=port)
+
 
 
 
