@@ -13,23 +13,18 @@ def ansari_complete(url, data):
             return
         
         # Iterate over lines
-        for line in response.iter_content():
+        for content in response.iter_content():
             # Filter out keep-alive new lines
-            if line:
-                decoded_line = line.decode('utf-8')
-                sys.stdout.write(decoded_line)
+            if content:
+                decoded_content = content.decode('utf-8')
+                sys.stdout.write(decoded_content)
                 sys.stdout.flush()
-                # Do something with the event
-                # Typically, you'd parse the event data and act accordingly
-                # For example, you could convert the line to JSON if expected
-                # event_data = json.loads(decoded_line.lstrip("data: "))
-                # print(event_data)
                     
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
 
 # Replace with the actual server URL that sends server-sent events
-sse_url = 'xxx"
+sse_url = "https://ansari-staging-b78f9bbc2ddc.herokuapp.com/api/v1/complete"
 
 data = {
     "messages": [
