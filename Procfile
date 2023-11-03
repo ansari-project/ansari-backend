@@ -1,3 +1,4 @@
-web: source setup.sh && python main_langchain.py & python discord_presenter.py & wait
+web: source setup.sh && python api_presenter.py
+
 
 
