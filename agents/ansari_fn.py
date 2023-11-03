@@ -50,9 +50,6 @@ class AnsariFn(OpenAIChatAgent):
 
     
     def update_message_history(self, inp):
-        # First stage is to pass in the functions. 
-        #kalemat = self.env.tools['kalemat']
-        self.message_history.append({
-            'role': 'user', 
-            'content': inp
-        })
+        # Explicitly do nothing, since we rely on process_message_history
+        pass 
+
