@@ -24,7 +24,7 @@ def ansari_complete(url, data):
         print(f"An error occurred: {e}")
 
 # Replace with the actual server URL that sends server-sent events
-sse_url = "https://ansari-staging-b78f9bbc2ddc.herokuapp.com/api/v1/complete"
+sse_url = "http://localhost:8000/api/v1/complete"
 
 data = {
     "messages": [
