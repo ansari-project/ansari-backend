@@ -29,7 +29,7 @@ def ansari_complete(url, data):
         print(f"An error occurred: {e}")
 
 # Replace with the actual server URL that sends server-sent events
-sse_url = "http://localhost:8000/api/v1/complete"
+sse_url = 'xxx"
 
 data = {
     "messages": [
