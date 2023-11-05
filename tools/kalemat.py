@@ -3,11 +3,17 @@ import requests
 import os
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
-class Kalemat(BaseModel):
+FN_NAME='search_quran'
+class Kalemat:
+
+    def __init__(self):
+        self.api_key = os.getenv('KALEMAT_API_KEY')
+        self.base_url = KALEMAT_BASE_URL 
+    
 
     def get_function_description(self):
-    return {"name": "search_quran",
-            "description": "Search the Qur'an for relevant verses. This should be extracted from the question.",
+        return {"name": FN_NAME,
+            "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -17,13 +23,12 @@ class Kalemat(BaseModel):
                     },
                 },
                 "required": ["query"],
-            },
-          }
+            }
+        }
 
-    def __init__(self, env):
-        self.api_key = os.environ.get('KALEMAT_API_KEY')
-        self.base_url = KALEMAT_BASE_URL 
-    
+    def get_fn_name(self):
+         return FN_NAME
+
     def run(self, query: str, numResults: int=5,getText: int=1):
 
         headers = {'x-api-key': self.api_key}
@@ -40,14 +45,19 @@ class Kalemat(BaseModel):
         
         return response.json()
     
-    def run_as_string(self, query: str, numResults: int=10, getText: int=1):
-        def pp_ayah(ayah):
-                ayah_num = ayah['id']
-                ayah_ar = ayah['text']
-                ayah_en = ayah['en_text']
-                result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n\n'
-                return result
+    def pp_ayah(self, ayah):
+        ayah_num = ayah['id']
+        ayah_ar = ayah['text']
+        ayah_en = ayah['en_text']
+        result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n'
+        return result
+
+    def run_as_list(self, query: str, numResults: int=10, getText: int=1):
         results =  self.run(query, numResults, getText)
-        rstring = '\n'.join([pp_ayah(r) for r in results])
+        return [self.pp_ayah(r) for r in results]
+    
+    def run_as_string(self, query: str, numResults: int=10, getText: int=1):
+        results =  self.run(query, numResults, getText)
+        rstring = '\n'.join([self.pp_ayah(r) for r in results])
         return rstring
 
