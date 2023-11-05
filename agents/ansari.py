@@ -1,14 +1,16 @@
 import openai
 from pydantic import BaseModel
 from util.prompt_mgr import PromptMgr
-from tools.kalemat import Kalemat
+from tools.search_quran import SearchQuran
+from tools.search_hadith import SearchHadith
 import json
 
 MODEL = 'gpt-4' 
 class Ansari: 
     def __init__(self):
-        kalemat = Kalemat()
-        self.tools = { kalemat.get_fn_name(): kalemat}
+        sq = SearchQuran()
+        sh = SearchHadith()
+        self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
         self.model = MODEL
         self.pm = PromptMgr()
         sys_msg = self.pm.bind('system_msg_fn')
@@ -105,7 +107,7 @@ class Ansari:
         if function_name in self.tools.keys():
             args = json.loads(function_arguments)
             query = args['query']
-            results = self.tools[function_name].run_as_list(query, numResults=10)
+            results = self.tools[function_name].run_as_list(query)
             #print(f'Results are {results}')
             # Now we have to pass the results back in
             for result in results:   

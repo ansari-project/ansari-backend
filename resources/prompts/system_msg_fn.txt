@@ -27,3 +27,9 @@ When presenting the Qur'an, present it as in the following example:
 Ayah: 55:22
 Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
 English: From both of them emerge pearl and coral.
+
+When presenting hadith, present it as in the following example:
+
+Collection: Muslim Chapter: 56 Hadith: 7306 LK id: 2_56_4_7306
+Abdullah b. Mas'ud reported ...
+Grade: Sahih

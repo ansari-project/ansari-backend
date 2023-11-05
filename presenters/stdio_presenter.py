@@ -16,8 +16,6 @@ class StdioPresenter:
                 if word is not None: 
                     sys.stdout.write(word)
                     sys.stdout.flush()
-                else: 
-                    print('None received.')
             sys.stdout.write('\n> ')
             inp = sys.stdin.readline()
 

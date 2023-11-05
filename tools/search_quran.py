@@ -29,13 +29,13 @@ class SearchQuran:
     def get_fn_name(self):
          return FN_NAME
 
-    def run(self, query: str, numResults: int=5,getText: int=1):
+    def run(self, query: str, num_results: int=5):
 
         headers = {'x-api-key': self.api_key}
         payload = {
             'query': query,
-            'numResults': numResults,
-            'getText': getText 
+            'numResults': num_results,
+            'getText': 1 # 1 is the Qur'an  
         }
 
         response = requests.get(self.base_url, headers=headers, params=payload)
@@ -52,12 +52,13 @@ class SearchQuran:
         result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n'
         return result
 
-    def run_as_list(self, query: str, numResults: int=10, getText: int=1):
-        results =  self.run(query, numResults, getText)
+    def run_as_list(self, query: str, num_results: int=10):
+        print(f'Searching quran for "{query}"')
+        results =  self.run(query, num_results)
         return [self.pp_ayah(r) for r in results]
     
-    def run_as_string(self, query: str, numResults: int=10, getText: int=1):
-        results =  self.run(query, numResults, getText)
+    def run_as_string(self, query: str, num_results: int=10, getText: int=1):
+        results =  self.run(query, num_results, getText)
         rstring = '\n'.join([self.pp_ayah(r) for r in results])
         return rstring
 

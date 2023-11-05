@@ -3,9 +3,6 @@ from typing import List, Optional, Dict
 from fastapi import FastAPI, APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from agents.ansari_fn import AnsariFn
-from tools.kalemat import Kalemat
-from tools.kalemat import Kalemat
 from util.prompt_mgr import PromptMgr
 import uvicorn
 import copy
