@@ -4,7 +4,7 @@ import os
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
 FN_NAME='search_quran'
-class Kalemat:
+class SearchQuran:
 
     def __init__(self):
         self.api_key = os.getenv('KALEMAT_API_KEY')

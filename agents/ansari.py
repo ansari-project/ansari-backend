@@ -33,7 +33,7 @@ class Ansari:
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
         while self.message_history[-1]['role'] != 'assistant':
-            print(f'Processing one round {self.message_history[-1]}')
+            #print(f'Processing one round {self.message_history[-1]}')
             # This is pretty complicated so leaving a comment. 
             # We want to yield from so that we can send the sequence through the input
             yield from self.process_one_round()
@@ -63,7 +63,7 @@ class Ansari:
                     function_name = delta['function_call']['name']
                 else: 
                     response_mode = 'words'
-                print('Response mode: ' + response_mode)
+                #print('Response mode: ' + response_mode)
 
             # We process things differently depending on whether it is a function or a 
             # text
@@ -84,7 +84,7 @@ class Ansari:
             elif response_mode == 'fn':
                 if not delta: # End token
                     function_call = function_name + '(' + function_arguments + ')'
-                    print(f"Function call is {function_call}")
+                    # print(f"Function call is {function_call}")
                     # The function call below appends the function call to the message history
                     yield self.process_fn_call(input, function_name, function_arguments)
                     # 
@@ -92,7 +92,7 @@ class Ansari:
                 elif 'function_call' in delta:
                     #print(f"Function call --{delta['function_call']['arguments']}")
                     function_arguments += delta['function_call']['arguments']
-                    print(f'Function arguments are {function_arguments}')
+                    #print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else: 
                     continue
@@ -106,7 +106,7 @@ class Ansari:
             args = json.loads(function_arguments)
             query = args['query']
             results = self.tools[function_name].run_as_list(query, numResults=10)
-            print(f'Results are {results}')
+            #print(f'Results are {results}')
             # Now we have to pass the results back in
             for result in results:   
                 self.message_history.append({
