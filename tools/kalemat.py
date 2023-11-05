@@ -1,15 +1,26 @@
+from pydantic import BaseModel
 import requests
 import os
-from hermetic.core.tool import Tool
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
-NAME = 'kalemat'
-class Kalemat(Tool):
+class Kalemat(BaseModel):
+
+    def get_function_description(self):
+    return {"name": "search_quran",
+            "description": "Search the Qur'an for relevant verses. This should be extracted from the question.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The topic to search the Qur'an for ",
+                    },
+                },
+                "required": ["query"],
+            },
+          }
 
     def __init__(self, env):
-        super().__init__(env = env)
-        self.env.add_tool(NAME, self)
-
         self.api_key = os.environ.get('KALEMAT_API_KEY')
         self.base_url = KALEMAT_BASE_URL 
     
@@ -19,8 +30,7 @@ class Kalemat(Tool):
         payload = {
             'query': query,
             'numResults': numResults,
-            'getText': getText
-            
+            'getText': getText 
         }
 
         response = requests.get(self.base_url, headers=headers, params=payload)
@@ -41,7 +51,3 @@ class Kalemat(Tool):
         rstring = '\n'.join([pp_ayah(r) for r in results])
         return rstring
 
-# Example usage:
-#api = KalematAPI() 
-#result = api.search(query='Coral', numResults=10)
-#print(result)
