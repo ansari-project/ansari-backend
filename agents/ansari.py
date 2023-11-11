@@ -1,3 +1,4 @@
+import time
 import openai
 from pydantic import BaseModel
 from util.prompt_mgr import PromptMgr
@@ -41,13 +42,21 @@ class Ansari:
             yield from self.process_one_round()
         
     def process_one_round(self):
-        response = openai.ChatCompletion.create(
-          model = self.model,
-          messages = self.message_history,
-          stream = True,
-          functions = self.functions, 
-          temperature = 0.0, 
-        )
+        response = None
+        while not response:
+            try: 
+                response = openai.ChatCompletion.create(
+                model = self.model,
+                messages = self.message_history,
+                stream = True,
+                functions = self.functions, 
+                temperature = 0.0, 
+                )
+            except Exception as e:
+                print('Exception occurred: ', e)
+                print('Retrying in 5 seconds...')
+                time.sleep(5)
+            
     
         words = ''
         function_name = ''
@@ -108,13 +117,20 @@ class Ansari:
             args = json.loads(function_arguments)
             query = args['query']
             results = self.tools[function_name].run_as_list(query)
-            #print(f'Results are {results}')
+            # print(f'Results are {results}')
             # Now we have to pass the results back in
-            for result in results:   
+            if len(results) > 0: 
+                for result in results:   
+                    self.message_history.append({
+                        'role': 'function',
+                        'name': function_name, 
+                        'content': result
+                    })
+            else: 
                 self.message_history.append({
                     'role': 'function',
-                    'name': 'search_quran', 
-                    'content': result
+                    'name': function_name, 
+                    'content': 'No results found'
                 })
         else:
             print('Unknown function name: ', function_name) 

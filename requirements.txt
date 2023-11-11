@@ -9,6 +9,6 @@ fastapi
 uvicorn
 gunicorn
 discord.py
-git+https://github.com/anyscale/hermetic.git
+typer
 
 

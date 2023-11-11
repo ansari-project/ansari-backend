@@ -9,10 +9,10 @@ import copy
 import os
 
 
-class Messages(BaseModel):
+class Messages():
     messages: List[Dict]
 
-class ApiPresenter(BaseModel): 
+class ApiPresenter(): 
     def __init__(self, app, port):
         self.port = port
         self.app = app
@@ -21,8 +21,7 @@ class ApiPresenter(BaseModel):
 
     def complete(self, messages: Messages):
         print('Complete called.')
-        system_prompt = self.pm.bind('system_msg_fn').render()
-        ans = AnsariFn()
+        system_prompt = self.pm.bind('system_msg_fn').render(
         return StreamingResponse(ans.process_message_history(messages.messages, system_prompt))
        
     def present(self):
