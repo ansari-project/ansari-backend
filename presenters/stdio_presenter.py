@@ -5,14 +5,13 @@ class StdioPresenter:
     def __init__(self, agent):
         self.agent = agent
 
-    def present(self, agent): 
-        self.agent = agent
-        sys.stdout.write(agent.greet() + '\n') 
+    def present(self): 
+        sys.stdout.write(self.agent.greet() + '\n') 
         sys.stdout.write('> ')
         sys.stdout.flush()
         inp = sys.stdin.readline()
         while inp: 
-            for word in agent.process_input(inp):
+            for word in self.agent.process_input(inp):
                 if word is not None: 
                     sys.stdout.write(word)
                     sys.stdout.flush()

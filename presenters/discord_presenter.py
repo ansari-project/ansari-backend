@@ -1,25 +1,15 @@
 import discord
 from dotenv import load_dotenv
 import os
-from agents.ansari_langchain import AnsariLangchain
-from agents.quran_decider import QuranDecider
-from agents.query_extractor import QueryExtractor
-from tools.kalemat import Kalemat
-from hermetic.core.environment import Environment
-from hermetic.stores.file_store import FileStore
-from hermetic.core.prompt_mgr import PromptMgr
-from hermetic.core.presenter import Presenter
+from tools.search_hadith import SearchHadith
+from tools.search_quran import SearchQuran
 import time
 import copy
 
-
-load_dotenv('/Users/mwk/Development/ansari/.env')
-
 class MyClient(discord.Client):
-    def __init__(self, env, intents):
-        self.env = env
+    def __init__(self, agent, intents):
         super().__init__(intents=intents)
-
+        self.agent = agent
 
     async def on_ready(self):
         print(f'We have logged in as {self.user}')
@@ -27,7 +17,7 @@ class MyClient(discord.Client):
     async def on_message(self, message):
         if message.author == self.user:
             return
-        agent = copy.deepcopy(self.env.agents[self.env.primary_agent])
+        agent = copy.deepcopy(self.agent)
         print(f'User said: {message.content} and mentioned {message.mentions}')
         st = time.time() 
         if isinstance(message.channel,discord.channel.DMChannel) or \
@@ -55,53 +45,13 @@ class MyClient(discord.Client):
             print(f'Got a message. Not for me: {message.content}')
     
 
-class DiscordPresenter(Presenter):
-    def __init__(self, env, token):
-        self.env = env
+class DiscordPresenter():
+    def __init__(self, agent, token):
+        self.agent = agent
         self.token = token
         intents = discord.Intents.default()
         intents.message_content = True
-        self.client = MyClient(env = self.env, intents=intents)
+        self.client = MyClient(agent=agent, intents=intents)
 
     def present(self):
         self.client.run(self.token)
-
-
-
-
-'''
-client = discord.Client(intents=intents)
-
-@client.event
-async def on_ready():
-    print(f'We have logged in as {client.user}')
-
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-    
-    print('User said: ', message.content)
-    await message.channel.send(f'Hello! You said: {message.content}')
-
-client.run(os.getenv('DISCORD_TOKEN'))
-'''
-
-env = Environment(store =  FileStore(root_dir = 'ansari-stores'), 
-                  prompt_mgr = PromptMgr(hot_reload=True))
-
-# This work involves 3 agents, with Ansari as primary. 
-ansari = AnsariLangchain(env)
-env.set_primary_agent('ansari-langchain')
-decider = QuranDecider(env)
-query_extractor = QueryExtractor(env)
-
-# We also use one tool, which is Kalemat lookup 
-kalemat = Kalemat(env)
-    
- 
-
-presenter = DiscordPresenter(env=env, token=os.getenv('DISCORD_TOKEN'))
-
-# This starts the UI. 
-presenter.present()

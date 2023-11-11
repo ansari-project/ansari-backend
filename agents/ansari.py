@@ -1,10 +1,10 @@
 import time
-import openai
 from pydantic import BaseModel
 from util.prompt_mgr import PromptMgr
 from tools.search_quran import SearchQuran
 from tools.search_hadith import SearchHadith
 import json
+from litellm import completion
 
 MODEL = 'gpt-4' 
 class Ansari: 
@@ -45,7 +45,7 @@ class Ansari:
         response = None
         while not response:
             try: 
-                response = openai.ChatCompletion.create(
+                response = completion(
                 model = self.model,
                 messages = self.message_history,
                 stream = True,
