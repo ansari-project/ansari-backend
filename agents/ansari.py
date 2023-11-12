@@ -4,7 +4,8 @@ from util.prompt_mgr import PromptMgr
 from tools.search_quran import SearchQuran
 from tools.search_hadith import SearchHadith
 import json
-from litellm import completion
+import openai
+
 
 MODEL = 'gpt-4' 
 class Ansari: 
@@ -36,7 +37,8 @@ class Ansari:
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
         while self.message_history[-1]['role'] != 'assistant':
-            #print(f'Processing one round {self.message_history[-1]}')
+            #print(f'Processing one round {self.message_history}')
+
             # This is pretty complicated so leaving a comment. 
             # We want to yield from so that we can send the sequence through the input
             yield from self.process_one_round()
@@ -45,7 +47,7 @@ class Ansari:
         response = None
         while not response:
             try: 
-                response = completion(
+                response = openai.ChatCompletion.create(
                 model = self.model,
                 messages = self.message_history,
                 stream = True,
@@ -63,7 +65,7 @@ class Ansari:
         function_arguments = ''
         response_mode = '' # words or fn
         for tok in response: 
-            #print('Token received: ' + str(tok))
+            #print(f'Token received: {tok.choices[0].delta}')
             delta = tok.choices[0].delta
             if not response_mode: 
                 # This code should only trigger the first 
@@ -74,7 +76,7 @@ class Ansari:
                     function_name = delta['function_call']['name']
                 else: 
                     response_mode = 'words'
-                #print('Response mode: ' + response_mode)
+                print('Response mode: ' + response_mode)
 
             # We process things differently depending on whether it is a function or a 
             # text
@@ -95,7 +97,7 @@ class Ansari:
             elif response_mode == 'fn':
                 if not delta: # End token
                     function_call = function_name + '(' + function_arguments + ')'
-                    # print(f"Function call is {function_call}")
+                    print(f'Function call is {function_call}')
                     # The function call below appends the function call to the message history
                     yield self.process_fn_call(input, function_name, function_arguments)
                     # 

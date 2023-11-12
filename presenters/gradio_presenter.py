@@ -65,6 +65,8 @@ class GradioPresenter():
                 history[-1][1] = ''
                 print(f'history is {history}')
                 for word in instance.process_input(history[-1][0]):
+                    if word is None:
+                        continue
                     history[-1][1] += word
                     yield history, my_uuid
                  

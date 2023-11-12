@@ -10,5 +10,3 @@ gunicorn
 discord.py
 typer
 litellm
-
-
