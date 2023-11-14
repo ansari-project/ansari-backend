@@ -73,7 +73,7 @@ class GradioPresenter():
             msg.submit(fn=user, 
                     inputs=[msg, chatbot, my_uuid], 
                     outputs=[msg, chatbot, my_uuid], queue=False).then(
-                    fn=bot, 
+                fn=bot, 
                     inputs=[chatbot, my_uuid],
                     outputs=[chatbot, my_uuid])
             

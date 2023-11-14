@@ -8,6 +8,7 @@ import openai
 
 
 MODEL = 'gpt-4' 
+MAX_FUNCTION_TRIES = 3 
 class Ansari: 
     def __init__(self):
         sq = SearchQuran()
