@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from presenters.api_presenter import ApiPresenter
 from agents.ansari import Ansari
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +34,7 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 @app.post("/api/v1/complete")
-def complete(messages: List[Dict]):
-    return presenter.complete(messages)
+def complete(request: Request):
+    print(f'Request received {request}.')
+    return presenter.complete('OK')
    
