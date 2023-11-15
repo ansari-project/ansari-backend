@@ -11,7 +11,9 @@ app = FastAPI()
 
 origins = [
     "https://beta.ansari.chat",
+    "http://beta.ansari.chat",
     "https://ansari.chat",
+    "http://ansari.chat",
 ]
 
 app.add_middleware(
@@ -30,7 +32,7 @@ port = int(os.getenv('API_SERVER_PORT',8000))
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()
-app = FastAPI()
+
 @app.post("/api/v1/complete")
 def complete(messages: List[Dict]):
     return presenter.complete(messages)
