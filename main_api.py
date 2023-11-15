@@ -34,8 +34,9 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 @app.post("/api/v1/complete")
-def complete(request: Request):
-    print(f'Request received {request}.')
+async def complete(request: Request):
+    body = await request.body()
+    print(f'Request received {body}.')
     messages = [
         {"role:": "user", "text": "Hello, Ansari!"},
     ]

@@ -9,9 +9,6 @@ import copy
 import os
 
 
-class Messages():
-    messages: List[Dict]
-
 class ApiPresenter(): 
     def __init__(self, app, agent):
         self.app = app
@@ -19,7 +16,7 @@ class ApiPresenter():
         self.pm = PromptMgr()
 
 
-    def complete(self, messages: Messages):
+    def complete(self, messages):
         print('Complete called.')
         system_prompt = self.pm.bind('system_msg_fn').render()
         agent = copy.deepcopy(self.agent)
