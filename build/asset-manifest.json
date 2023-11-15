@@ -1,0 +1,36 @@
+{
+  "files": {
+    "main.css": "https://api.ansari.chat/static/css/main.634cee6a.css",
+    "main.js": "https://api.ansari.chat/static/js/main.6ab26b69.js",
+    "static/js/496.0908b6ad.chunk.js": "https://api.ansari.chat/static/js/496.0908b6ad.chunk.js",
+    "static/media/compositeLogo.svg": "https://api.ansari.chat/static/media/compositeLogo.316705e3d9f51e155685d95c54b5978c.svg",
+    "static/media/backgroundImage.svg": "https://api.ansari.chat/static/media/backgroundImage.a6ecb59e7fceee8ba332e72a9a2a7fa1.svg",
+    "service-worker.js": "https://api.ansari.chat/service-worker.js",
+    "static/media/challenge.svg": "https://api.ansari.chat/static/media/challenge.c51044e733b61899e430f4556dfd6bf7.svg",
+    "static/media/ansariWordMobile.svg": "https://api.ansari.chat/static/media/ansariWordMobile.5cf58a2558b421d9a7efa7bdc0146a76.svg",
+    "static/media/ansariWordDesktop.svg": "https://api.ansari.chat/static/media/ansariWordDesktop.63102f795f5cdd4cfa1507c0e1dc29cc.svg",
+    "static/media/logo.svg": "https://api.ansari.chat/static/media/logo.7b5ec47fe8c8f9f97ba3d333cc377e3c.svg",
+    "static/media/loading.svg": "https://api.ansari.chat/static/media/loading.d0f5c7e6f03330f1e6c74bdb3be06fa3.svg",
+    "static/media/languageGreen.svg": "https://api.ansari.chat/static/media/languageGreen.3fa8c8ef5414b2efa242e23ddf1a283a.svg",
+    "static/media/language.svg": "https://api.ansari.chat/static/media/language.d2b30058380c7654f198f42db4e81c50.svg",
+    "static/media/praying.svg": "https://api.ansari.chat/static/media/praying.d21207ea569cad47cc61aa8c7cf53aad.svg",
+    "static/media/user.svg": "https://api.ansari.chat/static/media/user.1f5def49ba3a194081bdb4fb610cef60.svg",
+    "static/media/chat.svg": "https://api.ansari.chat/static/media/chat.619701281b91114d8f1bc63449c03a13.svg",
+    "static/media/paperPlaneRight.svg": "https://api.ansari.chat/static/media/paperPlaneRight.4b340c003efd041aa251d78b317b4923.svg",
+    "static/media/paperPlaneLeft.svg": "https://api.ansari.chat/static/media/paperPlaneLeft.1e428e58000e7e2443d099452acbae53.svg",
+    "static/media/warningCircle.svg": "https://api.ansari.chat/static/media/warningCircle.13bdef0766f4b31b03c20eff816b0439.svg",
+    "static/media/messageLoader.svg": "https://api.ansari.chat/static/media/messageLoader.829e7dc0c1aadbd86f67988cb85d2769.svg",
+    "static/media/information.svg": "https://api.ansari.chat/static/media/information.57276f59a016eab0e6ea703416008442.svg",
+    "index.html": "https://api.ansari.chat/index.html",
+    "static/media/informationGreen.svg": "https://api.ansari.chat/static/media/informationGreen.184e83d6d39aa7c53bac1697e460e0e9.svg",
+    "static/media/chatDeleteLine.svg": "https://api.ansari.chat/static/media/chatDeleteLine.fc758875b883cdd0d49d26825c3724b1.svg",
+    "static/media/flag.svg": "https://api.ansari.chat/static/media/flag.9e5f16974d8d9499372259788a3ffaf2.svg",
+    "main.634cee6a.css.map": "https://api.ansari.chat/static/css/main.634cee6a.css.map",
+    "main.6ab26b69.js.map": "https://api.ansari.chat/static/js/main.6ab26b69.js.map",
+    "496.0908b6ad.chunk.js.map": "https://api.ansari.chat/static/js/496.0908b6ad.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.634cee6a.css",
+    "static/js/main.6ab26b69.js"
+  ]
+}

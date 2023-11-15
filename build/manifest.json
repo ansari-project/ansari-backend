@@ -1,0 +1,28 @@
+{
+  "name": "Ansari Chat App",
+  "short_name": "Ansari Chat",
+  "theme_color": "#08786B",
+  "background_color": "#F2F2F2",
+  "display": "standalone",
+  "orientation": "any",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "./logo-512_x_512.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "./logo-512_x_512.png",
+      "type": "image/png",
+      "sizes": "256x256"
+    },
+    {
+      "src": "./logo-512_x_512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "background_image": "./logo-512_x_512.png"
+}
