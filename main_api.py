@@ -3,9 +3,25 @@ from typing import Dict, List
 from fastapi import FastAPI
 from presenters.api_presenter import ApiPresenter
 from agents.ansari import Ansari
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+
+origins = [
+    "https://beta.ansari.chat",
+    "https://ansari.chat",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 ansari = Ansari()
 
@@ -18,3 +34,4 @@ app = FastAPI()
 @app.post("/api/v1/complete")
 def complete(messages: List[Dict]):
     return presenter.complete(messages)
+   
