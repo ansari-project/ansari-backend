@@ -16,12 +16,12 @@ class Ansari:
         self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
         self.model = MODEL
         self.pm = PromptMgr()
-        sys_msg = self.pm.bind('system_msg_fn')
+        self.sys_msg = self.pm.bind('system_msg_fn').render()
         self.functions = [x.get_function_description() for x in self.tools.values()]
     
         self.message_history = [{
             'role': 'system',
-            'content': sys_msg.render()
+            'content': self.sys_msg
         }]
         
     def greet(self):
@@ -35,6 +35,13 @@ class Ansari:
         })
         return self.process_message_history()
     
+    def replace_message_history(self, message_history):
+        self.message_history = [{
+            'role': 'system',
+            'content': self.sys_msg
+        }] + message_history
+        yield from self.process_message_history()
+
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
         while self.message_history[-1]['role'] != 'assistant':

@@ -13,14 +13,12 @@ class ApiPresenter():
     def __init__(self, app, agent):
         self.app = app
         self.agent = agent
-        self.pm = PromptMgr()
 
 
     def complete(self, messages):
         print('Complete called.')
-        system_prompt = self.pm.bind('system_msg_fn').render()
         agent = copy.deepcopy(self.agent)
-        return StreamingResponse(agent.process_message_history(messages['messages'], system_prompt))
+        return StreamingResponse(agent.replace_message_history(messages['messages']))
        
     def present(self):
         pass
