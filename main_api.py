@@ -35,10 +35,10 @@ presenter.present()
 
 @app.post("/api/v1/complete")
 async def complete(request: Request):
-    body = await request.body()
+    body = await request.json()
     print(f'Request received {body}.')
-    messages = [
-        {"role:": "user", "text": "Hello, Ansari!"},
-    ]
-    return presenter.complete(messages)
+    #messages = [
+    #    {"role:": "user", "text": "Hello, Ansari!"},
+    #]
+    return presenter.complete(body)
    
