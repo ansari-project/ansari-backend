@@ -36,5 +36,8 @@ presenter.present()
 @app.post("/api/v1/complete")
 def complete(request: Request):
     print(f'Request received {request}.')
-    return presenter.complete('OK')
+    messages = [
+        {"role:": "user", "text": "Hello, Ansari!"},
+    ]
+    return presenter.complete(messages)
    
