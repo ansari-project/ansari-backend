@@ -13,33 +13,21 @@ class Messages():
     messages: List[Dict]
 
 class ApiPresenter(): 
-    def __init__(self, app, port):
-        self.port = port
+    def __init__(self, app, agent):
         self.app = app
+        self.agent = agent
         self.pm = PromptMgr()
 
 
     def complete(self, messages: Messages):
         print('Complete called.')
-        system_prompt = self.pm.bind('system_msg_fn').render(
-        return StreamingResponse(ans.process_message_history(messages.messages, system_prompt))
+        system_prompt = self.pm.bind('system_msg_fn').render()
+        agent = copy.deepcopy(self.agent)
+        return StreamingResponse(agent.process_message_history(messages.messages, system_prompt))
        
     def present(self):
         pass
 
-app = FastAPI()
-
-tools = {
-    'kalemat': Kalemat()
-}
-
-port = int(os.getenv('API_SERVER_PORT',8000))
-@app.post("/api/v1/complete")
-def complete(messages: Messages):
-    return presenter.complete(messages)
-
-presenter = ApiPresenter(app, port)
-presenter.present()
 
 
 

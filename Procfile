@@ -1,1 +1,1 @@
-web: source setup.sh && python main_gradio.py & python main_discord.py & wait
+web: gunicorn -w 4 -k uvicorn.workers.UvicornWorker main_api:app
