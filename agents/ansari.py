@@ -40,7 +40,9 @@ class Ansari:
             'role': 'system',
             'content': self.sys_msg
         }] + message_history
-        yield from self.process_message_history()
+        for m in self.process_message_history():
+            if m:
+                yield m
 
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
