@@ -1,9 +1,0 @@
-Here is some context from the Qur'an.
-
-{quran_results}
-
-Use this context to answer the next question from the user.
-Do not use external sources unless you are highly confident. 
-Include the Arabic text and the English translation.
-
-Question: {user_question}
