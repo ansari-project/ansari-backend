@@ -4,8 +4,13 @@ from util.prompt_mgr import PromptMgr
 from tools.search_quran import SearchQuran
 from tools.search_hadith import SearchHadith
 import json
-import openai
+from openai import OpenAI
+#from litellm import completion
+#import litellm
 
+# Enable logging to langsmith
+#litellm.success_callback = ["langsmith"] 
+#litellm.set_verbose=True
 
 MODEL = 'gpt-4' 
 MAX_FUNCTION_TRIES = 3 
@@ -47,7 +52,7 @@ class Ansari:
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
         while self.message_history[-1]['role'] != 'assistant':
-            #print(f'Processing one round {self.message_history}')
+            print(f'Processing one round {self.message_history}')
 
             # This is pretty complicated so leaving a comment. 
             # We want to yield from so that we can send the sequence through the input
@@ -57,12 +62,13 @@ class Ansari:
         response = None
         while not response:
             try: 
-                response = openai.ChatCompletion.create(
-                model = self.model,
-                messages = self.message_history,
-                stream = True,
-                functions = self.functions, 
-                temperature = 0.0, 
+                client = OpenAI()
+                response = client.chat.completions.create(
+                    model = self.model,
+                    messages = self.message_history,
+                    stream = True,
+                    functions = self.functions, 
+                    temperature = 0.0, 
                 )
             except Exception as e:
                 print('Exception occurred: ', e)
@@ -75,15 +81,14 @@ class Ansari:
         function_arguments = ''
         response_mode = '' # words or fn
         for tok in response: 
-            #print(f'Token received: {tok.choices[0].delta}')
             delta = tok.choices[0].delta
             if not response_mode: 
                 # This code should only trigger the first 
                 # time through the loop.
-                if 'function_call' in delta:
+                if delta.function_call:
                     # We are in function mode
                     response_mode = 'fn'
-                    function_name = delta['function_call']['name']
+                    function_name = delta.function_call.name
                 else: 
                     response_mode = 'words'
                 print('Response mode: ' + response_mode)
@@ -91,30 +96,27 @@ class Ansari:
             # We process things differently depending on whether it is a function or a 
             # text
             if response_mode == 'words':
-                if not delta: # End token
+                if delta.content == None: # End token
                     self.message_history.append({
                             'role': 'assistant',
                             'content': words
                         })
 
                     break
-                elif 'content' in delta:
-                    if delta['content']: 
-                        words += delta['content']
-                        yield delta['content'] 
+                elif delta.content != None: 
+                    words += delta.content
+                    yield delta.content 
                 else: 
                     continue
             elif response_mode == 'fn':
-                if not delta: # End token
+                if not delta.function_call: # End token
                     function_call = function_name + '(' + function_arguments + ')'
-                    print(f'Function call is {function_call}')
                     # The function call below appends the function call to the message history
                     yield self.process_fn_call(input, function_name, function_arguments)
                     # 
                     break
-                elif 'function_call' in delta:
-                    #print(f"Function call --{delta['function_call']['arguments']}")
-                    function_arguments += delta['function_call']['arguments']
+                elif delta.function_call:
+                    function_arguments += delta.function_call.arguments
                     #print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else: 
