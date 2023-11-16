@@ -1,11 +1,12 @@
 gradio>=3.42.0
 gradio_client>=0.2.5
-langchain
-openai
+openai<1.0.0
 tiktoken
 rich
 pyislam
+fastapi
+uvicorn
+gunicorn
 discord.py
-git+https://github.com/anyscale/hermetic.git
-
-
+typer
+litellm
