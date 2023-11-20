@@ -14,8 +14,8 @@ origins = [
     "http://beta.ansari.chat",
     "https://ansari.chat",
     "http://ansari.chat",
-    "https://client2.endeavorpal.com/", 
-    "http://client2.endeavorpal.com/",
+    "https://client2.endeavorpal.com", 
+    "http://client2.endeavorpal.com",
 ]
 
 app.add_middleware(
