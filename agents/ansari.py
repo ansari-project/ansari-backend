@@ -7,8 +7,9 @@ import json
 from openai import OpenAI
 import litellm
 from langfuse import Langfuse
-from datetime import datetime
-from langfuse.model import InitialGeneration, Usage
+from datetime import datetime, date
+from langfuse.model import InitialGeneration, CreateGeneration, CreateTrace
+import hashlib
 
 lf = Langfuse()
 lf.auth_check()
@@ -30,12 +31,18 @@ class Ansari:
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind('system_msg_fn').render()
         self.functions = [x.get_function_description() for x in self.tools.values()]
-    
         self.message_history = [{
             'role': 'system',
             'content': self.sys_msg
         }]
         
+    # The trace id is a hash of the first user input and the time. 
+    def compute_trace_id(self):
+        today = date.today()
+        hashstring = str(today) + self.message_history[1]['content']
+        result = hashlib.md5(hashstring.encode())
+        return 'chash_' + result.hexdigest()
+
     def greet(self):
         self.greeting = self.pm.bind('greeting')
         return self.greeting.render()
@@ -48,8 +55,15 @@ class Ansari:
         return self.process_message_history()
 
     def log(self):
-       generation = lf.generation(InitialGeneration(
-            name="ansari",
+        trace_id = self.compute_trace_id()
+        print('trace id is ', trace_id)
+        trace = lf.trace(CreateTrace(
+            id=trace_id,
+            name='ansari-trace'
+        ))
+
+        generation = trace.generation(CreateGeneration(
+            name='ansari-gen',
             startTime=self.start_time,
             endTime=datetime.now(),
             model=MODEL,
