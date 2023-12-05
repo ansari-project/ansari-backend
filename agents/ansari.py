@@ -5,14 +5,21 @@ from tools.search_quran import SearchQuran
 from tools.search_hadith import SearchHadith
 import json
 from openai import OpenAI
-#from litellm import completion
-#import litellm
+import litellm
+from langfuse import Langfuse
+from datetime import datetime
+from langfuse.model import InitialGeneration, Usage
+
+lf = Langfuse()
+lf.auth_check()
+
+
 
 # Enable logging to langsmith
 #litellm.success_callback = ["langsmith"] 
 #litellm.set_verbose=True
 
-MODEL = 'gpt-4' 
+MODEL = 'gpt-4-1106-preview' 
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
     def __init__(self):
@@ -39,6 +46,17 @@ class Ansari:
             'content': user_input
         })
         return self.process_message_history()
+
+    def log(self):
+       generation = lf.generation(InitialGeneration(
+            name="ansari",
+            startTime=self.start_time,
+            endTime=datetime.now(),
+            model=MODEL,
+            prompt=self.message_history[:-1],
+            completion=self.message_history[-1]['content'],
+        )) 
+
     
     def replace_message_history(self, message_history):
         self.message_history = [{
@@ -51,25 +69,47 @@ class Ansari:
 
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
+        self.start_time = datetime.now()
+        count = 0
         while self.message_history[-1]['role'] != 'assistant':
             print(f'Processing one round {self.message_history}')
-
             # This is pretty complicated so leaving a comment. 
             # We want to yield from so that we can send the sequence through the input
-            yield from self.process_one_round()
+            # Also use functions only if we haven't tried too many times
+            use_function = True
+            if count >= MAX_FUNCTION_TRIES:
+                use_function = False
+                print('Not using functions -- tries exceeded')
+            yield from self.process_one_round(use_function)
+            count += 1
+        self.log()
         
-    def process_one_round(self):
+        
+    def process_one_round(self, use_function = True):
         response = None
         while not response:
             try: 
-                client = OpenAI()
-                response = client.chat.completions.create(
-                    model = self.model,
-                    messages = self.message_history,
-                    stream = True,
-                    functions = self.functions, 
-                    temperature = 0.0, 
-                )
+                if use_function: 
+                    client = OpenAI()
+                    response = litellm.completion(
+                        model = self.model,
+                        messages = self.message_history,
+                        stream = True,
+                        functions = self.functions, 
+                        timeout = 30.0,
+                        temperature = 0.0, 
+                        metadata = {'generation-name': 'ansari'},
+                    )
+                else:
+                    client = OpenAI()
+                    response = litellm.completion(
+                        model = self.model,
+                        messages = self.message_history,
+                        stream = True,
+                        timeout = 30.0,
+                        temperature = 0.0,  
+                        metadata = {'generation-name': 'ansari'},                     
+                    )
             except Exception as e:
                 print('Exception occurred: ', e)
                 print('Retrying in 5 seconds...')
@@ -81,13 +121,15 @@ class Ansari:
         function_arguments = ''
         response_mode = '' # words or fn
         for tok in response: 
+            #print(f'Tok is {tok}')
             delta = tok.choices[0].delta
             if not response_mode: 
                 # This code should only trigger the first 
                 # time through the loop.
-                if delta.function_call:
+                if 'function_call' in delta and delta.function_call:
                     # We are in function mode
                     response_mode = 'fn'
+                    print(f'Tok is {tok}')
                     function_name = delta.function_call.name
                 else: 
                     response_mode = 'words'
@@ -109,13 +151,13 @@ class Ansari:
                 else: 
                     continue
             elif response_mode == 'fn':
-                if not delta.function_call: # End token
+                if not 'function_call' in delta: # End token
                     function_call = function_name + '(' + function_arguments + ')'
                     # The function call below appends the function call to the message history
                     yield self.process_fn_call(input, function_name, function_arguments)
                     # 
                     break
-                elif delta.function_call:
+                elif 'function_call' in delta:
                     function_arguments += delta.function_call.arguments
                     #print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn

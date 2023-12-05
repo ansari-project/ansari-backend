@@ -9,4 +9,5 @@ uvicorn
 gunicorn
 discord.py
 typer
-langsmith
+litellm
+langfuse

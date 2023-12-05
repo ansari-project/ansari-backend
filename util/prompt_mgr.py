@@ -13,6 +13,7 @@ class Prompt(BaseModel):
             with open(self.file_path, 'r') as f:
                 self.cached = f.read()
         return self.cached.format(**kwargs)
+    
 
 
 class PromptMgr():
