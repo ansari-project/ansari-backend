@@ -44,7 +44,6 @@ It is not always correct and can get things wrong.  The list below includes some
 
 
 * Only the conversations are logged. Nothing incidental about your identity is currently retained: no ip address, no  accounts etc. If you share personal details with Ansari as part of a conversation e.g. “my name is Mohammed Ali” that will be logged. 
-* Logs are typically only retained for 7 days. 
 * If you shared something that shouldn’t have been shared, drop us an e-mail at feedback@ansari.chat and we can delete any logs. 
 
 
