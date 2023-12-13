@@ -2,8 +2,6 @@
 
 _Try Ansari now at [ansari.chat](https://ansari.chat)!_  
 
-_Want to discuss Ansari? Hit issues? Have feedback? Join the [Ansari Discord](https://discord.gg/3JX2FVht)_
-
 Ansari is an **experimental open source project** that explores the application of large language models in helping Muslims improve their practice of Islam and non-Muslims develop an accurate understanding of the teachings of Islam. 
 
 It is not always correct and can get things wrong.  The list below includes some of the issues we’ve seen in working with Ansari. 
@@ -17,9 +15,9 @@ It is not always correct and can get things wrong.  The list below includes some
 * Help us implement the feature roadmap below. 
 
 
-# What is Ansari good at? 
+# What can Ansari do? 
 
-
+A complete list of what Ansari can do can be found [here](https://waleedkadous.github.io/ansari-backend/)
 
 * It is **very good** at languages and you can freely switch languages between Arabic, English and many other languages. 
 * It is **very good** at writing khutbahs (some people have ranked it better than many human khateebs). 
