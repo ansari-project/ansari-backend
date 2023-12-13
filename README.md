@@ -17,29 +17,9 @@ It is not always correct and can get things wrong.  The list below includes some
 
 # What can Ansari do? 
 
-A complete list of what Ansari can do can be found [here](https://waleedkadous.github.io/ansari-backend/)
-
-* It is **very good** at languages and you can freely switch languages between Arabic, English and many other languages. 
-* It is **very good** at writing khutbahs (some people have ranked it better than many human khateebs). 
-* It is **very good** in its knowledge of Islamic books and scholars (e.g. ask it for a summary of _Madaarij al Saalikeen_, or ask it about _Fath Al Bari_).  
-* It is **good** at finding dua to read in particular situations. 
-* It is **good** for consoling yourself in times of hardship (though it can be a bit repetitive). 
-* It is **good** at identifying a topic as controversial amongst scholars (e.g. music) and will generally give an overview of all opinions. 
-* It is **OK** on the topic of Qur’an. It uses “retrieval assisted generation” to enhance the prompt to increase the chances of using the Qur’an. 
-
-
-# What is Ansari not good at?
-
-
-
-* It is **not good** at Islamic dates, prayer times, etc. This could be fixed, we just haven’t built it yet. 
-* While Ansari is OK at quoting hadith, sometimes the hadith it quotes do not prove the logical point being asserted. In addition while it usually gets hadith quotes correct (the hadith usually exists), the citation of the source is sometimes off (e.g. if it says Hadith Muslim number 3456, the hadith exists, but 3456 might be another hadith).  
-* It is **not good** at complex calculations (e.g. edge cases of inheritance or zakat) or counting (e.g. how many ayahs of the Qur’an mention X). 
-
+A complete list of what Ansari can do can be found [here](https://waleedkadous.github.io/ansari-backend/
 
 # What is logged with Ansari?
-
-
 
 * Only the conversations are logged. Nothing incidental about your identity is currently retained: no ip address, no  accounts etc. If you share personal details with Ansari as part of a conversation e.g. “my name is Mohammed Ali” that will be logged. 
 * If you shared something that shouldn’t have been shared, drop us an e-mail at feedback@ansari.chat and we can delete any logs. 
