@@ -17,7 +17,7 @@ It is not always correct and can get things wrong.  The list below includes some
 
 # What can Ansari do? 
 
-A complete list of what Ansari can do can be found [here](https://waleedkadous.github.io/ansari-backend/
+A complete list of what Ansari can do can be found [here](https://waleedkadous.github.io/ansari-backend/).
 
 # What is logged with Ansari?
 
