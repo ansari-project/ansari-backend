@@ -14,16 +14,11 @@ import hashlib
 lf = Langfuse()
 lf.auth_check()
 
-
-
-# Enable logging to langsmith
-#litellm.success_callback = ["langsmith"] 
-#litellm.set_verbose=True
-
 MODEL = 'gpt-4-1106-preview' 
+
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
-    def __init__(self):
+    def __init__(self, json_format = False):
         sq = SearchQuran()
         sh = SearchHadith()
         self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
@@ -35,6 +30,7 @@ class Ansari:
             'role': 'system',
             'content': self.sys_msg
         }]
+        self.json_format = json_format
         
     # The trace id is a hash of the first user input and the time. 
     def compute_trace_id(self):
@@ -86,16 +82,21 @@ class Ansari:
         self.start_time = datetime.now()
         count = 0
         while self.message_history[-1]['role'] != 'assistant':
-            print(f'Processing one round {self.message_history}')
-            # This is pretty complicated so leaving a comment. 
-            # We want to yield from so that we can send the sequence through the input
-            # Also use functions only if we haven't tried too many times
-            use_function = True
-            if count >= MAX_FUNCTION_TRIES:
-                use_function = False
-                print('Not using functions -- tries exceeded')
-            yield from self.process_one_round(use_function)
-            count += 1
+            try: 
+                print(f'Processing one round {self.message_history}')
+                # This is pretty complicated so leaving a comment. 
+                # We want to yield from so that we can send the sequence through the input
+                # Also use functions only if we haven't tried too many times
+                use_function = True
+                if count >= MAX_FUNCTION_TRIES:
+                    use_function = False
+                    print('Not using functions -- tries exceeded')
+                yield from self.process_one_round(use_function)
+                count += 1
+            except Exception as e:
+                print('Exception occurred: ', e)
+                print('Retrying in 5 seconds...')
+                time.sleep(5)
         self.log()
         
         
@@ -104,26 +105,52 @@ class Ansari:
         while not response:
             try: 
                 if use_function: 
-                    client = OpenAI()
-                    response = litellm.completion(
-                        model = self.model,
-                        messages = self.message_history,
-                        stream = True,
-                        functions = self.functions, 
-                        timeout = 30.0,
-                        temperature = 0.0, 
-                        metadata = {'generation-name': 'ansari'},
-                    )
+                    if self.json_format:
+                        response = litellm.completion(
+                            model = self.model,
+                            messages = self.message_history,
+                            stream = True,
+                            functions = self.functions, 
+                            timeout = 30.0,
+                            temperature = 0.0, 
+                            metadata = {'generation-name': 'ansari'},
+                            response_format = { "type": "json_object" }, 
+                            num_retries = 5
+                        )
+                    else:
+                        response = litellm.completion(
+                            model = self.model,
+                            messages = self.message_history,
+                            stream = True,
+                            functions = self.functions, 
+                            timeout = 30.0,
+                            temperature = 0.0, 
+                            metadata = {'generation-name': 'ansari'},
+                            num_retries = 5
+                        )
                 else:
-                    client = OpenAI()
-                    response = litellm.completion(
-                        model = self.model,
-                        messages = self.message_history,
-                        stream = True,
-                        timeout = 30.0,
-                        temperature = 0.0,  
-                        metadata = {'generation-name': 'ansari'},                     
-                    )
+                    if  self.json_format:
+                        response = litellm.completion(
+                            model = self.model,
+                            messages = self.message_history,
+                            stream = True,
+                            timeout = 30.0,
+                            temperature = 0.0,  
+                            response_format = { "type": "json_object" }, 
+                            metadata = {'generation-name': 'ansari'},   
+                            num_retries = 5                  
+                        )
+                    else: 
+                        response = litellm.completion(
+                            model = self.model,
+                            messages = self.message_history,
+                            stream = True,
+                            timeout = 30.0,
+                            temperature = 0.0,  
+                            metadata = {'generation-name': 'ansari'},   
+                            num_retries = 5                  
+                        )
+
             except Exception as e:
                 print('Exception occurred: ', e)
                 print('Retrying in 5 seconds...')
