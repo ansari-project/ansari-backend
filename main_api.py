@@ -39,7 +39,7 @@ presenter.present()
 async def complete(request: Request):
     print(f'Raw request is {request.headers}')
     origin = request.headers.get('origin','')
-    mobile = request.headers.get('x-mobile-ansari'. '')
+    mobile = request.headers.get('x-mobile-ansari', '')
     if origin in origins or mobile == 'ANSARI': 
         body = await request.json()
         print(f'Request received > {body}.')
