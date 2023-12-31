@@ -1,6 +1,6 @@
 import os
 from typing import Dict, List
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from presenters.api_presenter import ApiPresenter
 from agents.ansari import Ansari
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,10 +38,15 @@ presenter.present()
 @app.post("/api/v1/complete")
 async def complete(request: Request):
     print(f'Raw request is {request.headers}')
-    body = await request.json()
-    print(f'Request received > {body}.')
-    #messages = [
-    #    {"role:": "user", "text": "Hello, Ansari!"},
-    #]
-    return presenter.complete(body)
+    origin = request.headers.get('origin','')
+    mobile = request.headers.get('x-mobile-ansari'. '')
+    if origin in origins or mobile == 'ANSARI': 
+        body = await request.json()
+        print(f'Request received > {body}.')
+        #messages = [
+        #    {"role:": "user", "text": "Hello, Ansari!"},
+        #]
+        return presenter.complete(body)
+    else: 
+        raise HTTPException(status_code=403, detail="CORS not permitted")
    
