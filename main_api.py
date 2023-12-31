@@ -37,6 +37,7 @@ presenter.present()
 
 @app.post("/api/v1/complete")
 async def complete(request: Request):
+    print(f'Raw request is {request}')
     body = await request.json()
     print(f'Request received > {body}.')
     #messages = [
