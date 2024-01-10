@@ -11,3 +11,4 @@ discord.py
 typer
 litellm
 langfuse
+psycopg2-binary
