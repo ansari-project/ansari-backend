@@ -35,6 +35,7 @@ CREATE TABLE messages (
     user_id INTEGER NOT NULL,
     thread_id INTEGER NOT NULL,
     role TEXT NOT NULL, 
+    function_name TEXT, 
     content TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

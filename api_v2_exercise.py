@@ -102,10 +102,19 @@ def get_prefs(url, token):
     print('Getting preferences')
     response = requests.get(url + '/api/v2/preferences',
                             headers={'Authorization': 'Bearer ' + token, 
-                                        'x-mobile-ansari': 'ANSARI', 
+                                     'x-mobile-ansari': 'ANSARI', 
     })
     print(f'Response is {response}')
     return response.json()
+
+def set_thread_name(url, token, thread_id, name):
+    print('Setting thread name')
+    response = requests.post(url + '/api/v2/threads/' + str(thread_id) + '/name',
+                             headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI'}, 
+                             json={'name': name})
+    print(f'Response is {response}')
+    return response.json()                        
 
 # Generate a random email address.
 
@@ -115,6 +124,7 @@ email_address = f'waleedk+test_{random_number}@gmail.com'
 register(default_url, email_address, str(random_number), f'Waleed {random_number}', 'Kadous')
 token = login(default_url, email_address, str(random_number))
 thread_id = create_thread(default_url, token)
+set_thread_name(default_url, token, thread_id, 'Test thread')
 message = 'Salam.'
 for chunk in add_message(default_url, token, thread_id, 'user', message): 
     sys.stdout.write(chunk.decode('utf-8'))

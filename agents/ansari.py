@@ -38,7 +38,7 @@ class Ansari:
     def set_message_logger(self, message_logger):
         self.message_logger = message_logger
 
-        
+
     # The trace id is a hash of the first user input and the time. 
     def compute_trace_id(self):
         today = date.today()
@@ -232,12 +232,13 @@ class Ansari:
                         'name': function_name, 
                         'content': result
                     })
-                    self.message_logger.log('function',f'{function_name}: {result}')  
+                    self.message_logger.log('function',result, function_name)  
             else: 
                 self.message_history.append({
                     'role': 'function',
                     'name': function_name, 
                     'content': 'No results found'
                 })
+                self.message_logger.log('function','No results found', function_name) 
         else:
             print('Unknown function name: ', function_name) 

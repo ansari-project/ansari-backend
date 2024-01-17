@@ -154,6 +154,28 @@ async def get_thread(thread_id: int,
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
+    
+
+class ThreadNameRequest(BaseModel): 
+    name: str
+
+@app.post("/api/v2/threads/{thread_id}/name")
+async def get_thread(thread_id: int, 
+                     req: ThreadNameRequest,
+                     cors_ok: bool =  Depends(validate_cors), 
+                     token_params: dict = Depends(db.validate_token)): 
+    if cors_ok and token_params: 
+        print(f'Token_params is {token_params}')
+        # TODO(mwk): check that the user_id in the token matches the 
+        # user_id associated with the thread_id. 
+        try:
+            messages  = db.set_thread_name(thread_id, token_params['user_id'], req.name)
+            return messages
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else: 
+        raise HTTPException(status_code=403, detail="CORS not permitted")
 
 class SetPrefRequest(BaseModel):
     key: str

@@ -16,9 +16,9 @@ class MessageLogger:
         self.thread_id = thread_id
         self.db = db
 
-    def log(self, role, content):
+    def log(self, role, content, function_name = None):
         #print(f'Self db is {self.db}')
-        self.db.append_message(self.user_id, self.thread_id, role, content)
+        self.db.append_message(self.user_id, self.thread_id, role, content, function_name)
 
 class AnsariDB:
     """ Handles all database interactions. 
@@ -95,10 +95,18 @@ class AnsariDB:
         cur.close()
         return {"status": "success", "thread_id": inserted_id}
     
-    def append_message(self, user_id, thread_id, role, content): 
+    def set_thread_name(self, thread_id, user_id, thread_name):
         cur = self.conn.cursor()
-        insert_cmd = '''INSERT INTO messages (thread_id, user_id, role, content) values (%s, %s, %s, %s);'''
-        cur.execute(insert_cmd, (thread_id, user_id, role, content) )
+        insert_cmd = '''INSERT INTO threads (id, user_id, name) values (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;'''
+        cur.execute(insert_cmd, (thread_id, user_id, thread_name, thread_name) )
+        self.conn.commit()
+        cur.close()
+        return {"status": "success"}
+    
+    def append_message(self, user_id, thread_id, role, content, function_name = None): 
+        cur = self.conn.cursor()
+        insert_cmd = '''INSERT INTO messages (thread_id, user_id, role, content, function_name) values (%s, %s, %s, %s, %s);'''
+        cur.execute(insert_cmd, (thread_id, user_id, role, content, function_name) )
         self.conn.commit()
         cur.close()
         return {"status": "success"}
@@ -108,8 +116,12 @@ class AnsariDB:
         select_cmd = '''SELECT role, content FROM messages WHERE thread_id = %s ORDER BY timestamp;'''
         cur.execute(select_cmd, (thread_id, ) )
         result = cur.fetchall()
+        select_cmd = '''SELECT name FROM threads WHERE id = %s;'''
+        cur.execute(select_cmd, (thread_id, ) )
+        thread_name = cur.fetchone()[0]
         # Now convert into the standard format
-        retval = {'messages': [{'role': x[0], 'content': x[1]} for x in result]}
+        retval = {'thread_name': thread_name, 
+                  'messages': [{'role': x[0], 'content': x[1]} for x in result]}
         cur.close()
         return retval
     
