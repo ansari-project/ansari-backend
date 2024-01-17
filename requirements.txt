@@ -12,3 +12,5 @@ typer
 litellm
 langfuse
 psycopg2-binary
+bcrypt
+pyjwt

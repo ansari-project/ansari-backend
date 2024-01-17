@@ -15,9 +15,10 @@ class ApiPresenter():
         self.agent = agent
 
 
-    def complete(self, messages):
+    def complete(self, messages, message_logger = None):
         print('Complete called.')
         agent = copy.deepcopy(self.agent)
+        agent.set_message_logger(message_logger)
         return StreamingResponse(agent.replace_message_history(messages['messages']))
        
     def present(self):

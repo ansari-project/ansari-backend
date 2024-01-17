@@ -13,16 +13,17 @@ CREATE TABLE users (
 CREATE TABLE preferences (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    preference_key VARCHAR(100) NOT NULL,
-    preference_value VARCHAR(255) NOT NULL,
+    pref_key VARCHAR(100) NOT NULL,
+    pref_value VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unique (user_id, pref_key),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 CREATE TABLE threads (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(100),
     user_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -34,7 +35,7 @@ CREATE TABLE messages (
     user_id INTEGER NOT NULL,
     thread_id INTEGER NOT NULL,
     role TEXT NOT NULL, 
-    message TEXT NOT NULL,
+    content TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

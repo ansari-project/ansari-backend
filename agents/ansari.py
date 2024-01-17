@@ -10,6 +10,8 @@ from langfuse import Langfuse
 from datetime import datetime, date
 from langfuse.model import InitialGeneration, CreateGeneration, CreateTrace
 import hashlib
+import traceback
+
 
 lf = Langfuse()
 lf.auth_check()
@@ -18,7 +20,7 @@ MODEL = 'gpt-4-1106-preview'
 
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
-    def __init__(self, json_format = False):
+    def __init__(self, message_logger = None, json_format = False):
         sq = SearchQuran()
         sh = SearchHadith()
         self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
@@ -31,6 +33,11 @@ class Ansari:
             'content': self.sys_msg
         }]
         self.json_format = json_format
+        self.message_logger = message_logger
+
+    def set_message_logger(self, message_logger):
+        self.message_logger = message_logger
+
         
     # The trace id is a hash of the first user input and the time. 
     def compute_trace_id(self):
@@ -95,6 +102,7 @@ class Ansari:
                 count += 1
             except Exception as e:
                 print('Exception occurred: ', e)
+                print(traceback.format_exc())
                 print('Retrying in 5 seconds...')
                 time.sleep(5)
         self.log()
@@ -184,7 +192,8 @@ class Ansari:
                             'role': 'assistant',
                             'content': words
                         })
-
+                    if self.message_logger:
+                        self.message_logger.log('assistant',words)   
                     break
                 elif delta.content != None: 
                     words += delta.content
@@ -223,6 +232,7 @@ class Ansari:
                         'name': function_name, 
                         'content': result
                     })
+                    self.message_logger.log('function',f'{function_name}: {result}')  
             else: 
                 self.message_history.append({
                     'role': 'function',
