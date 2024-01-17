@@ -24,7 +24,7 @@ origins = [
 ]
 
 port = int(os.getenv('API_SERVER_PORT',8000))
-db_url = os.getenv('DATBASE_URL', 'postgresql://mwk@localhost:5432/mwk')
+db_url = os.getenv('DATABASE_URL', 'postgresql://mwk@localhost:5432/mwk')
 token_secret_key = os.getenv('SECRET_KEY', 'secret')
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
