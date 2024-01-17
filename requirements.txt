@@ -10,4 +10,4 @@ gunicorn
 discord.py
 typer
 litellm
-langfuse
+langfuse==1.14.0
