@@ -139,7 +139,10 @@ class AnsariDB:
         cur.execute(select_cmd, (user_id,) )
         result = cur.fetchall() 
         cur.close()
-        return result
+        retval = {}
+        for x in result:
+            retval[x[0]] = x[1]
+        return retval
     
     def convert_message(self, msg):
         if msg[2]: 
