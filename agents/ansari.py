@@ -161,6 +161,7 @@ class Ansari:
 
             except Exception as e:
                 print('Exception occurred: ', e)
+                print(traceback.format_exc())
                 print('Retrying in 5 seconds...')
                 time.sleep(5)
             

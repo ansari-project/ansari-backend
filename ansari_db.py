@@ -113,7 +113,7 @@ class AnsariDB:
     
     def get_thread(self, thread_id):
         cur = self.conn.cursor()
-        select_cmd = '''SELECT role, content FROM messages WHERE thread_id = %s ORDER BY timestamp;'''
+        select_cmd = '''SELECT role, content, function_name FROM messages WHERE thread_id = %s ORDER BY timestamp;'''
         cur.execute(select_cmd, (thread_id, ) )
         result = cur.fetchall()
         select_cmd = '''SELECT name FROM threads WHERE id = %s;'''
@@ -121,7 +121,7 @@ class AnsariDB:
         thread_name = cur.fetchone()[0]
         # Now convert into the standard format
         retval = {'thread_name': thread_name, 
-                  'messages': [{'role': x[0], 'content': x[1]} for x in result]}
+                  'messages': [self.convert_message(x) for x in result]}
         cur.close()
         return retval
     
@@ -140,3 +140,9 @@ class AnsariDB:
         result = cur.fetchall() 
         cur.close()
         return result
+    
+    def convert_message(self, msg):
+        if msg[2]: 
+            return {'role': msg[0], 'content': msg[1], 'function_name': msg[2]}
+        else:
+            return {'role': msg[0], 'content': msg[1]}
