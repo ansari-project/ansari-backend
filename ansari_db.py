@@ -62,11 +62,24 @@ class AnsariDB:
         
     def register(self, email, first_name, last_name, password_hash):
         cur = self.conn.cursor()
-        insert_cmd = '''INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);'''
-        cur.execute(insert_cmd, (email, password_hash, first_name, last_name) )
-        self.conn.commit()
+        try: 
+
+            insert_cmd = '''INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);'''
+            cur.execute(insert_cmd, (email, password_hash, first_name, last_name) )
+            self.conn.commit()
+            return {"status": "success"}
+        finally: 
+            if cur: 
+                cur.close() 
+
+    def account_exists(self, email):
+        cur = self.conn.cursor()
+        select_cmd = '''SELECT id FROM users WHERE email = %s;'''
+        cur.execute(select_cmd, (email, ) )
+        result = cur.fetchone()
         cur.close()
-        return {"status": "success"}
+        return result is not None
+ 
     
     def save_token(self, user_id, token):
         cur = self.conn.cursor()
@@ -78,13 +91,15 @@ class AnsariDB:
     
     def retrieve_password(self, email):
         cur = self.conn.cursor()
-        select_cmd = '''SELECT id, password_hash FROM users WHERE email = %s;'''
+        select_cmd = '''SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;'''
         cur.execute(select_cmd, (email, ) )
         result = cur.fetchone()
         user_id = result[0] 
         existing_hash = result[1]
+        first_name = result[2]
+        last_name = result[3]
         cur.close()
-        return user_id,existing_hash
+        return user_id, existing_hash, first_name, last_name
     
     def create_thread(self, user_id):
         cur = self.conn.cursor()
@@ -95,6 +110,14 @@ class AnsariDB:
         cur.close()
         return {"status": "success", "thread_id": inserted_id}
     
+    def get_all_threads(self, user_id):
+        cur = self.conn.cursor()
+        select_cmd = '''SELECT id, name, created_at FROM threads WHERE user_id = %s;'''
+        cur.execute(select_cmd, (user_id,) )
+        result = cur.fetchall()
+        cur.close()
+        return [{"thread_id": x[0], "thread_name": x[1], "created_at": x[2]} for x in result]
+
     def set_thread_name(self, thread_id, user_id, thread_name):
         cur = self.conn.cursor()
         insert_cmd = '''INSERT INTO threads (id, user_id, name) values (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;'''
@@ -124,6 +147,18 @@ class AnsariDB:
                   'messages': [self.convert_message(x) for x in result]}
         cur.close()
         return retval
+    
+    def delete_thread(self, thread_id):
+        # We must delete the messages associated with the thread first. 
+        cur = self.conn.cursor()
+        delete_cmd = '''DELETE FROM messages WHERE thread_id = %s;'''
+        cur.execute(delete_cmd, (thread_id, ) )
+        self.conn.commit()
+        delete_cmd = '''DELETE FROM threads WHERE id = %s;'''
+        cur.execute(delete_cmd, (thread_id, ) )
+        self.conn.commit()
+        cur.close()
+        return {"status": "success"}
     
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()

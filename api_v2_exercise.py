@@ -6,6 +6,7 @@
 ### It also assumes that you have a running Ansari database on localhost:5432.
 ### The steps are: register an account, log in with an accounnt, create a thread, add messages to the thread, and then get the thread.
 
+import uuid
 import requests
 import json
 import os
@@ -16,7 +17,9 @@ import random
 # This is the URL of the Ansari server.   
 # If you are running the Ansari server locally, you can leave this as is.
 
-default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
+default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com/'
+default_url = 'http://localhost:8000'
+
 
 # Start with registering. 
 
@@ -114,16 +117,45 @@ def set_thread_name(url, token, thread_id, name):
                                      'x-mobile-ansari': 'ANSARI'}, 
                              json={'name': name})
     print(f'Response is {response}')
-    return response.json()                        
+    return response.json()         
+
+def get_all_threads(url, token):
+    print('Getting all threads')
+    response = requests.get(url + '/api/v2/threads',
+                            headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI', 
+    })
+    print(f'Response is {response}')
+    return response.json()     
+
+def delete_thread(url, token, thread_id):
+    print('Deleting thread')
+    response = requests.delete(url + '/api/v2/threads/' + str(thread_id),
+                            headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI', 
+    })
+    print(f'Response is {response}')
+    return response.json()
 
 # Generate a random email address.
 
 random_number = random.randint(0, 10000)
+random_pass = str(uuid.uuid4())
 email_address = f'waleedk+test_{random_number}@gmail.com'
 
-register(default_url, email_address, str(random_number), f'Waleed {random_number}', 'Kadous')
-token = login(default_url, email_address, str(random_number))
+# Try to register a weak password.
+register(default_url, email_address, str("qwerty"), f'Waleed {random_number}', 'Kadous')
+
+# Ok regigster for real. 
+register(default_url, email_address, str(random_pass), f'Waleed {random_number}', 'Kadous')
+
+# Try to register twice. See what happens. 
+register(default_url, email_address, str(random_pass), f'Waleed {random_number}', 'Kadous')
+
+
+token = login(default_url, email_address, str(random_pass))
 thread_id = create_thread(default_url, token)
+
 set_thread_name(default_url, token, thread_id, 'Test thread')
 message = 'Salam.'
 for chunk in add_message(default_url, token, thread_id, 'user', message): 
@@ -139,6 +171,34 @@ sys.stdout.write('\n')
 
 result = get_thread(default_url, token, thread_id)
 print(result)
+
+# Create a second thread
+
+thread_id = create_thread(default_url, token)
+
+set_thread_name(default_url, token, thread_id, 'Test thread 2')
+message = 'Salam.'
+for chunk in add_message(default_url, token, thread_id, 'user', message): 
+    sys.stdout.write(chunk.decode('utf-8'))
+    sys.stdout.flush()
+sys.stdout.write('\n')
+
+message = "How old are you?"
+for chunk in add_message(default_url, token, thread_id, 'user', message): 
+    sys.stdout.write(chunk.decode('utf-8'))
+    sys.stdout.flush()
+sys.stdout.write('\n')
+
+# Let's get all threads
+response = get_all_threads(default_url, token)
+print('All threads are ', response)
+
+# Now let's delete the second thread 
+response = delete_thread(default_url, token, thread_id)
+
+# Let's check that we successfully deleted the thread. 
+response = get_all_threads(default_url, token)
+print('Now threads are ', response)
 
 # Let's also check preference setting. 
 set_pref(default_url, token, 'language', 'en')

@@ -12,6 +12,7 @@ import bcrypt
 import jwt
 from jwt import PyJWTError
 from ansari_db import AnsariDB, MessageLogger
+from zxcvbn import zxcvbn
 
 
 origins = [
@@ -65,12 +66,23 @@ class RegisterRequest(BaseModel):
 @app.post("/api/v2/users/register")
 async def register_user(req: RegisterRequest,
                         cors_ok: bool =  Depends(validate_cors)):
-    """ Register a new user.
+    """ Register a new user. 
+        If the user exists, returns 403.
+        Returns 200 on success. 
+        Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
     
     password_hash = db.hash_password(req.password)
     print(f'Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}')
     try: 
+        # Check if account exists
+        if db.account_exists(req.email):
+            raise HTTPException(status_code=403, detail="Account already exists")
+        passwd_quality = zxcvbn(req.password)
+        if passwd_quality['score'] < 2: 
+            raise HTTPException(status_code=400, 
+                                detail=f"Password is too weak. Suggestions: " 
+                                + ','.join(passwd_quality['feedback']['suggestions']))
         return db.register(req.email, req.first_name, req.last_name, password_hash)
     except psycopg2.Error as e:
         print(f'Error: {e}')
@@ -83,13 +95,20 @@ class LoginRequest(BaseModel):
 @app.post("/api/v2/users/login")
 async def login_user(req: LoginRequest, 
                      cors_ok: bool =  Depends(validate_cors)):     
-    user_id, existing_hash = db.retrieve_password(req.email)
+    user_id, existing_hash, first_name, last_name = db.retrieve_password(req.email)
+    """ Logs the user in. 
+        Returns a token on success.
+        Returns 403 if the password is incorrect or the user doesn't exist. 
+    """
     if db.check_password(req.password, existing_hash):
         # Generate a token and return it
         try:
             token = db.generate_token(user_id)
             db.save_token(user_id, token)
-            return {'status': 'success', 'token': token}
+            return {'status': 'success', 
+                    'token': token,
+                    'first_name': first_name,
+                    'last_name': last_name}
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
@@ -106,6 +125,24 @@ async def create_thread(request: Request,
         try:
             thread_id = db.create_thread(token_params['user_id'])
             return thread_id
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else: 
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+    
+@app.get("/api/v2/threads")
+async def get_all_threads(request: Request, 
+                        cors_ok: bool =  Depends(validate_cors), 
+                        token_params: dict = Depends(db.validate_token)):
+    """ Retrieve all threads for the user whose id is included in the token. 
+    """
+    if cors_ok and token_params: 
+        print(f'Token_params is {token_params}')
+        # Now create a thread and return the thread_id
+        try:
+            threads = db.get_all_threads(token_params['user_id'])
+            return threads
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
@@ -151,6 +188,22 @@ async def get_thread(thread_id: int,
         try:
             messages  = db.get_thread(thread_id)
             return messages
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else: 
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+    
+@app.delete("/api/v2/threads/{thread_id}")
+async def delete_thread(thread_id: int, 
+                      cors_ok: bool =  Depends(validate_cors), 
+                      token_params: dict = Depends(db.validate_token)): 
+    if cors_ok and token_params: 
+        print(f'Token_params is {token_params}')
+        # TODO(mwk): check that the user_id in the token matches the 
+        # user_id associated with the thread_id. 
+        try:
+            db.delete_thread(thread_id)
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
