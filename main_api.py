@@ -158,6 +158,9 @@ def add_message(thread_id: int,
                       req: AddMessageRequest,
                       cors_ok: bool =  Depends(validate_cors), 
                       token_params: dict = Depends(db.validate_token)) -> StreamingResponse:
+    """ Adds a message to a thread. If the message is the first message in the thread,
+        we set the name of the thread to the content of the message.
+    """
     if cors_ok and token_params: 
         print(f'Token_params is {token_params}')
         # TODO(mwk): check that the user_id in the token matches the 
@@ -169,6 +172,8 @@ def add_message(thread_id: int,
                               req.content)
             # Now actually use Ansari. 
             history = db.get_thread(thread_id)
+            if len(history) > 1: 
+                db.set_thread_name(thread_id, token_params['user_id'], history['messages'][0]['content'])
             return presenter.complete(history, 
                                       message_logger=MessageLogger(db, token_params['user_id'], thread_id))
         except psycopg2.Error as e:

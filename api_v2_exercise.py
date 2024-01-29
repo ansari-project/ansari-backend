@@ -156,7 +156,6 @@ register(default_url, email_address, str(random_pass), f'Waleed {random_number}'
 token = login(default_url, email_address, str(random_pass))
 thread_id = create_thread(default_url, token)
 
-set_thread_name(default_url, token, thread_id, 'Test thread')
 message = 'Salam.'
 for chunk in add_message(default_url, token, thread_id, 'user', message): 
     sys.stdout.write(chunk.decode('utf-8'))
@@ -176,8 +175,7 @@ print(result)
 
 thread_id = create_thread(default_url, token)
 
-set_thread_name(default_url, token, thread_id, 'Test thread 2')
-message = 'Salam.'
+message = 'Salam 2.'
 for chunk in add_message(default_url, token, thread_id, 'user', message): 
     sys.stdout.write(chunk.decode('utf-8'))
     sys.stdout.flush()
