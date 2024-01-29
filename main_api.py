@@ -65,6 +65,8 @@ class RegisterRequest(BaseModel):
 @app.post("/api/v2/users/register")
 async def register_user(req: RegisterRequest,
                         cors_ok: bool =  Depends(validate_cors)):
+    """ Register a new user.
+    """
     
     password_hash = db.hash_password(req.password)
     print(f'Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}')
@@ -160,7 +162,7 @@ class ThreadNameRequest(BaseModel):
     name: str
 
 @app.post("/api/v2/threads/{thread_id}/name")
-async def get_thread(thread_id: int, 
+async def set_thread_name(thread_id: int, 
                      req: ThreadNameRequest,
                      cors_ok: bool =  Depends(validate_cors), 
                      token_params: dict = Depends(db.validate_token)): 
