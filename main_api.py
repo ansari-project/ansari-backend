@@ -95,23 +95,47 @@ class LoginRequest(BaseModel):
 @app.post("/api/v2/users/login")
 async def login_user(req: LoginRequest, 
                      cors_ok: bool =  Depends(validate_cors)):     
-    user_id, existing_hash, first_name, last_name = db.retrieve_password(req.email)
     """ Logs the user in. 
         Returns a token on success.
         Returns 403 if the password is incorrect or the user doesn't exist. 
     """
-    if db.check_password(req.password, existing_hash):
-        # Generate a token and return it
+    if db.check_user_exists(req.email): 
+        user_id, existing_hash, first_name, last_name = db.retrieve_password(req.email)
+        if db.check_password(req.password, existing_hash):
+            # Generate a token and return it
+            try:
+                token = db.generate_token(user_id)
+                db.save_token(user_id, token)
+                return {'status': 'success', 
+                        'token': token,
+                        'first_name': first_name,
+                        'last_name': last_name}
+            except psycopg2.Error as e:
+                print(f'Error: {e}')
+                raise HTTPException(status_code=500, detail="Database error")
+        else: 
+            return {"status": "error", "message": "Invalid username or password"}
+    else: 
+        return {"status": "error", "message": "Invalid username or password"}
+    
+@app.post("/api/v2/users/logout")
+async def logout_user(request: Request, 
+                    cors_ok: bool =  Depends(validate_cors),
+                    token_params: dict = Depends(db.validate_token)):     
+    """ Logs the user out. 
+        Deletes all tokens.
+        Returns 403 if the password is incorrect or the user doesn't exist. 
+    """
+    if cors_ok and token_params: 
+         
         try:
-            token = db.generate_token(user_id)
-            db.save_token(user_id, token)
-            return {'status': 'success', 
-                    'token': token,
-                    'first_name': first_name,
-                    'last_name': last_name}
+            db.logout(token_params['user_id'])
+            return {'status': 'success'}
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
+        else: 
+            return {"status": "error", "message": "Invalid username or password"}
     else: 
         return {"status": "error", "message": "Invalid username or password"}
 

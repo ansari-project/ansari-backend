@@ -55,6 +55,16 @@ class AnsariDB:
             token = request.headers.get('Authorization', '').split(' ')[1]
             print('Token is ', token)
             payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+            # Check that the token is in our database. 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT user_id FROM user_tokens WHERE user_id = %s AND token = %s;'''
+            cur.execute(select_cmd, (payload['user_id'], token) )
+            result = cur.fetchone()
+            cur.close()
+            if result is None:
+                raise HTTPException(status_code=403, detail="Could not validate credentials")
+            else: 
+                return payload
             print('Payload is ', payload)
             return payload
         except PyJWTError:
@@ -88,6 +98,18 @@ class AnsariDB:
         self.conn.commit()
         cur.close()
         return {"status": "success", "token": token}
+    
+    def check_user_exists(self, email):
+        cur = self.conn.cursor()
+        select_cmd = '''SELECT id FROM users WHERE email = %s;'''
+        cur.execute(select_cmd, (email, ) )
+        result = cur.fetchone()
+        if result:
+            return True
+        else: 
+            return False
+        cur.close()
+        
     
     def retrieve_password(self, email):
         cur = self.conn.cursor()
@@ -156,6 +178,14 @@ class AnsariDB:
         self.conn.commit()
         delete_cmd = '''DELETE FROM threads WHERE id = %s;'''
         cur.execute(delete_cmd, (thread_id, ) )
+        self.conn.commit()
+        cur.close()
+        return {"status": "success"}
+    
+    def logout(self, user_id):
+        cur = self.conn.cursor()
+        delete_cmd = '''DELETE FROM user_tokens WHERE user_id = %s;'''
+        cur.execute(delete_cmd, (user_id, ) )
         self.conn.commit()
         cur.close()
         return {"status": "success"}

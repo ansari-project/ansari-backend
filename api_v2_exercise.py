@@ -15,13 +15,14 @@ import sys
 import random
 
 # This is the URL of the Ansari server.   
-# If you are running the Ansari server locally, you can leave this as is.
+# If you are running the Ansari server locally, you can use the second line
 
-default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com/'
+#default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
 default_url = 'http://localhost:8000'
 
 
 # Start with registering. 
+
 
 def register(url, email, password, first_name, last_name):
     print(f'Registering {email} {password} {first_name} {last_name}')
@@ -47,8 +48,24 @@ def login(url, email, password):
         'email': email,
         'password': password
     })
-    print(f'Response is {response.json()}')
-    return response.json()['token']
+    result = response.json() 
+    print(f'Response is {result}')
+    if result.get('status') == 'error':
+        print('Failed to log in')
+        return False
+    else: 
+        return response.json()['token']
+    
+
+def logout(url, token):
+    print('Logging out')
+    response = requests.post(url + '/api/v2/users/logout', 
+                            headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI', 
+    })
+    print(f'Response is {response}')
+    return response.json()
+
 
 # Now create a thread.
 
@@ -60,7 +77,11 @@ def create_thread(url, token):
                                 'x-mobile-ansari': 'ANSARI', 
                             }
                             )
-    print(f'Response is {response.json()}')
+    json = response.json()
+    print(f'Response is {json}')
+    if 'thread_id' not in json:
+        print('Failed to create thread')
+        return None
     return response.json()['thread_id']
 
 # Now add a message to the thread.
@@ -143,6 +164,9 @@ random_number = random.randint(0, 10000)
 random_pass = str(uuid.uuid4())
 email_address = f'waleedk+test_{random_number}@gmail.com'
 
+# Try to login with a non-existent account. 
+login(default_url, 'bogus@email.com', 'bogus')
+
 # Try to register a weak password.
 register(default_url, email_address, str("qwerty"), f'Waleed {random_number}', 'Kadous')
 
@@ -198,8 +222,16 @@ response = delete_thread(default_url, token, thread_id)
 response = get_all_threads(default_url, token)
 print('Now threads are ', response)
 
+
 # Let's also check preference setting. 
 set_pref(default_url, token, 'language', 'en')
 set_pref(default_url, token, 'madhab', 'hanafi')  
 result = get_prefs(default_url, token)
 print(result)
+
+# Now try to logout and then create a thread. This should fail.
+
+logout(default_url, token)
+
+#This should fail
+thread_id = create_thread(default_url, token)
