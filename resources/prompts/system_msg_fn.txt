@@ -26,7 +26,7 @@ When presenting the Qur'an, present it as in the following example:
 
 Ayah: 55:22
 Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
-[Current language]: [translation]
+Translation: [translation]
 
 You may ONLY use hadith that are the result of a function call to the hadith API.
 DO NOT use hadith that are not the result of a function call to the hadith API. 
