@@ -17,8 +17,8 @@ import random
 # This is the URL of the Ansari server.   
 # If you are running the Ansari server locally, you can use the second line
 
-#default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
-default_url = 'http://localhost:8000'
+default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
+#default_url = 'http://localhost:8000'
 
 
 # Start with registering. 
