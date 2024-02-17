@@ -195,7 +195,7 @@ def add_message(thread_id: int,
                               req.role, 
                               req.content)
             # Now actually use Ansari. 
-            history = db.get_thread(thread_id)
+            history = db.get_thread(thread_id, token_params['user_id'])
             if len(history) > 1: 
                 db.set_thread_name(thread_id, token_params['user_id'], history['messages'][0]['content'])
             return presenter.complete(history, 
@@ -215,7 +215,7 @@ async def get_thread(thread_id: int,
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
-            messages  = db.get_thread(thread_id)
+            messages  = db.get_thread(thread_id, token_params['user_id'])
             return messages
         except psycopg2.Error as e:
             print(f'Error: {e}')
@@ -232,7 +232,7 @@ async def delete_thread(thread_id: int,
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
-            db.delete_thread(thread_id)
+            db.delete_thread(thread_id, token_params['user_id'])
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")

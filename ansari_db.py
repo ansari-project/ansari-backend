@@ -7,6 +7,8 @@ import psycopg2
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, Request, HTTPException
 
+MAX_THREAD_NAME_LENGTH = 100
+
 class MessageLogger:
     """A simplified interface to AnsariDB so that we can log messages 
     without having to share details about the user_id and the thread_id
@@ -69,126 +71,206 @@ class AnsariDB:
             return payload
         except PyJWTError:
             raise HTTPException(status_code=403, detail="Could not validate credentials")
+        finally: 
+            if cur: 
+                cur.close()
         
     def register(self, email, first_name, last_name, password_hash):
-        cur = self.conn.cursor()
         try: 
-
+            cur = self.conn.cursor()
             insert_cmd = '''INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);'''
             cur.execute(insert_cmd, (email, password_hash, first_name, last_name) )
             self.conn.commit()
             return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
         finally: 
             if cur: 
                 cur.close() 
 
     def account_exists(self, email):
-        cur = self.conn.cursor()
-        select_cmd = '''SELECT id FROM users WHERE email = %s;'''
-        cur.execute(select_cmd, (email, ) )
-        result = cur.fetchone()
-        cur.close()
-        return result is not None
+        try: 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT id FROM users WHERE email = %s;'''
+            cur.execute(select_cmd, (email, ) )
+            result = cur.fetchone()
+            return result is not None
+        except Exception as e:
+            print('Error is ', e)
+            return False
+        finally: 
+            if cur: 
+                cur.close()
  
     
     def save_token(self, user_id, token):
-        cur = self.conn.cursor()
-        insert_cmd = "INSERT INTO user_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
-        cur.execute(insert_cmd, (user_id, token, token))
-        self.conn.commit()
-        cur.close()
-        return {"status": "success", "token": token}
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = "INSERT INTO user_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            cur.execute(insert_cmd, (user_id, token, token))
+            self.conn.commit()
+            return {"status": "success", "token": token}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
     
     def check_user_exists(self, email):
-        cur = self.conn.cursor()
-        select_cmd = '''SELECT id FROM users WHERE email = %s;'''
-        cur.execute(select_cmd, (email, ) )
-        result = cur.fetchone()
-        if result:
-            return True
-        else: 
+        try: 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT id FROM users WHERE email = %s;'''
+            cur.execute(select_cmd, (email, ) )
+            result = cur.fetchone()
+            if result:
+                return True
+            else: 
+                return False
+        except Exception as e:
+            print('Error is ', e)
             return False
         cur.close()
         
     
     def retrieve_password(self, email):
-        cur = self.conn.cursor()
-        select_cmd = '''SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;'''
-        cur.execute(select_cmd, (email, ) )
-        result = cur.fetchone()
-        user_id = result[0] 
-        existing_hash = result[1]
-        first_name = result[2]
-        last_name = result[3]
-        cur.close()
-        return user_id, existing_hash, first_name, last_name
+        try: 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;'''
+            cur.execute(select_cmd, (email, ) )
+            result = cur.fetchone()
+            user_id = result[0] 
+            existing_hash = result[1]
+            first_name = result[2]
+            last_name = result[3]
+            return user_id, existing_hash, first_name, last_name
+        except Exception as e:
+            print('Error is ', e)
+            return None, None, None, None
+        finally: 
+          if cur: 
+              cur.close()
     
     def create_thread(self, user_id):
-        cur = self.conn.cursor()
-        insert_cmd = '''INSERT INTO threads (user_id) values (%s) RETURNING id;'''
-        cur.execute(insert_cmd, (user_id,) )
-        inserted_id = cur.fetchone()[0]
-        self.conn.commit()
-        cur.close()
-        return {"status": "success", "thread_id": inserted_id}
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = '''INSERT INTO threads (user_id) values (%s) RETURNING id;'''
+            cur.execute(insert_cmd, (user_id,) )
+            inserted_id = cur.fetchone()[0]
+            self.conn.commit()
+            return {"status": "success", "thread_id": inserted_id}
+        
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        
+        finally: 
+            if cur: 
+                cur.close()
     
     def get_all_threads(self, user_id):
+        try: 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT id, name, updated_at FROM threads WHERE user_id = %s;'''
+            cur.execute(select_cmd, (user_id,) )
+            result = cur.fetchall()
+            return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result]
+        except Exception as e:
+            print('Error is ', e)
+            return []
+        finally:
+            if cur: 
+                cur.close()
         cur = self.conn.cursor()
-        select_cmd = '''SELECT id, name, created_at FROM threads WHERE user_id = %s;'''
-        cur.execute(select_cmd, (user_id,) )
-        result = cur.fetchall()
-        cur.close()
-        return [{"thread_id": x[0], "thread_name": x[1], "created_at": x[2]} for x in result]
 
     def set_thread_name(self, thread_id, user_id, thread_name):
-        cur = self.conn.cursor()
-        insert_cmd = '''INSERT INTO threads (id, user_id, name) values (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;'''
-        cur.execute(insert_cmd, (thread_id, user_id, thread_name, thread_name) )
-        self.conn.commit()
-        cur.close()
-        return {"status": "success"}
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = '''INSERT INTO threads (id, user_id, name) values (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;'''
+            cur.execute(insert_cmd, (thread_id, user_id, thread_name[:MAX_THREAD_NAME_LENGTH], thread_name[:MAX_THREAD_NAME_LENGTH]) )
+            self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}   
+        finally:
+            if cur: 
+                cur.close()
     
     def append_message(self, user_id, thread_id, role, content, function_name = None): 
-        cur = self.conn.cursor()
-        insert_cmd = '''INSERT INTO messages (thread_id, user_id, role, content, function_name) values (%s, %s, %s, %s, %s);'''
-        cur.execute(insert_cmd, (thread_id, user_id, role, content, function_name) )
-        self.conn.commit()
-        cur.close()
-        return {"status": "success"}
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = '''INSERT INTO messages (thread_id, user_id, role, content, function_name) values (%s, %s, %s, %s, %s);'''
+            cur.execute(insert_cmd, (thread_id, user_id, role, content, function_name) )
+            # Appending a message should update the thread's updated_at field.
+            update_cmd = '''UPDATE threads SET updated_at = now() WHERE id = %s AND user_id = %s;'''
+            cur.execute(update_cmd, (thread_id, user_id) )
+            self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
     
-    def get_thread(self, thread_id):
-        cur = self.conn.cursor()
-        select_cmd = '''SELECT role, content, function_name FROM messages WHERE thread_id = %s ORDER BY timestamp;'''
-        cur.execute(select_cmd, (thread_id, ) )
-        result = cur.fetchall()
-        select_cmd = '''SELECT name FROM threads WHERE id = %s;'''
-        cur.execute(select_cmd, (thread_id, ) )
-        thread_name = cur.fetchone()[0]
-        # Now convert into the standard format
-        retval = {'thread_name': thread_name, 
-                  'messages': [self.convert_message(x) for x in result]}
-        cur.close()
-        return retval
+    def get_thread(self, thread_id, user_id):
+        try: 
+            # We need to check user_id to make sure that the user has access to the thread.
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT role, content, function_name FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;'''
+            cur.execute(select_cmd, (thread_id, user_id) )
+            result = cur.fetchall()
+            select_cmd = '''SELECT name FROM threads WHERE id = %s AND user_id = %s;'''
+            cur.execute(select_cmd, (thread_id, user_id) )
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=401, detail="Incorrect user_id or thread_id.")
+            thread_name = cur.fetchone()[0]
+            # Now convert into the standard format
+            retval = {'thread_name': thread_name, 
+                      'messages': [self.convert_message(x) for x in result if x[0] != 'function']}
+            return retval
+        except Exception as e:
+            print('Error is ', e)
+            return {}
+        finally:
+            if cur: 
+                cur.close()
     
-    def delete_thread(self, thread_id):
-        # We must delete the messages associated with the thread first. 
-        cur = self.conn.cursor()
-        delete_cmd = '''DELETE FROM messages WHERE thread_id = %s;'''
-        cur.execute(delete_cmd, (thread_id, ) )
-        self.conn.commit()
-        delete_cmd = '''DELETE FROM threads WHERE id = %s;'''
-        cur.execute(delete_cmd, (thread_id, ) )
-        self.conn.commit()
-        cur.close()
-        return {"status": "success"}
+    def delete_thread(self, thread_id, user_id):
+        try: 
+            # We need to ensure that the user_id has access to the thread.
+            # We must delete the messages associated with the thread first. 
+            cur = self.conn.cursor()
+            delete_cmd = '''DELETE FROM messages WHERE thread_id = %s and user_id = %s;'''
+            cur.execute(delete_cmd, (thread_id, user_id) )
+            self.conn.commit()
+            delete_cmd = '''DELETE FROM threads WHERE id = %s AND user_id = %s;'''
+            cur.execute(delete_cmd, (thread_id, user_id ) )
+            self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
     
     def logout(self, user_id):
+        try: 
+            cur = self.conn.cursor()
+            delete_cmd = '''DELETE FROM user_tokens WHERE user_id = %s;'''
+            cur.execute(delete_cmd, (user_id, ) )
+            self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
         cur = self.conn.cursor()
-        delete_cmd = '''DELETE FROM user_tokens WHERE user_id = %s;'''
-        cur.execute(delete_cmd, (user_id, ) )
-        self.conn.commit()
-        cur.close()
-        return {"status": "success"}
     
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()
