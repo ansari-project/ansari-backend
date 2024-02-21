@@ -203,6 +203,20 @@ class AnsariDB:
         finally: 
           if cur: 
               cur.close()
+
+
+    def add_feedback(self, user_id, thread_id, message_id, feedback_class,  comment):
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = '''INSERT INTO feedback (user_id, thread_id, message_id, class, comment) values (%s, %s, %s, %s, %s);'''
+            cur.execute(insert_cmd, (user_id, thread_id, message_id, feedback_class, comment) )
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally: 
+            if cur: 
+                cur.close()
     
     def create_thread(self, user_id):
         try: 
@@ -271,6 +285,28 @@ class AnsariDB:
         try: 
             # We need to check user_id to make sure that the user has access to the thread.
             cur = self.conn.cursor()
+            select_cmd = '''SELECT id, role, content FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;'''
+            cur.execute(select_cmd, (thread_id, user_id) )
+            result = cur.fetchall()
+            select_cmd = '''SELECT name FROM threads WHERE id = %s AND user_id = %s;'''
+            cur.execute(select_cmd, (thread_id, user_id) )
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=401, detail="Incorrect user_id or thread_id.")
+            thread_name = cur.fetchone()[0]
+            retval = {'thread_name': thread_name, 
+                      'messages': [self.convert_message(x) for x in result if x[1] != 'function']}
+            return retval
+        except Exception as e:
+            print('Error is ', e)
+            return {}
+        finally:
+            if cur: 
+                cur.close()
+    
+    def get_thread_llm(self, thread_id, user_id):
+        try: 
+            # We need to check user_id to make sure that the user has access to the thread.
+            cur = self.conn.cursor()
             select_cmd = '''SELECT role, content, function_name FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;'''
             cur.execute(select_cmd, (thread_id, user_id) )
             result = cur.fetchall()
@@ -281,7 +317,7 @@ class AnsariDB:
             thread_name = cur.fetchone()[0]
             # Now convert into the standard format
             retval = {'thread_name': thread_name, 
-                      'messages': [self.convert_message(x) for x in result if x[0] != 'function']}
+                      'messages': [self.convert_message_llm(x) for x in result]}
             return retval
         except Exception as e:
             print('Error is ', e)
@@ -289,7 +325,7 @@ class AnsariDB:
         finally:
             if cur: 
                 cur.close()
-    
+
     def delete_thread(self, thread_id, user_id):
         try: 
             # We need to ensure that the user_id has access to the thread.
@@ -359,6 +395,9 @@ class AnsariDB:
 
     
     def convert_message(self, msg):
+        return {'id': msg[0], 'role': msg[1], 'content': msg[2]}
+        
+    def convert_message_llm(self, msg):
         if msg[2]: 
             return {'role': msg[0], 'content': msg[1], 'function_name': msg[2]}
         else:

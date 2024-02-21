@@ -164,6 +164,33 @@ async def logout_user(request: Request,
             raise HTTPException(status_code=403, detail = "Invalid username or password")
     else: 
        raise HTTPException(status_code=403, detail = "Invalid username or password")
+    
+
+class FeedbackRequest(BaseModel): 
+    thread_id: int
+    message_id: int
+    feedback_class: str
+    comment: str
+
+@app.post("/api/v2/feedback")
+async def add_feedback(req: FeedbackRequest,
+                        cors_ok: bool =  Depends(validate_cors), 
+                        token_params: dict = Depends(db.validate_token)):
+    if cors_ok and token_params: 
+        print(f'Token_params is {token_params}')
+        # Now create a thread and return the thread_id
+        try:
+            db.add_feedback(token_params['user_id'], 
+                             req.thread_id, 
+                             req.message_id, 
+                             req.feedback_class, 
+                             req.comment)
+            return {'status': 'success'}
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else: 
+        raise HTTPException(status_code=403, detail="CORS not permitted")
 
 @app.post("/api/v2/threads")
 async def create_thread(request: Request, 
@@ -221,7 +248,7 @@ def add_message(thread_id: int,
                               req.role, 
                               req.content)
             # Now actually use Ansari. 
-            history = db.get_thread(thread_id, token_params['user_id'])
+            history = db.get_thread_llm(thread_id, token_params['user_id'])
             if len(history) > 1: 
                 db.set_thread_name(thread_id, token_params['user_id'], history['messages'][0]['content'])
             return presenter.complete(history, 
@@ -330,24 +357,32 @@ async def get_prefs(cors_ok: bool =  Depends(validate_cors),
 async def request_password_reset(cors_ok: bool =  Depends(validate_cors),
                          email: str = None):
     if cors_ok: 
-        reset_token = db.generate_token(email, 'reset')
-        db.save_reset_token(email, reset_token)
-        tenv = Environment(loader=FileSystemLoader(template_dir))
-        template = tenv.get_template('password_reset.html')
-        rendered_template = template.render(reset_token=reset_token)
-        message = Mail(
-            from_email='feedback@ansari.chat',
-            to_emails=f'{email}',
-            subject='Ansari Password Reset',
-            html_content=rendered_template)
-        try:
-            sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-            response = sg.send(message)
-            print(response.status_code)
-            print(response.body)
-            print(response.headers)
-        except Exception as e:
-            print(e.message)
+        if db.account_exists(email):
+            reset_token = db.generate_token(email, 'reset')
+            db.save_reset_token(email, reset_token)
+            tenv = Environment(loader=FileSystemLoader(template_dir))
+            template = tenv.get_template('password_reset.html')
+            rendered_template = template.render(reset_token=reset_token)
+            message = Mail(
+                from_email='feedback@ansari.chat',
+                to_emails=f'{email}',
+                subject='Ansari Password Reset',
+                html_content=rendered_template)
+            
+            try:
+                sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+                response = sg.send(message)
+                print(response.status_code)
+                print(response.body)
+                print(response.headers)
+                return {'status': 'success'}
+            except Exception as e:
+                print(e.message)
+        else: 
+            # Even iuf the email doesn't exist, we return success.
+            # So this can't be used to work out who is on our system. 
+            return {'status': 'success'}
+        
     else: 
         raise HTTPException(status_code=403, detail = "CORS note permitted.")
 

@@ -48,8 +48,9 @@ def login(url, email, password):
         'email': email,
         'password': password
     })
-    result = response.json() 
-    print(f'Response is {result}')
+    result = response.json()
+    print(f'Response is {response}')
+
     if response.status_code != 200:
         print('Failed to login')
         return None
@@ -167,6 +168,20 @@ def refresh_token(url, token):
     print(f'Response is {response}')
     return response.json()['token']
 
+def add_feedback(url, token, thread_id, message_id, feedback_class, comment):
+    print('Adding feedback')
+    response = requests.post(url + '/api/v2/feedback',
+                            headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI', 
+    }, json={
+        'thread_id': thread_id,
+        'message_id': message_id,
+        'feedback_class': feedback_class,
+        'comment': comment
+    })
+    print(f'Response is {response}')
+    return response.json()
+
 # Generate a random email address.
 
 random_number = random.randint(0, 10000)
@@ -207,6 +222,9 @@ sys.stdout.write('\n')
 
 result = get_thread(default_url, token, thread_id)
 print(result)
+
+# Add feedback 
+add_feedback(default_url, token, thread_id, result['messages'][0]['id'], 'thumbsup', 'I like this message')
 
 # Create a second thread
 
