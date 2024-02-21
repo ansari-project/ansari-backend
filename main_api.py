@@ -13,6 +13,10 @@ import jwt
 from jwt import PyJWTError
 from ansari_db import AnsariDB, MessageLogger
 from zxcvbn import zxcvbn
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from jinja2 import Environment, FileSystemLoader
+
 
 
 origins = [
@@ -29,6 +33,8 @@ db_url = os.getenv('DATABASE_URL', 'postgresql://mwk@localhost:5432/mwk')
 token_secret_key = os.getenv('SECRET_KEY', 'secret')
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
+template_dir = 'resources/templates'
+
 
 
 
@@ -114,9 +120,29 @@ async def login_user(req: LoginRequest,
                 print(f'Error: {e}')
                 raise HTTPException(status_code=500, detail="Database error")
         else: 
-            return {"status": "error", "message": "Invalid username or password"}
+            raise HTTPException(status_code=403, detail = "Invalid username or password")
     else: 
-        return {"status": "error", "message": "Invalid username or password"}
+        raise HTTPException(status_code=403, detail = "Invalid username or password")
+    
+@app.get("/api/v2/users/refresh_token")
+async def refresh_token(request: Request, 
+                    cors_ok: bool =  Depends(validate_cors),
+                    token_params: dict = Depends(db.validate_token)):     
+    """ Refreshes the token. 
+        Returns a new token on success.
+        Returns 403 if the password is incorrect or the user doesn't exist. 
+    """
+    if cors_ok and token_params: 
+        try:
+            token = db.generate_token(token_params['user_id'])
+            db.save_token(token_params['user_id'], token)
+            return {'status': 'success', 
+                    'token': token}
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else: 
+        raise HTTPException(status_code=403, detail = "Invalid username or password")
     
 @app.post("/api/v2/users/logout")
 async def logout_user(request: Request, 
@@ -135,9 +161,9 @@ async def logout_user(request: Request,
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
         else: 
-            return {"status": "error", "message": "Invalid username or password"}
+            raise HTTPException(status_code=403, detail = "Invalid username or password")
     else: 
-        return {"status": "error", "message": "Invalid username or password"}
+       raise HTTPException(status_code=403, detail = "Invalid username or password")
 
 @app.post("/api/v2/threads")
 async def create_thread(request: Request, 
@@ -297,7 +323,55 @@ async def get_prefs(cors_ok: bool =  Depends(validate_cors),
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
+# using SendGrid's Python Library
+# https://github.com/sendgrid/sendgrid-python
 
+@app.post("/api/v2/request_password_reset")
+async def request_password_reset(cors_ok: bool =  Depends(validate_cors),
+                         email: str = None):
+    if cors_ok: 
+        reset_token = db.generate_token(email, 'reset')
+        db.save_reset_token(email, reset_token)
+        tenv = Environment(loader=FileSystemLoader(template_dir))
+        template = tenv.get_template('password_reset.html')
+        rendered_template = template.render(reset_token=reset_token)
+        message = Mail(
+            from_email='feedback@ansari.chat',
+            to_emails=f'{email}',
+            subject='Ansari Password Reset',
+            html_content=rendered_template)
+        try:
+            sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+            response = sg.send(message)
+            print(response.status_code)
+            print(response.body)
+            print(response.headers)
+        except Exception as e:
+            print(e.message)
+    else: 
+        raise HTTPException(status_code=403, detail = "CORS note permitted.")
+
+@app.post("/api/v2/update_password")
+async def reset_password(cors_ok: bool =  Depends(validate_cors),
+                        token_params: dict = Depends(db.validate_reset_token), 
+                        password: str = None):
+    """ Update the user's password. Accepts both token and password in the request. 
+    """
+    if cors_ok and token_params:
+        print(f'Token_params is {token_params}')
+        try:
+            password_hash = db.hash_password(password)
+            passwd_quality = zxcvbn(password)
+            if passwd_quality['score'] < 2: 
+                raise HTTPException(status_code=400, 
+                                    detail=f"Password is too weak. Suggestions: " 
+                                    + ','.join(passwd_quality['feedback']['suggestions']))
+            db.update_password(token_params['email'], password_hash)
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else:
+        raise HTTPException(status_code=403, detail = "Invalid username or password")
 
 @app.post("/api/v1/complete")
 async def complete(request: Request):

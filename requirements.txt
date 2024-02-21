@@ -15,3 +15,5 @@ psycopg2-binary
 bcrypt
 pyjwt
 zxcvbn
+sendgrid
+jinja2

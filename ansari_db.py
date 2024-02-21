@@ -44,9 +44,14 @@ class AnsariDB:
         # Check if the provided password matches the hash
         return bcrypt.checkpw(password.encode(), hashed.encode(self.ENCODING))
 
-    def generate_token(self, user_id):
+    def generate_token(self, user_id, token_type = "login"):
+        """ Generate a new token for the user. There are two types of tokens:
+        - login: This is a token that is used to authenticate the user.
+        - reset: This is a token that is used to reset the user's password.
+        """
         payload = {
             "user_id": user_id,
+            "type": token_type,  
             "exp": datetime.utcnow() + timedelta(days=1)
         }
         return jwt.encode(payload, self.token_secret_key, algorithm=self.ALGORITHM)
@@ -57,6 +62,7 @@ class AnsariDB:
             token = request.headers.get('Authorization', '').split(' ')[1]
             print('Token is ', token)
             payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+            print('Payload is ', payload)
             # Check that the token is in our database. 
             cur = self.conn.cursor()
             select_cmd = '''SELECT user_id FROM user_tokens WHERE user_id = %s AND token = %s;'''
@@ -64,7 +70,11 @@ class AnsariDB:
             result = cur.fetchone()
             cur.close()
             if result is None:
+                print('Could not find in database.')
                 raise HTTPException(status_code=403, detail="Could not validate credentials")
+            elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
+                print('Token was expired.')
+                raise HTTPException(status_code=403, detail="Token has expired")
             else: 
                 return payload
             print('Payload is ', payload)
@@ -74,7 +84,35 @@ class AnsariDB:
         finally: 
             if cur: 
                 cur.close()
-        
+
+    def validate_reset_token(self, request: Request) -> Dict[str, str]:
+        try:
+            # Extract token from the authorization header (expected format: "Bearer <token>")
+            token = request.headers.get('Authorization', '').split(' ')[1]
+            print('Token is ', token)
+            payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+            # Check that the token is in our database. 
+            cur = self.conn.cursor()
+            select_cmd = '''SELECT user_id FROM reset_tokens WHERE user_id = %s AND token = %s;'''
+            cur.execute(select_cmd, (payload['user_id'], token) )
+            result = cur.fetchone()
+            cur.close()
+            if result is None: 
+                raise HTTPException(status_code=403, detail="Unknown user or token")
+            elif payload['type'] != 'reset':
+                raise HTTPException(status_code=403, detail="Token is not a reset token")
+            elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
+                raise HTTPException(status_code=403, detail="Token has expired")
+            else: 
+                return payload
+            print('Payload is ', payload)
+            return payload
+        except PyJWTError:
+            raise HTTPException(status_code=403, detail="Could not validate credentials")
+        finally: 
+            if cur: 
+                cur.close()
+
     def register(self, email, first_name, last_name, password_hash):
         try: 
             cur = self.conn.cursor()
@@ -108,6 +146,20 @@ class AnsariDB:
         try: 
             cur = self.conn.cursor()
             insert_cmd = "INSERT INTO user_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            cur.execute(insert_cmd, (user_id, token, token))
+            self.conn.commit()
+            return {"status": "success", "token": token}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
+
+    def save_reset_token(self, user_id, token):
+        try: 
+            cur = self.conn.cursor()
+            insert_cmd = "INSERT INTO reset_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
             return {"status": "success", "token": token}
@@ -270,7 +322,6 @@ class AnsariDB:
         finally:
             if cur: 
                 cur.close()
-        cur = self.conn.cursor()
     
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()
@@ -290,6 +341,22 @@ class AnsariDB:
         for x in result:
             retval[x[0]] = x[1]
         return retval
+    
+    def update_password(self, user_id, new_password_hash):
+        try: 
+            cur = self.conn.cursor()
+            update_cmd = '''UPDATE users SET password_hash = %s WHERE id = %s;'''
+            cur.execute(update_cmd, (new_password_hash, user_id) )
+            self.conn.commit()
+            cur.close()
+            return {"status": "success"}
+        except Exception as e:
+            print('Error is ', e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur: 
+                cur.close()
+
     
     def convert_message(self, msg):
         if msg[2]: 

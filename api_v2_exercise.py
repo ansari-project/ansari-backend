@@ -17,8 +17,8 @@ import random
 # This is the URL of the Ansari server.   
 # If you are running the Ansari server locally, you can use the second line
 
-default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
-#default_url = 'http://localhost:8000'
+# default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
+default_url = 'http://localhost:8000'
 
 
 # Start with registering. 
@@ -50,9 +50,9 @@ def login(url, email, password):
     })
     result = response.json() 
     print(f'Response is {result}')
-    if result.get('status') == 'error':
-        print('Failed to log in')
-        return False
+    if response.status_code != 200:
+        print('Failed to login')
+        return None
     else: 
         return response.json()['token']
     
@@ -158,6 +158,15 @@ def delete_thread(url, token, thread_id):
     print(f'Response is {response}')
     return response.json()
 
+def refresh_token(url, token):
+    print('Refreshing token')
+    response = requests.get(url + '/api/v2/users/refresh_token', 
+                            headers={'Authorization': 'Bearer ' + token, 
+                                     'x-mobile-ansari': 'ANSARI', 
+    })
+    print(f'Response is {response}')
+    return response.json()['token']
+
 # Generate a random email address.
 
 random_number = random.randint(0, 10000)
@@ -178,6 +187,10 @@ register(default_url, email_address, str(random_pass), f'Waleed {random_number}'
 
 
 token = login(default_url, email_address, str(random_pass))
+
+#Use a refreshed token
+new_token = refresh_token(default_url, token)
+
 thread_id = create_thread(default_url, token)
 
 message = 'Salam.'
