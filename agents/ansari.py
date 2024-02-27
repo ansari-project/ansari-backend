@@ -208,7 +208,7 @@ class Ansari:
                     yield self.process_fn_call(input, function_name, function_arguments)
                     # 
                     break
-                elif 'function_call' in delta and delta.function_call and 'arguments' in delta.function_call:
+                elif 'function_call' in delta and delta.function_call and delta.function_call.arguments:
                     function_arguments += delta.function_call.arguments
                     #print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
