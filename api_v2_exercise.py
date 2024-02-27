@@ -17,8 +17,8 @@ import random
 # This is the URL of the Ansari server.   
 # If you are running the Ansari server locally, you can use the second line
 
-# default_url = 'https://ansari-backend-staging-73d8eccabca3.herokuapp.com'
-default_url = 'http://localhost:8000'
+default_url_remote = 'https://api-beta.ansari.chat'
+default_url_local = 'http://localhost:8000'
 
 
 # Start with registering. 
@@ -183,6 +183,15 @@ def add_feedback(url, token, thread_id, message_id, feedback_class, comment):
     return response.json()
 
 # Generate a random email address.
+
+if sys.argv[1] == 'local':
+    default_url = default_url_local
+elif sys.argv[1] == 'remote':
+    default_url = default_url_remote
+else: 
+    print('Usage: python api_v2_exercise.py [local|remote]')
+    sys.exit(1)
+
 
 random_number = random.randint(0, 10000)
 random_pass = str(uuid.uuid4())
