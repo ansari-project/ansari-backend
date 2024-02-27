@@ -249,7 +249,7 @@ def add_message(thread_id: int,
                               req.content)
             # Now actually use Ansari. 
             history = db.get_thread_llm(thread_id, token_params['user_id'])
-            if len(history) > 1: 
+            if history['thread_name'] == None and len(history['messages']) > 1: 
                 db.set_thread_name(thread_id, token_params['user_id'], history['messages'][0]['content'])
             return presenter.complete(history, 
                                       message_logger=MessageLogger(db, token_params['user_id'], thread_id))
