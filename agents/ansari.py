@@ -16,7 +16,7 @@ import traceback
 lf = Langfuse()
 lf.auth_check()
 
-MODEL = 'gpt-4-1106-preview' 
+MODEL = 'gpt-4-0125-preview' 
 
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
@@ -179,7 +179,6 @@ class Ansari:
                 if 'function_call' in delta and delta.function_call:
                     # We are in function mode
                     response_mode = 'fn'
-                    print(f'Tok is {tok}')
                     function_name = delta.function_call.name
                 else: 
                     response_mode = 'words'
@@ -202,7 +201,8 @@ class Ansari:
                 else: 
                     continue
             elif response_mode == 'fn':
-                if not 'function_call' in delta: # End token
+                print('Delta in: ', delta)
+                if not 'function_call' in delta or delta['function_call'] is None: # End token
                     function_call = function_name + '(' + function_arguments + ')'
                     # The function call below appends the function call to the message history
                     yield self.process_fn_call(input, function_name, function_arguments)
@@ -210,7 +210,7 @@ class Ansari:
                     break
                 elif 'function_call' in delta and delta.function_call and delta.function_call.arguments:
                     function_arguments += delta.function_call.arguments
-                    #print(f'Function arguments are {function_arguments}')
+                    print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else: 
                     print('Weird delta: ', delta)
