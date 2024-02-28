@@ -201,7 +201,7 @@ class Ansari:
                 else: 
                     continue
             elif response_mode == 'fn':
-                print('Delta in: ', delta)
+                #print('Delta in: ', delta)
                 if not 'function_call' in delta or delta['function_call'] is None: # End token
                     function_call = function_name + '(' + function_arguments + ')'
                     # The function call below appends the function call to the message history
@@ -210,7 +210,7 @@ class Ansari:
                     break
                 elif 'function_call' in delta and delta.function_call and delta.function_call.arguments:
                     function_arguments += delta.function_call.arguments
-                    print(f'Function arguments are {function_arguments}')
+                    #print(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else: 
                     print('Weird delta: ', delta)

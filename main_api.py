@@ -26,6 +26,8 @@ origins = [
     "http://ansari.chat",
     "https://client2.endeavorpal.com", 
     "http://client2.endeavorpal.com",
+    "https://hajiansari.ai",
+    "http://hajiansari.ai",
 ]
 
 port = int(os.getenv('API_SERVER_PORT',8000))
