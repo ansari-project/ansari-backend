@@ -412,6 +412,16 @@ async def reset_password(cors_ok: bool =  Depends(validate_cors),
 
 @app.post("/api/v1/complete")
 async def complete(request: Request):
+    """
+    Provides a response to a user's input.
+    The input is a list of messages, each with with 
+    a role and a text field. Roles are typically 
+    'user' or 'assistant.' The client should maintain the 
+    record of the conversation client side. 
+
+    It returns a stream of tokens (a token is a part of a word). 
+
+    """
     print(f'Raw request is {request.headers}')
     origin = request.headers.get('origin','')
     mobile = request.headers.get('x-mobile-ansari', '')
