@@ -107,8 +107,8 @@ async def login_user(req: LoginRequest,
         Returns a token on success.
         Returns 403 if the password is incorrect or the user doesn't exist. 
     """
-    if db.check_user_exists(req.email): 
-        user_id, existing_hash, first_name, last_name = db.retrieve_password(req.email)
+    if db.account_exists(req.email): 
+        user_id, existing_hash, first_name, last_name = db.retrieve_user_info(req.email)
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
@@ -360,8 +360,9 @@ async def request_password_reset(cors_ok: bool =  Depends(validate_cors),
                          email: str = None):
     if cors_ok: 
         if db.account_exists(email):
-            reset_token = db.generate_token(email, 'reset')
-            db.save_reset_token(email, reset_token)
+            user_id, _,_,_ = db.retrieve_user_info(email)
+            reset_token = db.generate_token(user_id, 'reset')
+            db.save_reset_token(user_id, reset_token)
             tenv = Environment(loader=FileSystemLoader(template_dir))
             template = tenv.get_template('password_reset.html')
             rendered_template = template.render(reset_token=reset_token)

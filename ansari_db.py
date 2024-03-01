@@ -168,25 +168,9 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
-                cur.close()
+                cur.close()    
     
-    def check_user_exists(self, email):
-        try: 
-            cur = self.conn.cursor()
-            select_cmd = '''SELECT id FROM users WHERE email = %s;'''
-            cur.execute(select_cmd, (email, ) )
-            result = cur.fetchone()
-            if result:
-                return True
-            else: 
-                return False
-        except Exception as e:
-            print('Error is ', e)
-            return False
-        cur.close()
-        
-    
-    def retrieve_password(self, email):
+    def retrieve_user_info(self, email):
         try: 
             cur = self.conn.cursor()
             select_cmd = '''SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;'''
