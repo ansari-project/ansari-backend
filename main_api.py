@@ -336,6 +336,7 @@ async def set_pref(req: SetPrefRequest,
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
     
+
 @app.get("/api/v2/preferences")
 async def get_prefs(cors_ok: bool =  Depends(validate_cors), 
                    token_params: dict = Depends(db.validate_token)):
@@ -354,13 +355,18 @@ async def get_prefs(cors_ok: bool =  Depends(validate_cors),
 
 # using SendGrid's Python Library
 # https://github.com/sendgrid/sendgrid-python
+    
+class ResetPasswordRequest(BaseModel):
+    email: str
 
 @app.post("/api/v2/request_password_reset")
-async def request_password_reset(cors_ok: bool =  Depends(validate_cors),
-                         email: str = None):
+async def request_password_reset(req: ResetPasswordRequest,
+                                 cors_ok: bool =  Depends(validate_cors),
+                                ):
     if cors_ok: 
-        if db.account_exists(email):
-            user_id, _,_,_ = db.retrieve_user_info(email)
+        print(f'Request received to reset {req.email}')
+        if db.account_exists(req.email):
+            user_id, _,_,_ = db.retrieve_user_info(req.email)
             reset_token = db.generate_token(user_id, 'reset')
             db.save_reset_token(user_id, reset_token)
             tenv = Environment(loader=FileSystemLoader(template_dir))
@@ -368,7 +374,7 @@ async def request_password_reset(cors_ok: bool =  Depends(validate_cors),
             rendered_template = template.render(reset_token=reset_token)
             message = Mail(
                 from_email='feedback@ansari.chat',
-                to_emails=f'{email}',
+                to_emails=f'{req.email}',
                 subject='Ansari Password Reset',
                 html_content=rendered_template)
             
