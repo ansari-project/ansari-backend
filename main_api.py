@@ -396,10 +396,10 @@ async def request_password_reset(req: ResetPasswordRequest,
         raise HTTPException(status_code=403, detail = "CORS note permitted.")
 
 @app.post("/api/v2/update_password")
-async def reset_password(cors_ok: bool =  Depends(validate_cors),
+async def update_password(cors_ok: bool =  Depends(validate_cors),
                         token_params: dict = Depends(db.validate_reset_token), 
                         password: str = None):
-    """ Update the user's password. Accepts both token and password in the request. 
+    """ Update the user's password if you have a valid token
     """
     if cors_ok and token_params:
         print(f'Token_params is {token_params}')
@@ -411,6 +411,33 @@ async def reset_password(cors_ok: bool =  Depends(validate_cors),
                                     detail=f"Password is too weak. Suggestions: " 
                                     + ','.join(passwd_quality['feedback']['suggestions']))
             db.update_password(token_params['email'], password_hash)
+        except psycopg2.Error as e:
+            print(f'Error: {e}')
+            raise HTTPException(status_code=500, detail="Database error")
+    else:
+        raise HTTPException(status_code=403, detail = "Invalid username or password")
+    
+class PasswordReset(BaseModel):
+    reset_token: str
+    new_password: str
+
+@app.post("/api/v2/reset_password")
+async def reset_password(req: PasswordReset, 
+                         cors_ok: bool =  Depends(validate_cors)):
+    """ Resets the user's password if you have a reset token. 
+    """
+    token_params = db.validate_reset_token(req.reset_token) 
+    if cors_ok:
+        print(f'Token_params is {token_params}')
+        try:
+            password_hash = db.hash_password(req.new_password)
+            passwd_quality = zxcvbn(req.new_password)
+            if passwd_quality['score'] < 2: 
+                raise HTTPException(status_code=400, 
+                                    detail=f"Password is too weak. Suggestions: " 
+                                    + ','.join(passwd_quality['feedback']['suggestions']))
+            db.update_password(token_params['user_id'], password_hash)
+            return {'status': 'success'}
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")

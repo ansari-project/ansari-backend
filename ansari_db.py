@@ -85,12 +85,11 @@ class AnsariDB:
             if cur: 
                 cur.close()
 
-    def validate_reset_token(self, request: Request) -> Dict[str, str]:
+    def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
-            # Extract token from the authorization header (expected format: "Bearer <token>")
-            token = request.headers.get('Authorization', '').split(' ')[1]
             print('Token is ', token)
-            payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+            payload = jwt.decode(token, 
+                                 self.token_secret_key, algorithms=[self.ALGORITHM])
             # Check that the token is in our database. 
             cur = self.conn.cursor()
             select_cmd = '''SELECT user_id FROM reset_tokens WHERE user_id = %s AND token = %s;'''
