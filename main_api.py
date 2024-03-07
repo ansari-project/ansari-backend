@@ -271,7 +271,10 @@ async def get_thread(thread_id: int,
         # user_id associated with the thread_id. 
         try:
             messages  = db.get_thread(thread_id, token_params['user_id'])
-            return messages
+            if messages: # return only if the thread exists. else raise 404
+                return messages
+            else:
+                raise HTTPException(status_code=404, detail="Thread not found")
         except psycopg2.Error as e:
             print(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
