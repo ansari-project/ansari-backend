@@ -353,8 +353,6 @@ async def get_prefs(cors_ok: bool =  Depends(validate_cors),
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
-# using SendGrid's Python Library
-# https://github.com/sendgrid/sendgrid-python
     
 class ResetPasswordRequest(BaseModel):
     email: str
@@ -379,11 +377,15 @@ async def request_password_reset(req: ResetPasswordRequest,
                 html_content=rendered_template)
             
             try:
-                sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-                response = sg.send(message)
-                print(response.status_code)
-                print(response.body)
-                print(response.headers)
+                if os.environ.get('SENDGRID_API_KEY'): 
+                    sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+                    response = sg.send(message)
+                    print(response.status_code)
+                    print(response.body)
+                    print(response.headers)
+                else: 
+                    print('WARNING: No sendgrid key')
+                    print(f'Would have sent: {message}')
                 return {'status': 'success'}
             except Exception as e:
                 print(e.message)

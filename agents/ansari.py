@@ -11,10 +11,12 @@ from datetime import datetime, date
 from langfuse.model import InitialGeneration, CreateGeneration, CreateTrace
 import hashlib
 import traceback
+import os
 
-
-lf = Langfuse()
-lf.auth_check()
+if os.environ.get('LANGFUSE_SECRET_KEY'):
+    from langfuse import Langfuse
+    lf = Langfuse()
+    lf.auth_check()
 
 MODEL = 'gpt-4-0125-preview' 
 
@@ -58,6 +60,8 @@ class Ansari:
         return self.process_message_history()
 
     def log(self):
+        if not os.environ.get('LANGFUSE_SECRET_KEY'):
+            return
         trace_id = self.compute_trace_id()
         print('trace id is ', trace_id)
         trace = lf.trace(CreateTrace(
