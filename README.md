@@ -61,13 +61,13 @@ Do a `% python -V` to checck that you have python 3 installed. If you get an err
 
 You can have a look at .env.example, and save it as .env. 
 
-### Required environment variable
+### Required environment variables
 
 You need at a minimum:
 - `OPENAI_API_KEY` (for the language processing) 
 - `KALEMAT_API_KEY` (for Qur'an and Hadith search). 
 
-### Optional
+### Optional environment variables
 
 There are two optional environment variables. 
 
@@ -90,7 +90,7 @@ This starts a service on port 8000. You can check it's up by checking at [http:/
 
 ### Running on the command line
 
-If you just want to run Ansari on the command line (e.g. for debugging or to feed it text) you can just do 
+If you just want to run Ansari on the command line such that it takes input from stdin and outputs on stdout (e.g. for debugging or to feed it text) you can just do: 
 
 ```bash
 % python main_stdio.py
