@@ -43,7 +43,7 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -272,7 +272,10 @@ async def get_thread(thread_id: int,
         # user_id associated with the thread_id. 
         try:
             messages  = db.get_thread(thread_id, token_params['user_id'])
-            return messages
+            if messages: # return only if the thread exists. else raise 404
+                return messages
+            else:
+                raise HTTPException(status_code=404, detail="Thread not found")
         except psycopg2.Error as e:
             logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
@@ -288,7 +291,7 @@ async def delete_thread(thread_id: int,
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
-            db.delete_thread(thread_id, token_params['user_id'])
+            return db.delete_thread(thread_id, token_params['user_id'])
         except psycopg2.Error as e:
             logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")

@@ -251,13 +251,15 @@ class Ansari:
                         'name': function_name, 
                         'content': result
                     })
-                    self.message_logger.log('function',result, function_name)  
+                    if self.message_logger:
+                        self.message_logger.log('function',result, function_name)  
             else: 
                 self.message_history.append({
                     'role': 'function',
                     'name': function_name, 
                     'content': 'No results found'
                 })
-                self.message_logger.log('function','No results found', function_name) 
+                if self.message_logger:
+                    self.message_logger.log('function','No results found', function_name) 
         else:
             logging.warning(f'Unknown function name: {function_name}') 

@@ -47,8 +47,12 @@ class SearchQuran:
     
     def pp_ayah(self, ayah):
         ayah_num = ayah['id']
-        ayah_ar = ayah['text']
-        ayah_en = ayah['en_text']
+        ayah_ar = "Not retrieved"
+        if "text" in ayah:
+            ayah_ar = ayah['text']
+        ayah_en = "Not retrieved"
+        if "en_text" in ayah:
+            ayah_en = ayah['en_text']
         result = f'Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n'
         return result
 
