@@ -6,6 +6,7 @@ from jwt import PyJWTError
 import psycopg2
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, Request, HTTPException
+import logging
 
 MAX_THREAD_NAME_LENGTH = 100
 
@@ -19,7 +20,6 @@ class MessageLogger:
         self.db = db
 
     def log(self, role, content, function_name = None):
-        #print(f'Self db is {self.db}')
         self.db.append_message(self.user_id, self.thread_id, role, content, function_name)
 
 class AnsariDB:
@@ -60,9 +60,9 @@ class AnsariDB:
         try:
             # Extract token from the authorization header (expected format: "Bearer <token>")
             token = request.headers.get('Authorization', '').split(' ')[1]
-            print('Token is ', token)
+            logging.info(f'Token is {token}')
             payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
-            print('Payload is ', payload)
+            logging.info(f'Payload is {payload}')
             # Check that the token is in our database. 
             cur = self.conn.cursor()
             select_cmd = '''SELECT user_id FROM user_tokens WHERE user_id = %s AND token = %s;'''
@@ -70,15 +70,14 @@ class AnsariDB:
             result = cur.fetchone()
             cur.close()
             if result is None:
-                print('Could not find in database.')
+                logging.warning('Could not find token in database.')
                 raise HTTPException(status_code=403, detail="Could not validate credentials")
             elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
-                print('Token was expired.')
+                logging.warning('Token was expired.')
                 raise HTTPException(status_code=403, detail="Token has expired")
             else: 
+                logging.info(f'Payload is {payload}')
                 return payload
-            print('Payload is ', payload)
-            return payload
         except PyJWTError:
             raise HTTPException(status_code=403, detail="Could not validate credentials")
         finally: 
@@ -87,7 +86,7 @@ class AnsariDB:
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
-            print('Token is ', token)
+            logging.info(f'Token is {token}')
             payload = jwt.decode(token, 
                                  self.token_secret_key, algorithms=[self.ALGORITHM])
             # Check that the token is in our database. 
@@ -103,9 +102,8 @@ class AnsariDB:
             elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
                 raise HTTPException(status_code=403, detail="Token has expired")
             else: 
+                logging.info('Payload is ', payload)
                 return payload
-            print('Payload is ', payload)
-            return payload
         except PyJWTError:
             raise HTTPException(status_code=403, detail="Could not validate credentials")
         finally: 
@@ -120,7 +118,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally: 
             if cur: 
@@ -134,7 +132,7 @@ class AnsariDB:
             result = cur.fetchone()
             return result is not None
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return False
         finally: 
             if cur: 
@@ -149,7 +147,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
@@ -163,7 +161,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
@@ -181,7 +179,7 @@ class AnsariDB:
             last_name = result[3]
             return user_id, existing_hash, first_name, last_name
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return None, None, None, None
         finally: 
           if cur: 
@@ -195,7 +193,7 @@ class AnsariDB:
             cur.execute(insert_cmd, (user_id, thread_id, message_id, feedback_class, comment) )
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally: 
             if cur: 
@@ -211,7 +209,7 @@ class AnsariDB:
             return {"status": "success", "thread_id": inserted_id}
         
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         
         finally: 
@@ -226,12 +224,11 @@ class AnsariDB:
             result = cur.fetchall()
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result]
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return []
         finally:
             if cur: 
                 cur.close()
-        cur = self.conn.cursor()
 
     def set_thread_name(self, thread_id, user_id, thread_name):
         try: 
@@ -241,7 +238,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}   
         finally:
             if cur: 
@@ -258,7 +255,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
@@ -280,7 +277,7 @@ class AnsariDB:
                       'messages': [self.convert_message(x) for x in result if x[1] != 'function']}
             return retval
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {}
         finally:
             if cur: 
@@ -303,7 +300,7 @@ class AnsariDB:
                       'messages': [self.convert_message_llm(x) for x in result]}
             return retval
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {}
         finally:
             if cur: 
@@ -322,7 +319,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
@@ -336,7 +333,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 
@@ -370,7 +367,7 @@ class AnsariDB:
             cur.close()
             return {"status": "success"}
         except Exception as e:
-            print('Error is ', e)
+            logging.warning('Error is ', e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur: 

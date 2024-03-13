@@ -16,6 +16,7 @@ from zxcvbn import zxcvbn
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from jinja2 import Environment, FileSystemLoader
+import logging
 
 
 
@@ -36,8 +37,7 @@ token_secret_key = os.getenv('SECRET_KEY', 'secret')
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
 template_dir = 'resources/templates'
-
-
+logging.basicConfig(level=logging.INFO)
 
 
 app = FastAPI()
@@ -48,6 +48,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 db = AnsariDB()
 ansari = Ansari()
 
@@ -56,11 +57,11 @@ presenter.present()
 
 def validate_cors(request: Request) -> bool:
     try:
-        print(f'Raw request is {request.headers}')
+        logging.info(f'Raw request is {request.headers}')
         origin = request.headers.get('origin','')
         mobile = request.headers.get('x-mobile-ansari', '')
         if origin in origins or mobile == 'ANSARI': 
-            print('CORS OK')
+            logging.debug('CORS OK')
             return True
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
@@ -81,7 +82,7 @@ async def register_user(req: RegisterRequest,
     """
     
     password_hash = db.hash_password(req.password)
-    print(f'Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}')
+    logging.info(f'Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}')
     try: 
         # Check if account exists
         if db.account_exists(req.email):
@@ -119,7 +120,7 @@ async def login_user(req: LoginRequest,
                         'first_name': first_name,
                         'last_name': last_name}
             except psycopg2.Error as e:
-                print(f'Error: {e}')
+                logging.critical(f'Error: {e}')
                 raise HTTPException(status_code=500, detail="Database error")
         else: 
             raise HTTPException(status_code=403, detail = "Invalid username or password")
@@ -141,7 +142,7 @@ async def refresh_token(request: Request,
             return {'status': 'success', 
                     'token': token}
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail = "Invalid username or password")
@@ -160,7 +161,7 @@ async def logout_user(request: Request,
             db.logout(token_params['user_id'])
             return {'status': 'success'}
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
         else: 
             raise HTTPException(status_code=403, detail = "Invalid username or password")
@@ -179,7 +180,7 @@ async def add_feedback(req: FeedbackRequest,
                         cors_ok: bool =  Depends(validate_cors), 
                         token_params: dict = Depends(db.validate_token)):
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # Now create a thread and return the thread_id
         try:
             db.add_feedback(token_params['user_id'], 
@@ -189,7 +190,7 @@ async def add_feedback(req: FeedbackRequest,
                              req.comment)
             return {'status': 'success'}
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -199,13 +200,13 @@ async def create_thread(request: Request,
                         cors_ok: bool =  Depends(validate_cors), 
                         token_params: dict = Depends(db.validate_token)):
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # Now create a thread and return the thread_id
         try:
             thread_id = db.create_thread(token_params['user_id'])
             return thread_id
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -217,13 +218,13 @@ async def get_all_threads(request: Request,
     """ Retrieve all threads for the user whose id is included in the token. 
     """
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # Now create a thread and return the thread_id
         try:
             threads = db.get_all_threads(token_params['user_id'])
             return threads
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -241,7 +242,7 @@ def add_message(thread_id: int,
         we set the name of the thread to the content of the message.
     """
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
@@ -256,7 +257,7 @@ def add_message(thread_id: int,
             return presenter.complete(history, 
                                       message_logger=MessageLogger(db, token_params['user_id'], thread_id))
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -266,7 +267,7 @@ async def get_thread(thread_id: int,
                       cors_ok: bool =  Depends(validate_cors), 
                       token_params: dict = Depends(db.validate_token)): 
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
@@ -276,7 +277,7 @@ async def get_thread(thread_id: int,
             else:
                 raise HTTPException(status_code=404, detail="Thread not found")
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -286,13 +287,13 @@ async def delete_thread(thread_id: int,
                       cors_ok: bool =  Depends(validate_cors), 
                       token_params: dict = Depends(db.validate_token)): 
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
             return db.delete_thread(thread_id, token_params['user_id'])
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -307,14 +308,14 @@ async def set_thread_name(thread_id: int,
                      cors_ok: bool =  Depends(validate_cors), 
                      token_params: dict = Depends(db.validate_token)): 
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # TODO(mwk): check that the user_id in the token matches the 
         # user_id associated with the thread_id. 
         try:
             messages  = db.set_thread_name(thread_id, token_params['user_id'], req.name)
             return messages
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -328,13 +329,13 @@ async def set_pref(req: SetPrefRequest,
                    cors_ok: bool =  Depends(validate_cors), 
                    token_params: dict = Depends(db.validate_token)):
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # Now create a thread and return the thread_id
         try:
             db.set_pref(token_params['user_id'], req.key, req.value)
 
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -344,20 +345,18 @@ async def set_pref(req: SetPrefRequest,
 async def get_prefs(cors_ok: bool =  Depends(validate_cors), 
                    token_params: dict = Depends(db.validate_token)):
     if cors_ok and token_params: 
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         # Now create a thread and return the thread_id
         try:
             prefs = db.get_prefs(token_params['user_id'])
             return prefs
 
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
-# using SendGrid's Python Library
-# https://github.com/sendgrid/sendgrid-python
     
 class ResetPasswordRequest(BaseModel):
     email: str
@@ -367,7 +366,7 @@ async def request_password_reset(req: ResetPasswordRequest,
                                  cors_ok: bool =  Depends(validate_cors),
                                 ):
     if cors_ok: 
-        print(f'Request received to reset {req.email}')
+        logging.info(f'Request received to reset {req.email}')
         if db.account_exists(req.email):
             user_id, _,_,_ = db.retrieve_user_info(req.email)
             reset_token = db.generate_token(user_id, 'reset')
@@ -382,16 +381,20 @@ async def request_password_reset(req: ResetPasswordRequest,
                 html_content=rendered_template)
             
             try:
-                sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-                response = sg.send(message)
-                print(response.status_code)
-                print(response.body)
-                print(response.headers)
+                if os.environ.get('SENDGRID_API_KEY'): 
+                    sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+                    response = sg.send(message)
+                    logging.debug(response.status_code)
+                    logging.debug(response.body)
+                    logging.debug(response.headers)
+                else: 
+                    logging.warning('No sendgrid key')
+                    logging.info(f'Would have sent: {message}')
                 return {'status': 'success'}
             except Exception as e:
                 print(e.message)
         else: 
-            # Even iuf the email doesn't exist, we return success.
+            # Even if the email doesn't exist, we return success.
             # So this can't be used to work out who is on our system. 
             return {'status': 'success'}
         
@@ -405,7 +408,7 @@ async def update_password(cors_ok: bool =  Depends(validate_cors),
     """ Update the user's password if you have a valid token
     """
     if cors_ok and token_params:
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         try:
             password_hash = db.hash_password(password)
             passwd_quality = zxcvbn(password)
@@ -415,7 +418,7 @@ async def update_password(cors_ok: bool =  Depends(validate_cors),
                                     + ','.join(passwd_quality['feedback']['suggestions']))
             db.update_password(token_params['email'], password_hash)
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else:
         raise HTTPException(status_code=403, detail = "Invalid username or password")
@@ -431,7 +434,7 @@ async def reset_password(req: PasswordReset,
     """
     token_params = db.validate_reset_token(req.reset_token) 
     if cors_ok:
-        print(f'Token_params is {token_params}')
+        logging.info(f'Token_params is {token_params}')
         try:
             password_hash = db.hash_password(req.new_password)
             passwd_quality = zxcvbn(req.new_password)
@@ -442,7 +445,7 @@ async def reset_password(req: PasswordReset,
             db.update_password(token_params['user_id'], password_hash)
             return {'status': 'success'}
         except psycopg2.Error as e:
-            print(f'Error: {e}')
+            logging.critical(f'Error: {e}')
             raise HTTPException(status_code=500, detail="Database error")
     else:
         raise HTTPException(status_code=403, detail = "Invalid username or password")
@@ -459,15 +462,12 @@ async def complete(request: Request):
     It returns a stream of tokens (a token is a part of a word). 
 
     """
-    print(f'Raw request is {request.headers}')
+    logging.info(f'Raw request is {request.headers}')
     origin = request.headers.get('origin','')
     mobile = request.headers.get('x-mobile-ansari', '')
     if origin in origins or mobile == 'ANSARI': 
         body = await request.json()
-        print(f'Request received > {body}.')
-        #messages = [
-        #    {"role:": "user", "text": "Hello, Ansari!"},
-        #]
+        logging.info(f'Request received > {body}.')
         return presenter.complete(body)
     else: 
         raise HTTPException(status_code=403, detail="CORS not permitted")

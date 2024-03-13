@@ -6,19 +6,22 @@ from tools.search_hadith import SearchHadith
 import json
 from openai import OpenAI
 import litellm
-from langfuse import Langfuse
 from datetime import datetime, date
 from langfuse.model import InitialGeneration, CreateGeneration, CreateTrace
 import hashlib
 import traceback
+import os
+import logging
 
-
-lf = Langfuse()
-lf.auth_check()
+if os.environ.get('LANGFUSE_SECRET_KEY'):
+    from langfuse import Langfuse
+    lf = Langfuse()
+    lf.auth_check()
 
 MODEL = 'gpt-4-0125-preview' 
 
 MAX_FUNCTION_TRIES = 3 
+MAX_FAILURES = 3
 class Ansari: 
     def __init__(self, message_logger = None, json_format = False):
         sq = SearchQuran()
@@ -58,8 +61,10 @@ class Ansari:
         return self.process_message_history()
 
     def log(self):
+        if not os.environ.get('LANGFUSE_SECRET_KEY'):
+            return
         trace_id = self.compute_trace_id()
-        print('trace id is ', trace_id)
+        logging.info(f'trace id is {trace_id}')
         trace = lf.trace(CreateTrace(
             id=trace_id,
             name='ansari-trace'
@@ -88,28 +93,35 @@ class Ansari:
         # Keep processing the user input until we get something from the assistant
         self.start_time = datetime.now()
         count = 0
+        failures = 0
         while self.message_history[-1]['role'] != 'assistant':
             try: 
-                print(f'Processing one round {self.message_history}')
+                logging.info(f'Processing one round {self.message_history}')
                 # This is pretty complicated so leaving a comment. 
                 # We want to yield from so that we can send the sequence through the input
                 # Also use functions only if we haven't tried too many times
                 use_function = True
                 if count >= MAX_FUNCTION_TRIES:
                     use_function = False
-                    print('Not using functions -- tries exceeded')
+                    logging.warning('Not using functions -- tries exceeded')
                 yield from self.process_one_round(use_function)
                 count += 1
             except Exception as e:
-                print('Exception occurred: ', e)
-                print(traceback.format_exc())
-                print('Retrying in 5 seconds...')
+                failures += 1
+                logging.warning('Exception occurred: {e}')
+                logging.warning(traceback.format_exc())
+                logging.warning('Retrying in 5 seconds...')
                 time.sleep(5)
+                if failures >= MAX_FAILURES:
+                    logging.error('Too many failures, aborting')
+                    raise Exception('Too many failures')
+                    break
         self.log()
         
         
     def process_one_round(self, use_function = True):
         response = None
+        failures = 0
         while not response:
             try: 
                 if use_function: 
@@ -160,10 +172,15 @@ class Ansari:
                         )
 
             except Exception as e:
-                print('Exception occurred: ', e)
-                print(traceback.format_exc())
-                print('Retrying in 5 seconds...')
+                failures += 1
+                logging.warning('Exception occurred: ', e)
+                logging.warning(traceback.format_exc())
+                logging.warning('Retrying in 5 seconds...')
                 time.sleep(5)
+                if failures >= MAX_FAILURES:
+                    logging.error('Too many failures, aborting')
+                    raise Exception('Too many failures')
+                    break
             
     
         words = ''
@@ -171,7 +188,7 @@ class Ansari:
         function_arguments = ''
         response_mode = '' # words or fn
         for tok in response: 
-            #print(f'Tok is {tok}')
+            logging.debug(f'Tok is {tok}')
             delta = tok.choices[0].delta
             if not response_mode: 
                 # This code should only trigger the first 
@@ -182,7 +199,7 @@ class Ansari:
                     function_name = delta.function_call.name
                 else: 
                     response_mode = 'words'
-                print('Response mode: ' + response_mode)
+                logging.info('Response mode: ' + response_mode)
 
             # We process things differently depending on whether it is a function or a 
             # text
@@ -201,7 +218,7 @@ class Ansari:
                 else: 
                     continue
             elif response_mode == 'fn':
-                #print('Delta in: ', delta)
+                logging.debug('Delta in: ', delta)
                 if not 'function_call' in delta or delta['function_call'] is None: # End token
                     function_call = function_name + '(' + function_arguments + ')'
                     # The function call below appends the function call to the message history
@@ -210,10 +227,10 @@ class Ansari:
                     break
                 elif 'function_call' in delta and delta.function_call and delta.function_call.arguments:
                     function_arguments += delta.function_call.arguments
-                    #print(f'Function arguments are {function_arguments}')
+                    logging.debug(f'Function arguments are {function_arguments}')
                     yield '' # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else: 
-                    print('Weird delta: ', delta)
+                    logging.warning(f'Weird delta: {delta}')
                     continue
             else:
                 raise Exception("Invalid response mode: " + response_mode)
@@ -225,7 +242,7 @@ class Ansari:
             args = json.loads(function_arguments)
             query = args['query']
             results = self.tools[function_name].run_as_list(query)
-            # print(f'Results are {results}')
+            logging.debug(f'Results are {results}')
             # Now we have to pass the results back in
             if len(results) > 0: 
                 for result in results:   
@@ -245,4 +262,4 @@ class Ansari:
                 if self.message_logger:
                     self.message_logger.log('function','No results found', function_name) 
         else:
-            print('Unknown function name: ', function_name) 
+            logging.warning(f'Unknown function name: {function_name}') 
