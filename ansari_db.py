@@ -2,7 +2,7 @@ import os
 import bcrypt
 from typing import Any, Dict, List
 import jwt
-from jwt import PyJWTError
+from jwt import ExpiredSignatureError, PyJWTError
 import psycopg2
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, Request, HTTPException
@@ -57,6 +57,7 @@ class AnsariDB:
         return jwt.encode(payload, self.token_secret_key, algorithm=self.ALGORITHM)
 
     def validate_token(self, request: Request) -> Dict[str, str]:
+        # Note: we do not need to explicitly check for token expiry -- jwt handles that for us. 
         try:
             # Extract token from the authorization header (expected format: "Bearer <token>")
             token = request.headers.get('Authorization', '').split(' ')[1]
@@ -71,15 +72,14 @@ class AnsariDB:
             cur.close()
             if result is None:
                 logging.warning('Could not find token in database.')
-                raise HTTPException(status_code=403, detail="Could not validate credentials")
-            elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
-                logging.warning('Token was expired.')
-                raise HTTPException(status_code=403, detail="Token has expired")
+                raise HTTPException(status_code=401, detail="Could not validate credentials")
             else: 
                 logging.info(f'Payload is {payload}')
                 return payload
+        except ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token has expired")
         except PyJWTError:
-            raise HTTPException(status_code=403, detail="Could not validate credentials")
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
         finally: 
             if cur: 
                 cur.close()
@@ -96,16 +96,16 @@ class AnsariDB:
             result = cur.fetchone()
             cur.close()
             if result is None: 
-                raise HTTPException(status_code=403, detail="Unknown user or token")
+                raise HTTPException(status_code=401, detail="Unknown user or token")
             elif payload['type'] != 'reset':
-                raise HTTPException(status_code=403, detail="Token is not a reset token")
-            elif datetime.utcfromtimestamp(payload['exp']) < datetime.utcnow():
-                raise HTTPException(status_code=403, detail="Token has expired")
+                raise HTTPException(status_code=401, detail="Token is not a reset token")
             else: 
-                logging.info('Payload is ', payload)
+                logging.info(f'Payload is {payload}')
                 return payload
+        except ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token has expired")
         except PyJWTError:
-            raise HTTPException(status_code=403, detail="Could not validate credentials")
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
         finally: 
             if cur: 
                 cur.close()
@@ -379,6 +379,6 @@ class AnsariDB:
         
     def convert_message_llm(self, msg):
         if msg[2]: 
-            return {'role': msg[0], 'content': msg[1], 'function_name': msg[2]}
+            return {'role': msg[0], 'content': msg[1], 'name': msg[2]}
         else:
             return {'role': msg[0], 'content': msg[1]}
