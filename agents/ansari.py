@@ -21,7 +21,7 @@ if os.environ.get('LANGFUSE_SECRET_KEY'):
 MODEL = 'gpt-4-0125-preview' 
 
 MAX_FUNCTION_TRIES = 3 
-MAX_FAILURES = 3
+MAX_FAILURES = 1
 class Ansari: 
     def __init__(self, message_logger = None, json_format = False):
         sq = SearchQuran()
@@ -135,7 +135,7 @@ class Ansari:
                             temperature = 0.0, 
                             metadata = {'generation-name': 'ansari'},
                             response_format = { "type": "json_object" }, 
-                            num_retries = 5
+                            num_retries = 1
                         )
                     else:
                         response = litellm.completion(
@@ -146,7 +146,7 @@ class Ansari:
                             timeout = 30.0,
                             temperature = 0.0, 
                             metadata = {'generation-name': 'ansari'},
-                            num_retries = 5
+                            num_retries = 1
                         )
                 else:
                     if  self.json_format:
@@ -158,7 +158,7 @@ class Ansari:
                             temperature = 0.0,  
                             response_format = { "type": "json_object" }, 
                             metadata = {'generation-name': 'ansari'},   
-                            num_retries = 5                  
+                            num_retries = 1                  
                         )
                     else: 
                         response = litellm.completion(
@@ -168,7 +168,7 @@ class Ansari:
                             timeout = 30.0,
                             temperature = 0.0,  
                             metadata = {'generation-name': 'ansari'},   
-                            num_retries = 5                  
+                            num_retries = 1               
                         )
 
             except Exception as e:
