@@ -277,7 +277,7 @@ class AnsariDB:
                       'messages': [self.convert_message(x) for x in result if x[1] != 'function']}
             return retval
         except Exception as e:
-            logging.warning('Error is ', e)
+            logging.warning(f'Error is {e}')
             return {}
         finally:
             if cur: 
