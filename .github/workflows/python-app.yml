@@ -43,7 +43,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-asyncio
+        pip install flake8 pytest pytest-asyncio pytest-cov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Install PostgreSQL client
       run: |
@@ -69,4 +69,4 @@ jobs:
         POSTGRES_PASSWORD: postgres
         DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
       run: |
-        pytest
+        pytest --cov=.
