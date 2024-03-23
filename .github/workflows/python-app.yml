@@ -69,4 +69,4 @@ jobs:
         POSTGRES_PASSWORD: postgres
         DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
       run: |
-        pytest --cov=.
+        pytest --capture=tee-sys --cov=. 
