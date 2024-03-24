@@ -1,5 +1,4 @@
 import uuid
-from copy import deepcopy
 
 import pytest
 from fastapi.testclient import TestClient
@@ -113,7 +112,8 @@ async def test_register_new_user():
     )
     assert response.status_code == 200
 
-# This test will fails, because the email is not validated
+# TODO: implement the email validation logic, the uncomment this test
+# This test will fail, because the email is not validated
 # @pytest.mark.asyncio
 # async def test_register_invalid_email():
 #     # Test registering a new user with an invalid email
@@ -197,11 +197,7 @@ async def test_logout(login_user, create_thread):
             "x-mobile-ansari": "ANSARI",
         },
     )
-    # this shall return 401 because the user is not logged in (Unauthorized)
-    # however, it returns 403 (Forbidden). The create_thread shall be fixed. Is this correct?
-    # assert response.status_code == 401
-    #assert response.json()["detail"] == "Not authenticated"
-    assert response.status_code == 403
+    assert response.status_code == 401
     
 
 @pytest.mark.asyncio
