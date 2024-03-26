@@ -53,7 +53,7 @@ class SearchMawsuah:
                             "sentencesBefore": 2,
                             "sentencesAfter": 2,
                             "startTag": "<match>",
-                            "endTag": "<match>"
+                            "endTag": "</match>"
                         },
                         "corpusKey": [
                             {
@@ -90,5 +90,5 @@ class SearchMawsuah:
     def run_as_list(self, query: str, num_results: int=10):
         return self.pp_response(self.run(query, num_results))
     
-    def run_as_string(self, query: str, num_results: int=10):
-        return '\n'.join(self.pp_response(self.run(query, num_results)))
+    def run_as_json(self, query: str, num_results: int=10):
+        return {"matches": self.pp_response(self.run(query, num_results))}
