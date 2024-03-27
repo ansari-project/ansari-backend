@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from util.prompt_mgr import PromptMgr
 from tools.search_quran import SearchQuran
 from tools.search_hadith import SearchHadith
+from tools.search_mawsuah import SearchMawsuah
 import json
 from openai import OpenAI
 import litellm
@@ -26,7 +27,8 @@ class Ansari:
     def __init__(self, message_logger = None, json_format = False):
         sq = SearchQuran()
         sh = SearchHadith()
-        self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
+        sm = SearchMawsuah()
+        self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm }
         self.model = MODEL
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind('system_msg_fn').render()
