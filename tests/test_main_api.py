@@ -14,6 +14,7 @@ weak_password = "qwerty"
 first_name = "John"
 last_name = "Doe"
 
+
 @pytest.fixture
 def register_user():
     # Generate a unique email for each test
@@ -34,6 +35,7 @@ def register_user():
     assert response.status_code == 200
     json_response = {**response.json(), "email": email}
     return json_response
+
 
 @pytest.fixture
 def register_another_user():
@@ -56,6 +58,7 @@ def register_another_user():
     json_response = {**response.json(), "email": email}
     return json_response
 
+
 @pytest.fixture
 def login_user(register_user):
     # Log in the user before each test that requires a valid token
@@ -68,6 +71,7 @@ def login_user(register_user):
     )
     assert response.status_code == 200
     return response.json()["token"]
+
 
 @pytest.fixture
 def login_another_user(register_another_user):
@@ -82,6 +86,7 @@ def login_another_user(register_another_user):
     assert response.status_code == 200
     return response.json()["token"]
 
+
 @pytest.fixture
 def create_thread(login_user):
     # Create a thread before each test that requires a thread
@@ -94,6 +99,7 @@ def create_thread(login_user):
     )
     assert response.status_code == 200
     return response.json()["thread_id"]
+
 
 @pytest.mark.asyncio
 async def test_register_new_user():
@@ -111,6 +117,7 @@ async def test_register_new_user():
         },
     )
     assert response.status_code == 200
+
 
 # TODO: implement the email validation logic, the uncomment this test
 # This test will fail, because the email is not validated
@@ -150,6 +157,7 @@ async def test_register_new_user():
 #     assert response.status_code == 400
 #     assert response.json()["detail"] == "Password is required"
 
+
 @pytest.mark.asyncio
 async def test_login_valid_credentials(register_user):
     # Test logging in with valid credentials
@@ -163,6 +171,7 @@ async def test_login_valid_credentials(register_user):
     assert response.status_code == 200
     assert "token" in response.json()
 
+
 @pytest.mark.asyncio
 async def test_login_invalid_credentials():
     # Test logging in with invalid credentials
@@ -175,6 +184,7 @@ async def test_login_invalid_credentials():
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "Invalid username or password"
+
 
 @pytest.mark.asyncio
 async def test_logout(login_user, create_thread):
@@ -198,7 +208,7 @@ async def test_logout(login_user, create_thread):
         },
     )
     assert response.status_code == 401
-    
+
 
 @pytest.mark.asyncio
 async def test_create_thread(login_user):
@@ -212,6 +222,7 @@ async def test_create_thread(login_user):
     )
     assert response.status_code == 200
     assert "thread_id" in response.json()
+
 
 @pytest.mark.asyncio
 async def test_delete_thread(login_user, create_thread):
@@ -237,8 +248,11 @@ async def test_delete_thread(login_user, create_thread):
     assert response.status_code == 404
     assert response.json()["detail"] == "Thread not found"
 
+
 @pytest.mark.asyncio
-async def test_thread_access(register_user, login_user, create_thread, register_another_user, login_another_user):
+async def test_thread_access(
+    register_user, login_user, create_thread, register_another_user, login_another_user
+):
     # Try to access the first user's thread with the second user's token
     response = client.get(
         f"/api/v2/threads/{create_thread}",
@@ -259,6 +273,7 @@ async def test_thread_access(register_user, login_user, create_thread, register_
     )
     # This should return a 200 OK response
     assert response.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_cors():
