@@ -37,7 +37,7 @@ token_secret_key = os.getenv('SECRET_KEY', 'secret')
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
 template_dir = 'resources/templates'
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 app = FastAPI()
