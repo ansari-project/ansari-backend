@@ -1,10 +1,12 @@
+import copy
+import os
+import time
+
 import discord
 from dotenv import load_dotenv
-import os
+
 from tools.search_hadith import SearchHadith
 from tools.search_quran import SearchQuran
-import time
-import copy
 
 
 class MyClient(discord.Client):

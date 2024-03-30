@@ -1,8 +1,8 @@
+import logging
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-import logging
 
 from main_api import app
 
@@ -264,11 +264,11 @@ async def test_share_thread(login_user, create_thread):
     json = response.json()
     logging.info(f"JSON is {json}")
     share_uuid = json["share_uuid"]
-    logging.info(f'Share UUID is {share_uuid}')
+    logging.info(f"Share UUID is {share_uuid}")
     assert response.status_code == 200
     assert response.json()["status"] == "success"
 
-    # Now check that this worked. 
+    # Now check that this worked.
     response = client.get(
         f"api/v2/share/{share_uuid}",
         headers={
@@ -279,6 +279,7 @@ async def test_share_thread(login_user, create_thread):
     assert response.status_code == 200
     assert response.json()["content"] == '{"thread_name": null, "messages": []}'
     assert response.json()["status"] == "success"
+
 
 @pytest.mark.asyncio
 async def test_thread_access(

@@ -6,13 +6,14 @@
 ### It also assumes that you have a running Ansari database on localhost:5432.
 ### The steps are: register an account, log in with an accounnt, create a thread, add messages to the thread, and then get the thread.
 
-import uuid
-import requests
 import json
 import os
-import time
-import sys
 import random
+import sys
+import time
+import uuid
+
+import requests
 
 # This is the URL of the Ansari server.
 # If you are running the Ansari server locally, you can use the second line

@@ -1,13 +1,14 @@
-import os
-import bcrypt
-from typing import Any, Dict, List
-import jwt
-from jwt import ExpiredSignatureError, PyJWTError
-import psycopg2
-from datetime import datetime, timedelta
-from fastapi import Depends, FastAPI, Request, HTTPException
-import logging
 import json
+import logging
+import os
+from datetime import datetime, timedelta
+from typing import Dict
+
+import bcrypt
+import jwt
+import psycopg2
+from fastapi import HTTPException, Request
+from jwt import ExpiredSignatureError, PyJWTError
 
 MAX_THREAD_NAME_LENGTH = 100
 
@@ -160,7 +161,8 @@ class AnsariDB:
     def save_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO user_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            insert_cmd = "INSERT INTO user_tokens (user_id, token) "
+            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
             return {"status": "success", "token": token}
@@ -174,7 +176,8 @@ class AnsariDB:
     def save_reset_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO reset_tokens (user_id, token) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            insert_cmd = "INSERT INTO reset_tokens (user_id, token) "
+            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
             return {"status": "success", "token": token}
@@ -206,7 +209,8 @@ class AnsariDB:
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
             cur = self.conn.cursor()
-            insert_cmd = """INSERT INTO feedback (user_id, thread_id, message_id, class, comment) values (%s, %s, %s, %s, %s);"""
+            insert_cmd = """INSERT INTO feedback (user_id, thread_id, message_id, class, comment)"
+             " VALUES (%s, %s, %s, %s, %s);"""
             cur.execute(
                 insert_cmd, (user_id, thread_id, message_id, feedback_class, comment)
             )
@@ -257,7 +261,8 @@ class AnsariDB:
     def set_thread_name(self, thread_id, user_id, thread_name):
         try:
             cur = self.conn.cursor()
-            insert_cmd = """INSERT INTO threads (id, user_id, name) values (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;"""
+            insert_cmd = "INSERT INTO threads (id, user_id, name) "
+            "VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;" ""
             cur.execute(
                 insert_cmd,
                 (
@@ -279,10 +284,12 @@ class AnsariDB:
     def append_message(self, user_id, thread_id, role, content, function_name=None):
         try:
             cur = self.conn.cursor()
-            insert_cmd = """INSERT INTO messages (thread_id, user_id, role, content, function_name) values (%s, %s, %s, %s, %s);"""
+            insert_cmd = "INSERT INTO messages (thread_id, user_id, role, content, function_name) "
+            "VALUES (%s, %s, %s, %s, %s);"
             cur.execute(insert_cmd, (thread_id, user_id, role, content, function_name))
             # Appending a message should update the thread's updated_at field.
-            update_cmd = """UPDATE threads SET updated_at = now() WHERE id = %s AND user_id = %s;"""
+            update_cmd = "UPDATE threads SET updated_at = now() "
+            "WHERE id = %s AND user_id = %s;"
             cur.execute(update_cmd, (thread_id, user_id))
             self.conn.commit()
             return {"status": "success"}
@@ -295,13 +302,14 @@ class AnsariDB:
 
     def get_thread(self, thread_id, user_id):
         """
-        Get all messages in a thread. 
-        This version is designed to be used by humans. In particular, 
+        Get all messages in a thread.
+        This version is designed to be used by humans. In particular,
         function messages are not included.
         """
         try:
             cur = self.conn.cursor()
-            select_cmd = """SELECT id, role, content FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"""
+            select_cmd = "SELECT id, role, content FROM messages "
+            "WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"
             cur.execute(select_cmd, (thread_id, user_id))
             result = cur.fetchall()
             select_cmd = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
@@ -326,13 +334,14 @@ class AnsariDB:
                 cur.close()
 
     def get_thread_llm(self, thread_id, user_id):
-        """ Retrieve all the messages in a thread. This 
+        """Retrieve all the messages in a thread. This
         is designed for feeding to an LLM, since it includes function return values.
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
             cur = self.conn.cursor()
-            select_cmd = """SELECT role, content, function_name FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"""
+            select_cmd = "SELECT role, content, function_name FROM messages "
+            "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             cur.execute(select_cmd, (thread_id, user_id))
             result = cur.fetchall()
             select_cmd = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
@@ -356,14 +365,14 @@ class AnsariDB:
                 cur.close()
 
     def snapshot_thread(self, thread_id, user_id):
-        """ Snapshot a thread at the current time and make it 
-        shareable with another user. 
-        Returns: a uuid representing the thread. 
+        """Snapshot a thread at the current time and make it
+        shareable with another user.
+        Returns: a uuid representing the thread.
         """
         try:
-            # First we retrieve the thread. 
+            # First we retrieve the thread.
             thread = self.get_thread(thread_id, user_id)
-            logging.info(f'!!!!!! !!!! Thread is {json.dumps(thread)}')
+            logging.info(f"!!!!!! !!!! Thread is {json.dumps(thread)}")
             # Now we create a new thread
             cur = self.conn.cursor()
             insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
@@ -380,7 +389,7 @@ class AnsariDB:
                 cur.close()
 
     def get_snapshot(self, share_uuid):
-        """ Retrieve a snapshot of a thread. """
+        """Retrieve a snapshot of a thread."""
         try:
             cur = self.conn.cursor()
             select_cmd = """SELECT content FROM share WHERE id = %s;"""
@@ -431,7 +440,8 @@ class AnsariDB:
 
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()
-        insert_cmd = """INSERT INTO preferences (user_id, pref_key, pref_value) values (%s, %s, %s) ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = %s;"""
+        insert_cmd = "INSERT INTO preferences (user_id, pref_key, pref_value) "
+        "VALUES (%s, %s, %s) ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = %s;"
         cur.execute(insert_cmd, (user_id, key, value, value))
         self.conn.commit()
         cur.close()

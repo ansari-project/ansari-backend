@@ -1,7 +1,7 @@
-from presenters.discord_presenter import DiscordPresenter
-from agents.ansari import Ansari
 import os
 
+from agents.ansari import Ansari
+from presenters.discord_presenter import DiscordPresenter
 
 # This work involves 3 agents, with Ansari as primary.
 agent = Ansari()

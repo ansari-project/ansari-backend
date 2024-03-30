@@ -1,12 +1,14 @@
-import sys
-from typing import List, Optional, Dict
-from fastapi import FastAPI, APIRouter
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from util.prompt_mgr import PromptMgr
-import uvicorn
 import copy
 import os
+import sys
+from typing import Dict, List, Optional
+
+import uvicorn
+from fastapi import APIRouter, FastAPI
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+from util.prompt_mgr import PromptMgr
 
 
 class ApiPresenter:

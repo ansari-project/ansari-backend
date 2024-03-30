@@ -1,8 +1,9 @@
-import gradio as gr
-from threading import Thread
-from multiprocessing import Queue
-import uuid
 import copy
+import uuid
+from multiprocessing import Queue
+from threading import Thread
+
+import gradio as gr
 
 CSS = """
 .contain { display: flex; flex-direction: column; }

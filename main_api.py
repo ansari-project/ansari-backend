@@ -1,25 +1,22 @@
-import os
-from typing import Dict, List
-from fastapi import Depends, FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
-import psycopg2
-from pydantic import BaseModel
-from presenters.api_presenter import ApiPresenter
-from agents.ansari import Ansari
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-import bcrypt
-import jwt
-from jwt import PyJWTError
-from ansari_db import AnsariDB, MessageLogger
-from zxcvbn import zxcvbn
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
-from jinja2 import Environment, FileSystemLoader
-import psycopg2.extras
 import logging
+import os
 import uuid
 
+import psycopg2
+import psycopg2.extras
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from jinja2 import Environment, FileSystemLoader
+from jwt import PyJWTError
+from pydantic import BaseModel
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from zxcvbn import zxcvbn
+
+from agents.ansari import Ansari
+from ansari_db import AnsariDB, MessageLogger
+from presenters.api_presenter import ApiPresenter
 
 origins = [
     "https://beta.ansari.chat",
@@ -98,7 +95,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
         if passwd_quality["score"] < 2:
             raise HTTPException(
                 status_code=400,
-                detail=f"Password is too weak. Suggestions: "
+                detail="Password is too weak. Suggestions: "
                 + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
         return db.register(req.email, req.first_name, req.last_name, password_hash)
@@ -279,7 +276,7 @@ def add_message(
             db.append_message(token_params["user_id"], thread_id, req.role, req.content)
             # Now actually use Ansari.
             history = db.get_thread_llm(thread_id, token_params["user_id"])
-            if history["thread_name"] == None and len(history["messages"]) > 1:
+            if history["thread_name"] is None and len(history["messages"]) > 1:
                 db.set_thread_name(
                     thread_id,
                     token_params["user_id"],
@@ -303,7 +300,7 @@ def share_thread(
     token_params: dict = Depends(db.validate_token),
 ):
     """
-    Take a snapshot of a thread at this time and make it shareable. 
+    Take a snapshot of a thread at this time and make it shareable.
 
     """
     if cors_ok and token_params:
@@ -327,7 +324,7 @@ def get_snapshot(
     token_params: dict = Depends(db.validate_token),
 ):
     """
-    Take a snapshot of a thread at this time and make it shareable. 
+    Take a snapshot of a thread at this time and make it shareable.
 
     """
     logging.info(f"Incoming share_uuid is {share_uuid_str}")
@@ -343,7 +340,8 @@ def get_snapshot(
             logging.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
     else:
-        raise HTTPException(status_code=403, detail="CORS not permitted")    
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+
 
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
@@ -517,7 +515,7 @@ async def update_password(
             if passwd_quality["score"] < 2:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Password is too weak. Suggestions: "
+                    detail="Password is too weak. Suggestions: "
                     + ",".join(passwd_quality["feedback"]["suggestions"]),
                 )
             db.update_password(token_params["email"], password_hash)
@@ -545,7 +543,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
             if passwd_quality["score"] < 2:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Password is too weak. Suggestions: "
+                    detail="Password is too weak. Suggestions: "
                     + ",".join(passwd_quality["feedback"]["suggestions"]),
                 )
             db.update_password(token_params["user_id"], password_hash)

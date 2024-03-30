@@ -1,6 +1,7 @@
-from pydantic import BaseModel
-import requests
 import os
+
+import requests
+from pydantic import BaseModel
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
 FN_NAME = "search_hadith"

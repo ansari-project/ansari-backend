@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 import requests
 
 VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
