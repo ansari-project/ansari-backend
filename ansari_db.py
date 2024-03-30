@@ -7,6 +7,7 @@ import psycopg2
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, Request, HTTPException
 import logging
+import json
 
 MAX_THREAD_NAME_LENGTH = 100
 
@@ -293,8 +294,12 @@ class AnsariDB:
                 cur.close()
 
     def get_thread(self, thread_id, user_id):
+        """
+        Get all messages in a thread. 
+        This version is designed to be used by humans. In particular, 
+        function messages are not included.
+        """
         try:
-            # We need to check user_id to make sure that the user has access to the thread.
             cur = self.conn.cursor()
             select_cmd = """SELECT id, role, content FROM messages WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"""
             cur.execute(select_cmd, (thread_id, user_id))
@@ -321,6 +326,9 @@ class AnsariDB:
                 cur.close()
 
     def get_thread_llm(self, thread_id, user_id):
+        """ Retrieve all the messages in a thread. This 
+        is designed for feeding to an LLM, since it includes function return values.
+        """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
             cur = self.conn.cursor()
@@ -340,6 +348,45 @@ class AnsariDB:
                 "messages": [self.convert_message_llm(x) for x in result],
             }
             return retval
+        except Exception as e:
+            logging.warning("Error is ", e)
+            return {}
+        finally:
+            if cur:
+                cur.close()
+
+    def snapshot_thread(self, thread_id, user_id):
+        """ Snapshot a thread at the current time and make it 
+        shareable with another user. 
+        Returns: a uuid representing the thread. 
+        """
+        try:
+            # First we retrieve the thread. 
+            thread = self.get_thread(thread_id, user_id)
+            logging.info(f'!!!!!! !!!! Thread is {json.dumps(thread)}')
+            # Now we create a new thread
+            cur = self.conn.cursor()
+            insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
+            thread_as_json = json.dumps(thread)
+            cur.execute(insert_cmd, (thread_as_json,))
+            result = cur.fetchone()[0]
+            logging.info(f"Result is {result}")
+            return result
+        except Exception as e:
+            logging.warning("Error is ", e)
+            return {"status": "failure", "error": str(e)}
+        finally:
+            if cur:
+                cur.close()
+
+    def get_snapshot(self, share_uuid):
+        """ Retrieve a snapshot of a thread. """
+        try:
+            cur = self.conn.cursor()
+            select_cmd = """SELECT content FROM share WHERE id = %s;"""
+            cur.execute(select_cmd, (share_uuid,))
+            result = cur.fetchone()[0]
+            return result
         except Exception as e:
             logging.warning("Error is ", e)
             return {}

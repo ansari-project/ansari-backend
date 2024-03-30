@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+import logging
 
 from main_api import app
 
@@ -248,6 +249,36 @@ async def test_delete_thread(login_user, create_thread):
     assert response.status_code == 404
     assert response.json()["detail"] == "Thread not found"
 
+
+@pytest.mark.asyncio
+async def test_share_thread(login_user, create_thread):
+    # Test deleting a thread with a valid token
+    response = client.post(
+        f"/api/v2/share/{create_thread}",
+        headers={
+            "Authorization": f"Bearer {login_user}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    logging.info(f"Response is {response}")
+    json = response.json()
+    logging.info(f"JSON is {json}")
+    share_uuid = json["share_uuid"]
+    logging.info(f'Share UUID is {share_uuid}')
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+    # Now check that this worked. 
+    response = client.get(
+        f"api/v2/share/{share_uuid}",
+        headers={
+            "Authorization": f"Bearer {login_user}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["content"] == '{"thread_name": null, "messages": []}'
+    assert response.json()["status"] == "success"
 
 @pytest.mark.asyncio
 async def test_thread_access(

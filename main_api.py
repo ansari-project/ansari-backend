@@ -16,7 +16,9 @@ from zxcvbn import zxcvbn
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from jinja2 import Environment, FileSystemLoader
+import psycopg2.extras
 import logging
+import uuid
 
 
 origins = [
@@ -37,6 +39,8 @@ ALGORITHM = "HS256"
 ENCODING = "utf-8"
 template_dir = "resources/templates"
 logging.basicConfig(level=logging.DEBUG)
+# Register the UUID type globally
+psycopg2.extras.register_uuid()
 
 
 app = FastAPI()
@@ -270,8 +274,7 @@ def add_message(
     """
     if cors_ok and token_params:
         logging.info(f"Token_params is {token_params}")
-        # TODO(mwk): check that the user_id in the token matches the
-        # user_id associated with the thread_id.
+
         try:
             db.append_message(token_params["user_id"], thread_id, req.role, req.content)
             # Now actually use Ansari.
@@ -292,6 +295,55 @@ def add_message(
     else:
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
+
+@app.post("/api/v2/share/{thread_id}")
+def share_thread(
+    thread_id: int,
+    cors_ok: bool = Depends(validate_cors),
+    token_params: dict = Depends(db.validate_token),
+):
+    """
+    Take a snapshot of a thread at this time and make it shareable. 
+
+    """
+    if cors_ok and token_params:
+        logging.info(f"Token_params is {token_params}")
+        # TODO(mwk): check that the user_id in the token matches the
+        # user_id associated with the thread_id.
+        try:
+            share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
+            return {"status": "success", "share_uuid": share_uuid}
+        except psycopg2.Error as e:
+            logging.critical(f"Error: {e}")
+            raise HTTPException(status_code=500, detail="Database error")
+    else:
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+
+
+@app.get("/api/v2/share/{share_uuid_str}")
+def get_snapshot(
+    share_uuid_str: str,
+    cors_ok: bool = Depends(validate_cors),
+    token_params: dict = Depends(db.validate_token),
+):
+    """
+    Take a snapshot of a thread at this time and make it shareable. 
+
+    """
+    logging.info(f"Incoming share_uuid is {share_uuid_str}")
+    share_uuid = uuid.UUID(share_uuid_str)
+    if cors_ok and token_params:
+        logging.info(f"Token_params is {token_params}")
+        # TODO(mwk): check that the user_id in the token matches the
+        # user_id associated with the thread_id.
+        try:
+            content = db.get_snapshot(share_uuid)
+            return {"status": "success", "content": content}
+        except psycopg2.Error as e:
+            logging.critical(f"Error: {e}")
+            raise HTTPException(status_code=500, detail="Database error")
+    else:
+        raise HTTPException(status_code=403, detail="CORS not permitted")    
 
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
