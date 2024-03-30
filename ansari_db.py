@@ -161,7 +161,7 @@ class AnsariDB:
     def save_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO user_tokens (user_id, token) "
+            insert_cmd = "INSERT INTO user_tokens (user_id, token) " + \
             "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
@@ -176,7 +176,7 @@ class AnsariDB:
     def save_reset_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO reset_tokens (user_id, token) "
+            insert_cmd = "INSERT INTO reset_tokens (user_id, token) " + \
             "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
@@ -191,7 +191,7 @@ class AnsariDB:
     def retrieve_user_info(self, email):
         try:
             cur = self.conn.cursor()
-            select_cmd = """SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"""
+            select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
             cur.execute(select_cmd, (email,))
             result = cur.fetchone()
             user_id = result[0]
@@ -209,8 +209,8 @@ class AnsariDB:
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
             cur = self.conn.cursor()
-            insert_cmd = """INSERT INTO feedback (user_id, thread_id, message_id, class, comment)"
-             " VALUES (%s, %s, %s, %s, %s);"""
+            insert_cmd = "INSERT INTO feedback (user_id, thread_id, message_id, class, comment)" + \
+             " VALUES (%s, %s, %s, %s, %s);"
             cur.execute(
                 insert_cmd, (user_id, thread_id, message_id, feedback_class, comment)
             )
@@ -261,8 +261,8 @@ class AnsariDB:
     def set_thread_name(self, thread_id, user_id, thread_name):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO threads (id, user_id, name) "
-            "VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;" ""
+            insert_cmd = "INSERT INTO threads (id, user_id, name) " + \
+            "VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;"
             cur.execute(
                 insert_cmd,
                 (
@@ -284,7 +284,7 @@ class AnsariDB:
     def append_message(self, user_id, thread_id, role, content, function_name=None):
         try:
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO messages (thread_id, user_id, role, content, function_name) "
+            insert_cmd = "INSERT INTO messages (thread_id, user_id, role, content, function_name) " + \
             "VALUES (%s, %s, %s, %s, %s);"
             cur.execute(insert_cmd, (thread_id, user_id, role, content, function_name))
             # Appending a message should update the thread's updated_at field.
@@ -308,11 +308,11 @@ class AnsariDB:
         """
         try:
             cur = self.conn.cursor()
-            select_cmd = "SELECT id, role, content FROM messages "
+            select_cmd = "SELECT id, role, content FROM messages " + \
             "WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"
             cur.execute(select_cmd, (thread_id, user_id))
             result = cur.fetchall()
-            select_cmd = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
+            select_cmd = "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
             cur.execute(select_cmd, (thread_id, user_id))
             if cur.rowcount == 0:
                 raise HTTPException(
@@ -340,7 +340,7 @@ class AnsariDB:
         try:
             # We need to check user_id to make sure that the user has access to the thread.
             cur = self.conn.cursor()
-            select_cmd = "SELECT role, content, function_name FROM messages "
+            select_cmd = "SELECT role, content, function_name FROM messages " + \
             "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             cur.execute(select_cmd, (thread_id, user_id))
             result = cur.fetchall()
