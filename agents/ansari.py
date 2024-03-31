@@ -27,8 +27,14 @@ MODEL = "gpt-4-0125-preview"
 MAX_FUNCTION_TRIES = 3
 MAX_FAILURES = 1
 
+logger = logging.getLogger(__name__ + ".Ansari")
+logger.setLevel(logging.INFO)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO) 
+logger.addHandler(console_handler)
 
 class Ansari:
+
     def __init__(self, message_logger=None, json_format=False):
         sq = SearchQuran()
         sh = SearchHadith()
@@ -64,7 +70,7 @@ class Ansari:
         if not os.environ.get("LANGFUSE_SECRET_KEY"):
             return
         trace_id = self.compute_trace_id()
-        logging.info(f"trace id is {trace_id}")
+        logger.info(f"trace id is {trace_id}")
         trace = lf.trace(CreateTrace(id=trace_id, name="ansari-trace"))
 
         generation = trace.generation(
@@ -93,24 +99,24 @@ class Ansari:
         failures = 0
         while self.message_history[-1]["role"] != "assistant":
             try:
-                logging.info(f"Processing one round {self.message_history}")
+                logger.info(f"Processing one round {self.message_history}")
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use functions only if we haven't tried too many times
                 use_function = True
                 if count >= MAX_FUNCTION_TRIES:
                     use_function = False
-                    logging.warning("Not using functions -- tries exceeded")
+                    logger.warning("Not using functions -- tries exceeded")
                 yield from self.process_one_round(use_function)
                 count += 1
             except Exception as e:
                 failures += 1
-                logging.warning("Exception occurred: {e}")
-                logging.warning(traceback.format_exc())
-                logging.warning("Retrying in 5 seconds...")
+                logger.warning("Exception occurred: {e}")
+                logger.warning(traceback.format_exc())
+                logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
                 if failures >= MAX_FAILURES:
-                    logging.error("Too many failures, aborting")
+                    logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break
         self.log()
@@ -169,12 +175,12 @@ class Ansari:
 
             except Exception as e:
                 failures += 1
-                logging.warning("Exception occurred: ", e)
-                logging.warning(traceback.format_exc())
-                logging.warning("Retrying in 5 seconds...")
+                logger.warning("Exception occurred: ", e)
+                logger.warning(traceback.format_exc())
+                logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
                 if failures >= MAX_FAILURES:
-                    logging.error("Too many failures, aborting")
+                    logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break
 
@@ -183,7 +189,7 @@ class Ansari:
         function_arguments = ""
         response_mode = ""  # words or fn
         for tok in response:
-            logging.debug(f"Tok is {tok}")
+            logger.debug(f"Tok is {tok}")
             delta = tok.choices[0].delta
             if not response_mode:
                 # This code should only trigger the first
@@ -194,7 +200,7 @@ class Ansari:
                     function_name = delta.function_call.name
                 else:
                     response_mode = "words"
-                logging.info("Response mode: " + response_mode)
+                logger.info("Response mode: " + response_mode)
 
             # We process things differently depending on whether it is a function or a
             # text
@@ -210,7 +216,7 @@ class Ansari:
                 else:
                     continue
             elif response_mode == "fn":
-                logging.debug("Delta in: ", delta)
+                logger.debug("Delta in: ", delta)
                 if (
                     not "function_call" in delta or delta["function_call"] is None
                 ):  # End token
@@ -225,10 +231,10 @@ class Ansari:
                     and delta.function_call.arguments
                 ):
                     function_arguments += delta.function_call.arguments
-                    logging.debug(f"Function arguments are {function_arguments}")
+                    logger.debug(f"Function arguments are {function_arguments}")
                     yield ""  # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
                 else:
-                    logging.warning(f"Weird delta: {delta}")
+                    logger.warning(f"Weird delta: {delta}")
                     continue
             else:
                 raise Exception("Invalid response mode: " + response_mode)
@@ -238,7 +244,7 @@ class Ansari:
             args = json.loads(function_arguments)
             query = args["query"]
             results = self.tools[function_name].run_as_list(query)
-            logging.debug(f"Results are {results}")
+            logger.debug(f"Results are {results}")
             # Now we have to pass the results back in
             if len(results) > 0:
                 for result in results:
@@ -260,4 +266,4 @@ class Ansari:
                         "function", "No results found", function_name
                     )
         else:
-            logging.warning(f"Unknown function name: {function_name}")
+            logger.warning(f"Unknown function name: {function_name}")

@@ -12,6 +12,8 @@ from jwt import ExpiredSignatureError, PyJWTError
 
 MAX_THREAD_NAME_LENGTH = 100
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class MessageLogger:
     """A simplified interface to AnsariDB so that we can log messages
@@ -68,11 +70,11 @@ class AnsariDB:
         try:
             # Extract token from the authorization header (expected format: "Bearer <token>")
             token = request.headers.get("Authorization", "").split(" ")[1]
-            logging.info(f"Token is {token}")
+            logger.info(f"Token is {token}")
             payload = jwt.decode(
                 token, self.token_secret_key, algorithms=[self.ALGORITHM]
             )
-            logging.info(f"Payload is {payload}")
+            logger.info(f"Payload is {payload}")
             # Check that the token is in our database.
             cur = self.conn.cursor()
             select_cmd = (
@@ -82,12 +84,12 @@ class AnsariDB:
             result = cur.fetchone()
             cur.close()
             if result is None:
-                logging.warning("Could not find token in database.")
+                logger.warning("Could not find token in database.")
                 raise HTTPException(
                     status_code=401, detail="Could not validate credentials"
                 )
             else:
-                logging.info(f"Payload is {payload}")
+                logger.info(f"Payload is {payload}")
                 return payload
         except ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token has expired")
@@ -101,7 +103,7 @@ class AnsariDB:
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
-            logging.info(f"Token is {token}")
+            logger.info(f"Token is {token}")
             payload = jwt.decode(
                 token, self.token_secret_key, algorithms=[self.ALGORITHM]
             )
@@ -118,7 +120,7 @@ class AnsariDB:
                     status_code=401, detail="Token is not a reset token"
                 )
             else:
-                logging.info(f"Payload is {payload}")
+                logger.info(f"Payload is {payload}")
                 return payload
         except ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token has expired")
@@ -138,7 +140,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -152,7 +154,7 @@ class AnsariDB:
             result = cur.fetchone()
             return result is not None
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return False
         finally:
             if cur:
@@ -167,7 +169,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -182,7 +184,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -200,7 +202,7 @@ class AnsariDB:
             last_name = result[3]
             return user_id, existing_hash, first_name, last_name
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return None, None, None, None
         finally:
             if cur:
@@ -216,7 +218,7 @@ class AnsariDB:
             )
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -232,7 +234,7 @@ class AnsariDB:
             return {"status": "success", "thread_id": inserted_id}
 
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
 
         finally:
@@ -252,7 +254,7 @@ class AnsariDB:
                 for x in result
             ]
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return []
         finally:
             if cur:
@@ -275,7 +277,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -294,7 +296,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -327,7 +329,7 @@ class AnsariDB:
             }
             return retval
         except Exception as e:
-            logging.warning(f"Error is {e}")
+            logger.warning(f"Error is {e}")
             return {}
         finally:
             if cur:
@@ -358,7 +360,7 @@ class AnsariDB:
             }
             return retval
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {}
         finally:
             if cur:
@@ -372,17 +374,17 @@ class AnsariDB:
         try:
             # First we retrieve the thread.
             thread = self.get_thread(thread_id, user_id)
-            logging.info(f"!!!!!! !!!! Thread is {json.dumps(thread)}")
+            logger.info(f"!!!!!! !!!! Thread is {json.dumps(thread)}")
             # Now we create a new thread
             cur = self.conn.cursor()
             insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
             thread_as_json = json.dumps(thread)
             cur.execute(insert_cmd, (thread_as_json,))
             result = cur.fetchone()[0]
-            logging.info(f"Result is {result}")
+            logger.info(f"Result is {result}")
             return result
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -397,7 +399,7 @@ class AnsariDB:
             result = cur.fetchone()[0]
             return result
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {}
         finally:
             if cur:
@@ -418,7 +420,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -432,7 +434,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -440,7 +442,7 @@ class AnsariDB:
 
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()
-        insert_cmd = "INSERT INTO preferences (user_id, pref_key, pref_value) "
+        insert_cmd = "INSERT INTO preferences (user_id, pref_key, pref_value) " + \
         "VALUES (%s, %s, %s) ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = %s;"
         cur.execute(insert_cmd, (user_id, key, value, value))
         self.conn.commit()
@@ -469,7 +471,7 @@ class AnsariDB:
             cur.close()
             return {"status": "success"}
         except Exception as e:
-            logging.warning("Error is ", e)
+            logger.warning("Error is ", e)
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
