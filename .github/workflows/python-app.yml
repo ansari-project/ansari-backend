@@ -19,6 +19,9 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       KALEMAT_API_KEY: ${{ secrets.KALEMAT_API_KEY }}
+      VECTARA_AUTH_TOKEN: ${{ secrets.VECTARA_AUTH_TOKEN }}
+      VECTARA_CUSTOMER_ID: ${{ secrets.VECTARA_CUSTOMER_ID }}
+      VECTARA_CORPUS_ID: ${{ secrets.VECTARA_CORPUS_ID }}
     
     container: python:3.10
     services:
