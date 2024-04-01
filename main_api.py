@@ -16,11 +16,13 @@ origins = [
     "http://ansari.chat",
     "https://client2.endeavorpal.com", 
     "http://client2.endeavorpal.com",
+    "https://ansari.endeavorpal.com", 
+    "http://ansari.endeavorpal.com"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
