@@ -43,15 +43,18 @@ def answer_question(question, q_temp, cache):
 
 
 def extract_prediction(row):
-    raw = row["json_prediction"]
-    raw = raw.replace("```", "")
-    raw = raw.replace("json", "")
-    raw = "{" + raw.split("{")[1]
-    raw = raw.split("}")[0] + "}"
-    raw = raw.strip()
-    LOGGER.info(f"raw is: {raw}")
-    raw_dict = json.loads(raw)
-    return str(raw_dict["answer"])
+    try: 
+        raw = row["json_prediction"]
+        raw = raw.replace("```", "")
+        raw = raw.replace("json", "")
+        raw = "{" + raw.split("{")[1]
+        raw = raw.split("}")[0] + "}"
+        raw = raw.strip()
+        LOGGER.info(f"raw is: {raw}")
+        raw_dict = json.loads(raw)
+        return str(raw_dict["answer"])
+    except IndexError:
+        return "OUTPUT_PARSE_ERROR"
 
 
 def is_correct(row):
