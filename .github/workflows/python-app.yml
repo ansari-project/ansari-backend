@@ -5,9 +5,9 @@ name: Ansari CICD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "api-v2" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "api-v2" ]
 
 permissions:
   contents: read
