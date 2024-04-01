@@ -272,7 +272,8 @@ async def test_share_thread(login_user, create_thread):
     response = client.get(
         f"api/v2/share/{share_uuid}",
         headers={
-            "Authorization": f"Bearer {login_user}",
+            # NOTE: We do not need to pass the Authorization header here
+            # Accessing a shared thread does not require authentication
             "x-mobile-ansari": "ANSARI",
         },
     )

@@ -324,7 +324,6 @@ def share_thread(
 def get_snapshot(
     share_uuid_str: str,
     cors_ok: bool = Depends(validate_cors),
-    token_params: dict = Depends(db.validate_token),
 ):
     """
     Take a snapshot of a thread at this time and make it shareable.
@@ -332,18 +331,12 @@ def get_snapshot(
     """
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
-    if cors_ok and token_params:
-        logger.info(f"Token_params is {token_params}")
-        # TODO(mwk): check that the user_id in the token matches the
-        # user_id associated with the thread_id.
-        try:
-            content = db.get_snapshot(share_uuid)
-            return {"status": "success", "content": content}
-        except psycopg2.Error as e:
-            logger.critical(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="Database error")
-    else:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    try:
+        content = db.get_snapshot(share_uuid)
+        return {"status": "success", "content": content}
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
 
 
 @app.get("/api/v2/threads/{thread_id}")
