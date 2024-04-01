@@ -140,7 +140,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -154,7 +154,7 @@ class AnsariDB:
             result = cur.fetchone()
             return result is not None
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return False
         finally:
             if cur:
@@ -169,7 +169,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -184,7 +184,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -202,7 +202,7 @@ class AnsariDB:
             last_name = result[3]
             return user_id, existing_hash, first_name, last_name
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return None, None, None, None
         finally:
             if cur:
@@ -218,7 +218,7 @@ class AnsariDB:
             )
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -234,7 +234,7 @@ class AnsariDB:
             return {"status": "success", "thread_id": inserted_id}
 
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
 
         finally:
@@ -254,7 +254,7 @@ class AnsariDB:
                 for x in result
             ]
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return []
         finally:
             if cur:
@@ -277,7 +277,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -296,7 +296,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -360,7 +360,7 @@ class AnsariDB:
             }
             return retval
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {}
         finally:
             if cur:
@@ -384,7 +384,7 @@ class AnsariDB:
             logger.info(f"Result is {result}")
             return result
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -399,7 +399,7 @@ class AnsariDB:
             result = cur.fetchone()[0]
             return result
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {}
         finally:
             if cur:
@@ -420,7 +420,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -434,7 +434,7 @@ class AnsariDB:
             self.conn.commit()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
@@ -471,7 +471,7 @@ class AnsariDB:
             cur.close()
             return {"status": "success"}
         except Exception as e:
-            logger.warning("Error is ", e)
+            logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
         finally:
             if cur:
