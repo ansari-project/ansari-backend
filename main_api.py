@@ -18,17 +18,11 @@ from agents.ansari import Ansari
 from ansari_db import AnsariDB, MessageLogger
 from presenters.api_presenter import ApiPresenter
 
-origins = [
-    "https://beta.ansari.chat",
-    "http://beta.ansari.chat",
-    "https://ansari.chat",
-    "http://ansari.chat",
-    "https://client2.endeavorpal.com",
-    "http://client2.endeavorpal.com",
-    "https://hajiansari.ai",
-    "http://hajiansari.ai",
-    "https://ansari.endeavorpal.com"
-]
+# Read the ORIGINS environment variable as a comma-separated string
+origins_str = os.getenv('ORIGINS', 'https://ansari.chat,http://ansari.chat')
+
+# Split the string into a list of origins
+origins = origins_str.split(',')
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -46,7 +40,7 @@ psycopg2.extras.register_uuid()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=['*'],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +61,8 @@ def validate_cors(request: Request) -> bool:
         if origin in origins or mobile == "ANSARI":
             logger.debug("CORS OK")
             return True
+        else:
+            raise HTTPException(status_code=502, detail="Not Allowed Origin")
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
 
