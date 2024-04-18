@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 import bcrypt
@@ -53,15 +53,18 @@ class AnsariDB:
         # Check if the provided password matches the hash
         return bcrypt.checkpw(password.encode(), hashed.encode(self.ENCODING))
 
-    def generate_token(self, user_id, token_type="login"):
-        """Generate a new token for the user. There are two types of tokens:
+    def generate_token(self, user_id, token_type="login", expiry_days=timedelta(days=1)):
+        """Generate a new token for the user. There are three types of tokens:
         - login: This is a token that is used to authenticate the user.
+        - refresh: This is a token that is used to extend the user session when the login token expires.
         - reset: This is a token that is used to reset the user's password.
         """
+        if token_type not in ["login", "reset", "refresh"]:
+            raise ValueError("Invalid token type")
         payload = {
             "user_id": user_id,
             "type": token_type,
-            "exp": datetime.utcnow() + timedelta(days=1),
+            "exp": datetime.now(timezone.utc) + timedelta(days=expiry_days),
         }
         return jwt.encode(payload, self.token_secret_key, algorithm=self.ALGORITHM)
 
@@ -100,6 +103,42 @@ class AnsariDB:
         finally:
             if cur:
                 cur.close()
+
+
+    def validate_refresh_token(self, refresh_token_request) -> Dict[str, str]:
+        # Note: we do not need to explicitly check for token expiry -- jwt handles that for us.
+        try:
+            logger.info(f"Token `{refresh_token_request.refresh_token}` is being validated as a refresh token.")
+            payload = jwt.decode(
+                refresh_token_request.refresh_token, self.token_secret_key, algorithms=[self.ALGORITHM]
+            )
+            logger.info(f"Payload is {payload}")
+            if payload["type"] != "refresh":
+                raise ValueError(f"Token of type: {payload['type']} cannot be validated as a refresh token.")
+            select_cmd = (
+                """SELECT user_id FROM refresh_tokens WHERE user_id = %s AND token = %s;"""
+            )
+            # Check that the token is in our database.
+            with self.conn.cursor() as cur:
+                cur.execute(select_cmd, (payload["user_id"], refresh_token_request.refresh_token))
+                result = cur.fetchone()
+                if result is None:
+                    logger.warning("Could not find refresh token in database.")
+                    raise HTTPException(
+                        status_code=401, detail="Could not validate credentials"
+                    )
+                else:
+                    logger.info(f"Payload is {payload}")
+                    return payload
+        except ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token has expired")
+        except PyJWTError:
+            raise HTTPException(
+                status_code=401, detail="Could not validate credentials"
+            )
+        except Exception as e:
+            logger.error(f"Error validating token: {e}")
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
@@ -160,10 +199,18 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def save_token(self, user_id, token):
+    def save_token(self, user_id, token, token_type="login"):
         try:
+            if token_type == "login":
+                db_table = "user_tokens"
+            elif token_type == "refresh":
+                db_table = "refresh_tokens"
+            else:
+                raise ValueError(f"Unknown token type: {token_type}")
             cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO user_tokens (user_id, token) " + \
+            # if I understand correctly, this means that the user can only login from one front-end
+            # at a time, logging in from another front-end would end his session on the first front-end.
+            insert_cmd = f"INSERT INTO {db_table} (user_id, token) " + \
             "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
@@ -426,19 +473,39 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def logout(self, user_id):
+    def delete_token(self, user_id, token, token_type):
         try:
-            cur = self.conn.cursor()
-            delete_cmd = """DELETE FROM user_tokens WHERE user_id = %s;"""
-            cur.execute(delete_cmd, (user_id,))
-            self.conn.commit()
+            if token_type == "login":
+                db_table = "user_tokens"
+            elif token_type == "refresh":
+                db_table = "refresh_tokens"
+            else:
+                raise ValueError(f"Invalid token type {token_type}")
+            with self.conn.cursor() as cur:
+                delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s AND token = %s;"""
+                cur.execute(delete_cmd, (user_id, token))
+                self.conn.commit()
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
-        finally:
-            if cur:
-                cur.close()
+
+    def logout(self, user_id):
+        try:
+            # This will logout all tokens associated with the user.
+            # If the user has two active session on two different front-ends,
+            # logging out from one, will cause logout from all of them.
+            # Note that this is also related to the tokens table structure;
+            # there isn't a "token_id" column.
+            with self.conn.cursor() as cur:
+                for db_table in ["user_tokens", "refresh_tokens"]:
+                    delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s;"""
+                    cur.execute(delete_cmd, (user_id,))
+                    self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()

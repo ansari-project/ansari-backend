@@ -38,6 +38,8 @@ db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
 token_secret_key = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
+LOGIN_TOKEN_EXPIRE_DAYS = 1
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 template_dir = "resources/templates"
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -58,7 +60,8 @@ ansari = Ansari()
 presenter = ApiPresenter(app, ansari)
 presenter.present()
 
-
+# Question: As we have added the CORSMiddleware above, do we still need to do this manually?
+# or, does the CORSMiddleware handle it for us? hence can we remove the following function?
 def validate_cors(request: Request) -> bool:
     try:
         logger.info(f"Raw request is {request.headers}")
@@ -123,11 +126,14 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                token = db.generate_token(user_id)
-                db.save_token(user_id, token)
+                login_token = db.generate_token(user_id, token_type="login", expiry_days=LOGIN_TOKEN_EXPIRE_DAYS)
+                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_days=REFRESH_TOKEN_EXPIRE_DAYS)
+                db.save_token(user_id, login_token, token_type="login")
+                db.save_token(user_id, refresh_token, token_type="refresh")
                 return {
                     "status": "success",
-                    "token": token,
+                    "login_token": login_token,
+                    "refresh_token": refresh_token,
                     "first_name": first_name,
                     "last_name": last_name,
                 }
@@ -140,21 +146,26 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
 
-@app.get("/api/v2/users/refresh_token")
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+@app.post("/api/v2/users/refresh_token")
 async def refresh_token(
-    request: Request,
+    request: RefreshTokenRequest,
     cors_ok: bool = Depends(validate_cors),
-    token_params: dict = Depends(db.validate_token),
 ):
-    """Refreshes the token.
-    Returns a new token on success.
-    Returns 403 if the password is incorrect or the user doesn't exist.
+    """Refreshes both the login token and the refresh token.
+    Returns the two new tokens on success.
+    Returns 403 if the refresh_token is invalid, has expired or the user doesn't exist.
     """
+    token_params = db.validate_refresh_token(request)
     if cors_ok and token_params:
         try:
-            token = db.generate_token(token_params["user_id"])
-            db.save_token(token_params["user_id"], token)
-            return {"status": "success", "token": token}
+            login_token = db.generate_token(token_params["user_id"], token_type="login", expiry_days=LOGIN_TOKEN_EXPIRE_DAYS)
+            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_days=REFRESH_TOKEN_EXPIRE_DAYS)
+            db.save_token(token_params["user_id"], login_token, token_type="login")
+            db.save_token(token_params["user_id"], refresh_token, token_type="refresh")
+            return {"status": "success", "login_token": login_token, "refresh_token": refresh_token}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
@@ -173,17 +184,13 @@ async def logout_user(
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
     if cors_ok and token_params:
-
         try:
             db.logout(token_params["user_id"])
             return {"status": "success"}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
-        else:
-            raise HTTPException(status_code=403, detail="Invalid username or password")
-    else:
-        raise HTTPException(status_code=403, detail="Invalid username or password")
+    raise HTTPException(status_code=403, detail="Invalid username or password")
 
 
 class FeedbackRequest(BaseModel):
@@ -464,6 +471,7 @@ async def request_password_reset(
             user_id, _, _, _ = db.retrieve_user_info(req.email)
             reset_token = db.generate_token(user_id, "reset")
             db.save_reset_token(user_id, reset_token)
+            # shall we also revoke login and refresh tokens?
             tenv = Environment(loader=FileSystemLoader(template_dir))
             template = tenv.get_template("password_reset.html")
             rendered_template = template.render(reset_token=reset_token)
@@ -484,13 +492,11 @@ async def request_password_reset(
                 else:
                     logger.warning("No sendgrid key")
                     logger.info(f"Would have sent: {message}")
-                return {"status": "success"}
             except Exception as e:
                 print(e.message)
-        else:
-            # Even if the email doesn't exist, we return success.
-            # So this can't be used to work out who is on our system.
-            return {"status": "success"}
+        # Even if the email doesn't exist, we return success.
+        # So this can't be used to work out who is on our system.
+        return {"status": "success"}
 
     else:
         raise HTTPException(status_code=403, detail="CORS note permitted.")
