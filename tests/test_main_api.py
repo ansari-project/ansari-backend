@@ -221,11 +221,9 @@ async def test_refresh_token_request(login_user):
     time.sleep(1)
     response = client.post(
         "/api/v2/users/refresh_token",
-        headers={
+         headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
             "x-mobile-ansari": "ANSARI",
-        },
-        json={
-            "refresh_token": login_user["refresh_token"],
         },
     )
     assert response.status_code == 200
@@ -243,8 +241,9 @@ async def test_refresh_token_request(login_user):
     # Test refresh_token with the old refresh_token
     response = client.post(
         "/api/v2/users/refresh_token",
-        json={
-            "refresh_token": login_user["refresh_token"],
+        headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
+            "x-mobile-ansari": "ANSARI",
         },
     )
     assert response.status_code == 401
