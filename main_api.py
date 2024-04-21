@@ -38,8 +38,8 @@ db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
 token_secret_key = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
-LOGIN_TOKEN_EXPIRE_DAYS = 1
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+LOGIN_TOKEN_EXPIRE_HOURS = 1
+REFRESH_TOKEN_EXPIRE_HOURS = 24*30
 template_dir = "resources/templates"
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -126,8 +126,8 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                login_token = db.generate_token(user_id, token_type="login", expiry_days=LOGIN_TOKEN_EXPIRE_DAYS)
-                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_days=REFRESH_TOKEN_EXPIRE_DAYS)
+                login_token = db.generate_token(user_id, token_type="login", expiry_hours=LOGIN_TOKEN_EXPIRE_HOURS)
+                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRE_HOURS)
                 db.save_token(user_id, login_token, token_type="login")
                 db.save_token(user_id, refresh_token, token_type="refresh")
                 return {
@@ -160,8 +160,8 @@ async def refresh_token(
         if token_params["type"] != "refresh":
             raise HTTPException(status_code=403, detail="Invalid token type")
         try:
-            login_token = db.generate_token(token_params["user_id"], token_type="login", expiry_days=LOGIN_TOKEN_EXPIRE_DAYS)
-            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_days=REFRESH_TOKEN_EXPIRE_DAYS)
+            login_token = db.generate_token(token_params["user_id"], token_type="login", expiry_hours=LOGIN_TOKEN_EXPIRE_HOURS)
+            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRE_HOURS)
             db.save_token(token_params["user_id"], login_token, token_type="login")
             db.save_token(token_params["user_id"], refresh_token, token_type="refresh")
             return {"status": "success", "login_token": login_token, "refresh_token": refresh_token}
