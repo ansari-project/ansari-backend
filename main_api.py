@@ -146,20 +146,19 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
 
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
-
 @app.post("/api/v2/users/refresh_token")
 async def refresh_token(
-    request: RefreshTokenRequest,
+    request: Request,
     cors_ok: bool = Depends(validate_cors),
+    token_params: dict = Depends(db.validate_token),
 ):
     """Refreshes both the login token and the refresh token.
     Returns the two new tokens on success.
     Returns 403 if the refresh_token is invalid, has expired or the user doesn't exist.
     """
-    token_params = db.validate_refresh_token(request)
     if cors_ok and token_params:
+        if token_params["type"] != "refresh":
+            raise HTTPException(status_code=403, detail="Invalid token type")
         try:
             login_token = db.generate_token(token_params["user_id"], token_type="login", expiry_days=LOGIN_TOKEN_EXPIRE_DAYS)
             refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_days=REFRESH_TOKEN_EXPIRE_DAYS)

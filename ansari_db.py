@@ -79,9 +79,15 @@ class AnsariDB:
             )
             logger.info(f"Payload is {payload}")
             # Check that the token is in our database.
+            if payload["type"] == "login":
+                db_table = "user_tokens"
+            elif payload["type"] == "refresh":
+                db_table = "refresh_tokens"
+            elif payload["type"] == "reset":
+                db_table = "reset_tokens"
             cur = self.conn.cursor()
             select_cmd = (
-                """SELECT user_id FROM user_tokens WHERE user_id = %s AND token = %s;"""
+                f"""SELECT user_id FROM {db_table} WHERE user_id = %s AND token = %s;"""
             )
             cur.execute(select_cmd, (payload["user_id"], token))
             result = cur.fetchone()
@@ -103,42 +109,6 @@ class AnsariDB:
         finally:
             if cur:
                 cur.close()
-
-
-    def validate_refresh_token(self, refresh_token_request) -> Dict[str, str]:
-        # Note: we do not need to explicitly check for token expiry -- jwt handles that for us.
-        try:
-            logger.info(f"Token `{refresh_token_request.refresh_token}` is being validated as a refresh token.")
-            payload = jwt.decode(
-                refresh_token_request.refresh_token, self.token_secret_key, algorithms=[self.ALGORITHM]
-            )
-            logger.info(f"Payload is {payload}")
-            if payload["type"] != "refresh":
-                raise ValueError(f"Token of type: {payload['type']} cannot be validated as a refresh token.")
-            select_cmd = (
-                """SELECT user_id FROM refresh_tokens WHERE user_id = %s AND token = %s;"""
-            )
-            # Check that the token is in our database.
-            with self.conn.cursor() as cur:
-                cur.execute(select_cmd, (payload["user_id"], refresh_token_request.refresh_token))
-                result = cur.fetchone()
-                if result is None:
-                    logger.warning("Could not find refresh token in database.")
-                    raise HTTPException(
-                        status_code=401, detail="Could not validate credentials"
-                    )
-                else:
-                    logger.info(f"Payload is {payload}")
-                    return payload
-        except ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token has expired")
-        except PyJWTError:
-            raise HTTPException(
-                status_code=401, detail="Could not validate credentials"
-            )
-        except Exception as e:
-            logger.error(f"Error validating token: {e}")
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
