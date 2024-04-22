@@ -38,8 +38,8 @@ db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
 token_secret_key = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
-LOGIN_TOKEN_EXPIRE_HOURS = 1
-REFRESH_TOKEN_EXPIRE_HOURS = 24*30
+ACCESS_TOKEN_EXPIRY_HOURS = 2
+REFRESH_TOKEN_EXPIRY_HOURS = 24*90
 template_dir = "resources/templates"
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -60,8 +60,6 @@ ansari = Ansari()
 presenter = ApiPresenter(app, ansari)
 presenter.present()
 
-# Question: As we have added the CORSMiddleware above, do we still need to do this manually?
-# or, does the CORSMiddleware handle it for us? hence can we remove the following function?
 def validate_cors(request: Request) -> bool:
     try:
         logger.info(f"Raw request is {request.headers}")
@@ -126,13 +124,17 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                login_token = db.generate_token(user_id, token_type="login", expiry_hours=LOGIN_TOKEN_EXPIRE_HOURS)
-                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRE_HOURS)
-                db.save_token(user_id, login_token, token_type="login")
-                db.save_token(user_id, refresh_token, token_type="refresh")
+                access_token = db.generate_token(user_id, token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
+                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+                access_token_insert_result = db.save_access_token(user_id, access_token)
+                if access_token_insert_result["status"] != "success":
+                    raise HTTPException(status_code=500, detail="Couldn't save access token")
+                refresh_token_insert_result = db.save_refresh_token(user_id, refresh_token, access_token_insert_result["token_db_id"])
+                if refresh_token_insert_result["status"] != "success":
+                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
                 return {
                     "status": "success",
-                    "login_token": login_token,
+                    "access_token": access_token,
                     "refresh_token": refresh_token,
                     "first_name": first_name,
                     "last_name": last_name,
@@ -152,7 +154,7 @@ async def refresh_token(
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    """Refreshes both the login token and the refresh token.
+    """Refreshes both the access token and the refresh token.
     Returns the two new tokens on success.
     Returns 403 if the refresh_token is invalid, has expired or the user doesn't exist.
     """
@@ -160,11 +162,17 @@ async def refresh_token(
         if token_params["type"] != "refresh":
             raise HTTPException(status_code=403, detail="Invalid token type")
         try:
-            login_token = db.generate_token(token_params["user_id"], token_type="login", expiry_hours=LOGIN_TOKEN_EXPIRE_HOURS)
-            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRE_HOURS)
-            db.save_token(token_params["user_id"], login_token, token_type="login")
-            db.save_token(token_params["user_id"], refresh_token, token_type="refresh")
-            return {"status": "success", "login_token": login_token, "refresh_token": refresh_token}
+            refresh_token = request.headers.get("Authorization", "").split(" ")[1]
+            db.delete_access_refresh_tokens_pair(refresh_token)
+            access_token = db.generate_token(token_params["user_id"], token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
+            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+            access_token_insert_result = db.save_access_token(token_params["user_id"], access_token)
+            if access_token_insert_result["status"] != "success":
+                raise HTTPException(status_code=500, detail="Couldn't save access token")
+            refresh_token_insert_result = db.save_refresh_token(token_params["user_id"], refresh_token, access_token_insert_result["token_db_id"])
+            if refresh_token_insert_result["status"] != "success":
+                raise HTTPException(status_code=500, detail="Couldn't save refresh token")
+            return {"status": "success", "access_token": access_token, "refresh_token": refresh_token}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
@@ -184,7 +192,8 @@ async def logout_user(
     """
     if cors_ok and token_params:
         try:
-            db.logout(token_params["user_id"])
+            token = request.headers.get("Authorization", "").split(" ")[1]
+            db.logout(token_params["user_id"], token)
             return {"status": "success"}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")

@@ -53,13 +53,13 @@ class AnsariDB:
         # Check if the provided password matches the hash
         return bcrypt.checkpw(password.encode(), hashed.encode(self.ENCODING))
 
-    def generate_token(self, user_id, token_type="login", expiry_hours=1):
+    def generate_token(self, user_id, token_type="access", expiry_hours=1):
         """Generate a new token for the user. There are three types of tokens:
-        - login: This is a token that is used to authenticate the user.
-        - refresh: This is a token that is used to extend the user session when the login token expires.
+        - access: This is a token that is used to authenticate the user.
+        - refresh: This is a token that is used to extend the user session when the access token expires.
         - reset: This is a token that is used to reset the user's password.
         """
-        if token_type not in ["login", "reset", "refresh"]:
+        if token_type not in ["access", "reset", "refresh"]:
             raise ValueError("Invalid token type")
         payload = {
             "user_id": user_id,
@@ -79,8 +79,8 @@ class AnsariDB:
             )
             logger.info(f"Payload is {payload}")
             # Check that the token is in our database.
-            if payload["type"] == "login":
-                db_table = "user_tokens"
+            if payload["type"] == "access":
+                db_table = "access_tokens"
             elif payload["type"] == "refresh":
                 db_table = "refresh_tokens"
             elif payload["type"] == "reset":
@@ -165,34 +165,36 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def save_token(self, user_id, token, token_type="login"):
+    def save_access_token(self, user_id, token):
         try:
-            if token_type == "login":
-                db_table = "user_tokens"
-            elif token_type == "refresh":
-                db_table = "refresh_tokens"
-            else:
-                raise ValueError(f"Unknown token type: {token_type}")
-            cur = self.conn.cursor()
-            # if I understand correctly, this means that the user can only login from one front-end
-            # at a time, logging in from another front-end would end his session on the first front-end.
-            insert_cmd = f"INSERT INTO {db_table} (user_id, token) " + \
-            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
-            cur.execute(insert_cmd, (user_id, token, token))
-            self.conn.commit()
-            return {"status": "success", "token": token}
+            with self.conn.cursor() as cur:
+                insert_cmd = f"INSERT INTO access_tokens (user_id, token) " + \
+                "VALUES (%s, %s) RETURNING id;"
+                cur.execute(insert_cmd, (user_id, token))
+                inserted_id = cur.fetchone()[0]
+                self.conn.commit()
+                return {"status": "success", "token": token, "token_db_id": inserted_id}
         except Exception as e:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
-        finally:
-            if cur:
-                cur.close()
+    
+    def save_refresh_token(self, user_id, token, access_token_id):
+        try:
+            with self.conn.cursor() as cur:
+                insert_cmd = f"INSERT INTO refresh_tokens (user_id, token, access_token_id) " + \
+                "VALUES (%s, %s, %s);"
+                cur.execute(insert_cmd, (user_id, token, access_token_id))
+                self.conn.commit()
+                return {"status": "success", "token": token}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return {"status": "failure", "error": str(e)}
 
     def save_reset_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
             insert_cmd = "INSERT INTO reset_tokens (user_id, token) " + \
-            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s;"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
             return {"status": "success", "token": token}
@@ -439,16 +441,32 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def delete_token(self, user_id, token, token_type):
+    def delete_access_refresh_tokens_pair(self, refresh_token):
         try:
-            if token_type == "login":
-                db_table = "user_tokens"
-            elif token_type == "refresh":
-                db_table = "refresh_tokens"
-            else:
-                raise ValueError(f"Invalid token type {token_type}")
+            # get the associated access_token_id
+            # delete the access_token and refresh_token will be deleted automatically..
+            # ..because of the foreign key constraint DELETE CASCADE
             with self.conn.cursor() as cur:
-                delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s AND token = %s;"""
+                select_cmd = """SELECT access_token_id FROM refresh_tokens WHERE token = %s;"""
+                cur.execute(select_cmd, (refresh_token,))
+                result = cur.fetchone()
+                if result is None:
+                    raise HTTPException(
+                        status_code=401, detail="Incorrect refresh_token."
+                    )
+                access_token_id = result[0]
+                delete_cmd = """DELETE FROM access_tokens WHERE id = %s;"""
+                cur.execute(delete_cmd, (access_token_id,))
+                self.conn.commit()
+                return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            raise HTTPException(status_code=500, detail="Internal server error.")
+
+    def delete_access_token(self, user_id, token):
+        try:
+            with self.conn.cursor() as cur:
+                delete_cmd = """DELETE FROM access_tokens WHERE user_id = %s AND token = %s;"""
                 cur.execute(delete_cmd, (user_id, token))
                 self.conn.commit()
             return {"status": "success"}
@@ -456,17 +474,12 @@ class AnsariDB:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
 
-    def logout(self, user_id):
+    def logout(self, user_id, token):
         try:
-            # This will logout all tokens associated with the user.
-            # If the user has two active session on two different front-ends,
-            # logging out from one, will cause logout from all of them.
-            # Note that this is also related to the tokens table structure;
-            # there isn't a "token_id" column.
             with self.conn.cursor() as cur:
-                for db_table in ["user_tokens", "refresh_tokens"]:
-                    delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s;"""
-                    cur.execute(delete_cmd, (user_id,))
+                for db_table in ["access_tokens", "refresh_tokens"]:
+                    delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s AND token = %s;"""
+                    cur.execute(delete_cmd, (user_id, token))
                     self.conn.commit()
             return {"status": "success"}
         except Exception as e:
@@ -485,7 +498,7 @@ class AnsariDB:
     def get_prefs(self, user_id):
         cur = self.conn.cursor()
         select_cmd = (
-            """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s"""
+            """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s;"""
         )
         cur.execute(select_cmd, (user_id,))
         result = cur.fetchall()

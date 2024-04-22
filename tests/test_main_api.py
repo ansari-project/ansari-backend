@@ -86,7 +86,7 @@ def login_another_user(register_another_user):
         },
     )
     assert response.status_code == 200
-    return response.json()["login_token"]
+    return response.json()["access_token"]
 
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def create_thread(login_user):
     response = client.post(
         "/api/v2/threads",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -171,7 +171,7 @@ async def test_login_valid_credentials(register_user):
         },
     )
     assert response.status_code == 200
-    assert "login_token" in response.json()
+    assert "access_token" in response.json()
     assert "refresh_token" in response.json()
 
 
@@ -188,6 +188,39 @@ async def test_login_invalid_credentials():
     assert response.status_code == 403
     assert response.json()["detail"] == "Invalid username or password"
 
+@pytest.mark.asyncio
+async def test_login_from_several_devices(register_user, login_user):
+    # Create another session, i.e. another access/refresh tokens pair
+    time.sleep(1)
+    response = client.post(
+        "/api/v2/users/login",
+        json={
+            "email": register_user["email"],
+            "password": valid_password,
+        },
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+    assert "refresh_token" in response.json()
+    assert response.json()["access_token"]!= login_user["access_token"]
+    assert response.json()["refresh_token"]!= login_user["refresh_token"]
+    # Create two new threads, one using the new access token, 
+    # the other using the old one
+    test_create_thread(response.json())
+    test_create_thread(login_user)
+
+    # Create a new thread using the old access token..
+    # ..after logging out from the new device
+    response = client.post(
+        "/api/v2/users/logout",
+        headers={
+            "Authorization": f"Bearer {response.json()['access_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    test_create_thread(login_user)
 
 @pytest.mark.asyncio
 async def test_logout(login_user, create_thread):
@@ -195,7 +228,7 @@ async def test_logout(login_user, create_thread):
     response = client.post(
         "/api/v2/users/logout",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -206,7 +239,7 @@ async def test_logout(login_user, create_thread):
     response = client.get(
         f"/api/v2/threads/{create_thread}",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -227,13 +260,13 @@ async def test_refresh_token_request(login_user):
         },
     )
     assert response.status_code == 200
-    assert "login_token" in response.json()
+    assert "access_token" in response.json()
     assert "refresh_token" in response.json()
-    # Test logging out with the old login_token
+    # Test logging out with the old access_token
     response = client.post(
         "/api/v2/users/logout",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -255,7 +288,7 @@ async def test_create_thread(login_user):
     response = client.post(
         "/api/v2/threads",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -269,7 +302,7 @@ async def test_delete_thread(login_user, create_thread):
     response = client.delete(
         f"/api/v2/threads/{create_thread}",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -280,7 +313,7 @@ async def test_delete_thread(login_user, create_thread):
     response = client.get(
         f"/api/v2/threads/{create_thread}",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -294,7 +327,7 @@ async def test_share_thread(login_user, create_thread):
     response = client.post(
         f"/api/v2/share/{create_thread}",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
@@ -338,7 +371,7 @@ async def test_thread_access(
     response = client.get(
         f"/api/v2/threads/{create_thread}",
         headers={
-            "Authorization": f"Bearer {login_user['login_token']}",
+            "Authorization": f"Bearer {login_user['access_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
