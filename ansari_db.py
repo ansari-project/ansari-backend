@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 
 import bcrypt
@@ -53,15 +53,18 @@ class AnsariDB:
         # Check if the provided password matches the hash
         return bcrypt.checkpw(password.encode(), hashed.encode(self.ENCODING))
 
-    def generate_token(self, user_id, token_type="login"):
-        """Generate a new token for the user. There are two types of tokens:
-        - login: This is a token that is used to authenticate the user.
+    def generate_token(self, user_id, token_type="access", expiry_hours=1):
+        """Generate a new token for the user. There are three types of tokens:
+        - access: This is a token that is used to authenticate the user.
+        - refresh: This is a token that is used to extend the user session when the access token expires.
         - reset: This is a token that is used to reset the user's password.
         """
+        if token_type not in ["access", "reset", "refresh"]:
+            raise ValueError("Invalid token type")
         payload = {
             "user_id": user_id,
             "type": token_type,
-            "exp": datetime.utcnow() + timedelta(days=1),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
         }
         return jwt.encode(payload, self.token_secret_key, algorithm=self.ALGORITHM)
 
@@ -76,13 +79,18 @@ class AnsariDB:
             )
             logger.info(f"Payload is {payload}")
             # Check that the token is in our database.
-            cur = self.conn.cursor()
-            select_cmd = (
-                """SELECT user_id FROM user_tokens WHERE user_id = %s AND token = %s;"""
-            )
-            cur.execute(select_cmd, (payload["user_id"], token))
-            result = cur.fetchone()
-            cur.close()
+            if payload["type"] == "access":
+                db_table = "access_tokens"
+            elif payload["type"] == "refresh":
+                db_table = "refresh_tokens"
+            elif payload["type"] == "reset":
+                db_table = "reset_tokens"
+            with self.conn.cursor() as cur:
+                select_cmd = (
+                    f"""SELECT user_id FROM {db_table} WHERE user_id = %s AND token = %s;"""
+                )
+                cur.execute(select_cmd, (payload["user_id"], token))
+                result = cur.fetchone()
             if result is None:
                 logger.warning("Could not find token in database.")
                 raise HTTPException(
@@ -97,9 +105,6 @@ class AnsariDB:
             raise HTTPException(
                 status_code=401, detail="Could not validate credentials"
             )
-        finally:
-            if cur:
-                cur.close()
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
@@ -160,26 +165,36 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def save_token(self, user_id, token):
+    def save_access_token(self, user_id, token):
         try:
-            cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO user_tokens (user_id, token) " + \
-            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
-            cur.execute(insert_cmd, (user_id, token, token))
-            self.conn.commit()
-            return {"status": "success", "token": token}
+            with self.conn.cursor() as cur:
+                insert_cmd = f"INSERT INTO access_tokens (user_id, token) " + \
+                "VALUES (%s, %s) RETURNING id;"
+                cur.execute(insert_cmd, (user_id, token))
+                inserted_id = cur.fetchone()[0]
+                self.conn.commit()
+                return {"status": "success", "token": token, "token_db_id": inserted_id}
         except Exception as e:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
-        finally:
-            if cur:
-                cur.close()
+    
+    def save_refresh_token(self, user_id, token, access_token_id):
+        try:
+            with self.conn.cursor() as cur:
+                insert_cmd = f"INSERT INTO refresh_tokens (user_id, token, access_token_id) " + \
+                "VALUES (%s, %s, %s);"
+                cur.execute(insert_cmd, (user_id, token, access_token_id))
+                self.conn.commit()
+                return {"status": "success", "token": token}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return {"status": "failure", "error": str(e)}
 
     def save_reset_token(self, user_id, token):
         try:
             cur = self.conn.cursor()
             insert_cmd = "INSERT INTO reset_tokens (user_id, token) " + \
-            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s"
+            "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s;"
             cur.execute(insert_cmd, (user_id, token, token))
             self.conn.commit()
             return {"status": "success", "token": token}
@@ -430,19 +445,50 @@ class AnsariDB:
             if cur:
                 cur.close()
 
-    def logout(self, user_id):
+    def delete_access_refresh_tokens_pair(self, refresh_token):
         try:
-            cur = self.conn.cursor()
-            delete_cmd = """DELETE FROM user_tokens WHERE user_id = %s;"""
-            cur.execute(delete_cmd, (user_id,))
-            self.conn.commit()
+            # get the associated access_token_id
+            # delete the access_token and refresh_token will be deleted automatically..
+            # ..because of the foreign key constraint DELETE CASCADE
+            with self.conn.cursor() as cur:
+                select_cmd = """SELECT access_token_id FROM refresh_tokens WHERE token = %s;"""
+                cur.execute(select_cmd, (refresh_token,))
+                result = cur.fetchone()
+                if result is None:
+                    raise HTTPException(
+                        status_code=401, detail="Incorrect refresh_token."
+                    )
+                access_token_id = result[0]
+                delete_cmd = """DELETE FROM access_tokens WHERE id = %s;"""
+                cur.execute(delete_cmd, (access_token_id,))
+                self.conn.commit()
+                return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            raise HTTPException(status_code=500, detail="Internal server error.")
+
+    def delete_access_token(self, user_id, token):
+        try:
+            with self.conn.cursor() as cur:
+                delete_cmd = """DELETE FROM access_tokens WHERE user_id = %s AND token = %s;"""
+                cur.execute(delete_cmd, (user_id, token))
+                self.conn.commit()
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
-        finally:
-            if cur:
-                cur.close()
+
+    def logout(self, user_id, token):
+        try:
+            with self.conn.cursor() as cur:
+                for db_table in ["access_tokens", "refresh_tokens"]:
+                    delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s AND token = %s;"""
+                    cur.execute(delete_cmd, (user_id, token))
+                    self.conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
         cur = self.conn.cursor()
@@ -456,7 +502,7 @@ class AnsariDB:
     def get_prefs(self, user_id):
         cur = self.conn.cursor()
         select_cmd = (
-            """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s"""
+            """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s;"""
         )
         cur.execute(select_cmd, (user_id,))
         result = cur.fetchall()

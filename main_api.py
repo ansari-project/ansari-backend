@@ -32,6 +32,8 @@ db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
 token_secret_key = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = "HS256"
 ENCODING = "utf-8"
+ACCESS_TOKEN_EXPIRY_HOURS = 2
+REFRESH_TOKEN_EXPIRY_HOURS = 24*90
 template_dir = "resources/templates"
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -51,7 +53,6 @@ ansari = Ansari()
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()
-
 
 def validate_cors(request: Request) -> bool:
     try:
@@ -119,11 +120,18 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                token = db.generate_token(user_id)
-                db.save_token(user_id, token)
+                access_token = db.generate_token(user_id, token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
+                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+                access_token_insert_result = db.save_access_token(user_id, access_token)
+                if access_token_insert_result["status"] != "success":
+                    raise HTTPException(status_code=500, detail="Couldn't save access token")
+                refresh_token_insert_result = db.save_refresh_token(user_id, refresh_token, access_token_insert_result["token_db_id"])
+                if refresh_token_insert_result["status"] != "success":
+                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
                 return {
                     "status": "success",
-                    "token": token,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
                     "first_name": first_name,
                     "last_name": last_name,
                 }
@@ -136,21 +144,31 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
 
-@app.get("/api/v2/users/refresh_token")
+@app.post("/api/v2/users/refresh_token")
 async def refresh_token(
     request: Request,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    """Refreshes the token.
-    Returns a new token on success.
-    Returns 403 if the password is incorrect or the user doesn't exist.
+    """Refreshes both the access token and the refresh token.
+    Returns the two new tokens on success.
+    Returns 403 if the refresh_token is invalid, has expired or the user doesn't exist.
     """
     if cors_ok and token_params:
+        if token_params["type"] != "refresh":
+            raise HTTPException(status_code=403, detail="Invalid token type")
         try:
-            token = db.generate_token(token_params["user_id"])
-            db.save_token(token_params["user_id"], token)
-            return {"status": "success", "token": token}
+            refresh_token = request.headers.get("Authorization", "").split(" ")[1]
+            db.delete_access_refresh_tokens_pair(refresh_token)
+            access_token = db.generate_token(token_params["user_id"], token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
+            refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+            access_token_insert_result = db.save_access_token(token_params["user_id"], access_token)
+            if access_token_insert_result["status"] != "success":
+                raise HTTPException(status_code=500, detail="Couldn't save access token")
+            refresh_token_insert_result = db.save_refresh_token(token_params["user_id"], refresh_token, access_token_insert_result["token_db_id"])
+            if refresh_token_insert_result["status"] != "success":
+                raise HTTPException(status_code=500, detail="Couldn't save refresh token")
+            return {"status": "success", "access_token": access_token, "refresh_token": refresh_token}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
@@ -169,17 +187,14 @@ async def logout_user(
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
     if cors_ok and token_params:
-
         try:
-            db.logout(token_params["user_id"])
+            token = request.headers.get("Authorization", "").split(" ")[1]
+            db.logout(token_params["user_id"], token)
             return {"status": "success"}
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
-        else:
-            raise HTTPException(status_code=403, detail="Invalid username or password")
-    else:
-        raise HTTPException(status_code=403, detail="Invalid username or password")
+    raise HTTPException(status_code=403, detail="Invalid username or password")
 
 
 class FeedbackRequest(BaseModel):
@@ -460,6 +475,7 @@ async def request_password_reset(
             user_id, _, _, _ = db.retrieve_user_info(req.email)
             reset_token = db.generate_token(user_id, "reset")
             db.save_reset_token(user_id, reset_token)
+            # shall we also revoke login and refresh tokens?
             tenv = Environment(loader=FileSystemLoader(template_dir))
             template = tenv.get_template("password_reset.html")
             rendered_template = template.render(reset_token=reset_token)
@@ -480,13 +496,11 @@ async def request_password_reset(
                 else:
                     logger.warning("No sendgrid key")
                     logger.info(f"Would have sent: {message}")
-                return {"status": "success"}
             except Exception as e:
                 print(e.message)
-        else:
-            # Even if the email doesn't exist, we return success.
-            # So this can't be used to work out who is on our system.
-            return {"status": "success"}
+        # Even if the email doesn't exist, we return success.
+        # So this can't be used to work out who is on our system.
+        return {"status": "success"}
 
     else:
         raise HTTPException(status_code=403, detail="CORS note permitted.")
