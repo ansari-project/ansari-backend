@@ -382,6 +382,8 @@ class AnsariDB:
             cur.execute(insert_cmd, (thread_as_json,))
             result = cur.fetchone()[0]
             logger.info(f"Result is {result}")
+            """Commit Changes to Database"""
+            self.conn.commit()
             return result
         except Exception as e:
             logger.warning(f"Error is {e}")
@@ -397,6 +399,8 @@ class AnsariDB:
             select_cmd = """SELECT content FROM share WHERE id = %s;"""
             cur.execute(select_cmd, (share_uuid,))
             result = cur.fetchone()[0]
+            """Deserialize json string"""
+            result = json.loads(result)
             return result
         except Exception as e:
             logger.warning(f"Error is {e}")
