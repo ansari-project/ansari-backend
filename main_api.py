@@ -340,6 +340,7 @@ def get_snapshot(
     Take a snapshot of a thread at this time and make it shareable.
 
     """
+    # Note that unlike the other endpoints, we don't need to check the token here.
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
     try:
