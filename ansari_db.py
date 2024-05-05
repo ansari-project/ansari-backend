@@ -85,12 +85,12 @@ class AnsariDB:
                 db_table = "refresh_tokens"
             elif payload["type"] == "reset":
                 db_table = "reset_tokens"
-            with self.conn.cursor() as cur:
-                select_cmd = (
-                    f"""SELECT user_id FROM {db_table} WHERE user_id = %s AND token = %s;"""
-                )
-                cur.execute(select_cmd, (payload["user_id"], token))
-                result = cur.fetchone()
+            cur = self.conn.cursor()
+            select_cmd = (
+                f"""SELECT user_id FROM {db_table} WHERE user_id = %s AND token = %s;"""
+            )
+            cur.execute(select_cmd, (payload["user_id"], token))
+            result = cur.fetchone()
             if result is None:
                 logger.warning("Could not find token in database.")
                 raise HTTPException(
@@ -105,6 +105,9 @@ class AnsariDB:
             raise HTTPException(
                 status_code=401, detail="Could not validate credentials"
             )
+        finally:
+            if cur:
+                cur.close()
 
     def validate_reset_token(self, token: str) -> Dict[str, str]:
         try:
