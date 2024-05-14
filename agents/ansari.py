@@ -22,7 +22,7 @@ if os.environ.get("LANGFUSE_SECRET_KEY"):
     lf = Langfuse()
     lf.auth_check()
 
-MODEL = "gpt-4-0125-preview"
+MODEL = "gpt-4o-2024-05-13"
 
 MAX_FUNCTION_TRIES = 3
 MAX_FAILURES = 1
@@ -222,6 +222,7 @@ class Ansari:
                 ):  # End token
                     function_call = function_name + "(" + function_arguments + ")"
                     # The function call below appends the function call to the message history
+                    print(f"{function_name=}, {function_arguments=}")
                     yield self.process_fn_call(input, function_name, function_arguments)
                     #
                     break
