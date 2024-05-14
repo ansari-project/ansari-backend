@@ -66,6 +66,7 @@ def login_user(register_user):
     # Log in the user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/login",
+        headers={"x-mobile-ansari": "ANSARI"},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -80,6 +81,7 @@ def login_another_user(register_another_user):
     # Log in the user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/login",
+        headers={"x-mobile-ansari": "ANSARI"},
         json={
             "email": register_another_user["email"],
             "password": valid_password,
@@ -165,6 +167,7 @@ async def test_login_valid_credentials(register_user):
     # Test logging in with valid credentials
     response = client.post(
         "/api/v2/users/login",
+        headers={"x-mobile-ansari": "ANSARI"},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -180,6 +183,7 @@ async def test_login_invalid_credentials():
     # Test logging in with invalid credentials
     response = client.post(
         "/api/v2/users/login",
+        headers={"x-mobile-ansari": "ANSARI"},
         json={
             "email": "invalid@example.com",
             "password": "wrongpassword",
@@ -194,6 +198,7 @@ async def test_login_from_several_devices(register_user, login_user):
     time.sleep(1)
     response = client.post(
         "/api/v2/users/login",
+        headers={"x-mobile-ansari": "ANSARI"},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -349,7 +354,7 @@ async def test_share_thread(login_user, create_thread):
         },
     )
     assert response.status_code == 200
-    assert response.json()["content"] == '{"thread_name": null, "messages": []}'
+    assert response.json()["content"] == {'messages': [], 'thread_name': None}
     assert response.json()["status"] == "success"
 
 
@@ -382,7 +387,7 @@ async def test_thread_access(
 @pytest.mark.asyncio
 async def test_cors():
     # Test CORS
-    allowed_origin = "https://beta.ansari.chat"
+    allowed_origin = "https://ansari.chat"
     disallowed_origin = "https://disallowed.com"
 
     # Test with allowed origin

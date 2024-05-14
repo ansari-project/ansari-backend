@@ -65,7 +65,7 @@ def is_correct(row):
 
 def test_ansari_agent(data):
     df, q_temp, cache = data
-    df = df.sample(10)
+    #df = df.sample(10)
     # For cost and efficiency reasons, we will only test 10 questions
     df["json_prediction"] = df.apply(
         lambda row: answer_question(row, q_temp, cache), axis=1
