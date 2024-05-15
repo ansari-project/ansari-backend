@@ -228,19 +228,17 @@ class AnsariDB:
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
-            cur = self.conn.cursor()
-            insert_cmd = "INSERT INTO feedback (user_id, thread_id, message_id, class, comment)" + \
-             " VALUES (%s, %s, %s, %s, %s);"
-            cur.execute(
-                insert_cmd, (user_id, thread_id, message_id, feedback_class, comment)
-            )
-            return {"status": "success"}
+            with self.conn.cursor() as cur:
+                insert_cmd = "INSERT INTO feedback (user_id, thread_id, message_id, class, comment)" + \
+                " VALUES (%s, %s, %s, %s, %s);"
+                cur.execute(
+                    insert_cmd, (user_id, thread_id, message_id, feedback_class, comment)
+                )
+                self.conn.commit()
+                return {"status": "success"}
         except Exception as e:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
-        finally:
-            if cur:
-                cur.close()
 
     def create_thread(self, user_id):
         try:
