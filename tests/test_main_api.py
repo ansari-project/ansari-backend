@@ -1,6 +1,7 @@
 import time
-import logging
+import json
 import uuid
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -422,3 +423,33 @@ async def test_cors():
     )
     assert response.status_code == 200
     assert "Access-Control-Allow-Origin" not in response.headers
+
+@pytest.mark.asyncio
+async def test_add_feedback(login_user, create_thread):
+    # Add a message to the thread
+    message_data = {"role": "user", "content": "Assalamu Alaikum Ansari! How are you?"}
+    response = client.post(
+        f"/api/v2/threads/{create_thread}",
+        headers={"Authorization": f"Bearer {login_user['access_token']}", "x-mobile-ansari": "ANSARI"},
+        json=message_data,
+    )
+    assert response.status_code == 200
+    # log the response text
+    for chunk in response.iter_text():
+        print(chunk)
+        #logging.info(chunk)
+
+    # Add feedback to the message
+    feedback_data = {
+        "thread_id": create_thread,
+        "message_id": 1, # assuming the created message has an id of 1
+        "feedback_class": "thumbsup",
+        "comment": "Great response!",
+    }
+    response = client.post(
+        "/api/v2/feedback",
+        headers={"Authorization": f"Bearer {login_user['access_token']}", "x-mobile-ansari": "ANSARI"},
+        json=feedback_data,
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
