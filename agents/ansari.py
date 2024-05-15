@@ -14,7 +14,7 @@ import hashlib
 lf = Langfuse()
 lf.auth_check()
 
-MODEL = 'gpt-4-turbo-preview' 
+MODEL = 'gpt-4o' 
 
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
