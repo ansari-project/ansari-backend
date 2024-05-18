@@ -57,7 +57,7 @@ presenter.present()
 def validate_cors(request: Request) -> bool:
     try:
         logger.info(f"Raw request is {request.headers}")
-        origin = request.headers.get("origin", "")
+        origin = request.headers.get("Origin", "")
         mobile = request.headers.get("x-mobile-ansari", "")
         if origin in origins or mobile == "ANSARI":
             logger.debug("CORS OK")
@@ -563,7 +563,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
 
 
 @app.post("/api/v1/complete")
-async def complete(request: Request):
+async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     """
     Provides a response to a user's input.
     The input is a list of messages, each with with
@@ -575,9 +575,7 @@ async def complete(request: Request):
 
     """
     logger.info(f"Raw request is {request.headers}")
-    origin = request.headers.get("origin", "")
-    mobile = request.headers.get("x-mobile-ansari", "")
-    if origin in origins or mobile == "ANSARI":
+    if cors_ok:
         body = await request.json()
         logger.info(f"Request received > {body}.")
         return presenter.complete(body)
