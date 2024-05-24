@@ -257,18 +257,21 @@ async def test_refresh_token_request(login_user):
     # The JWT library in Python does not encode the timestamp with microsecond precision. 
     # It only considers the number of seconds since the epoch. 
     # Therefore, we need to wait for at least a second to get different tokens.
-    time.sleep(1)
+
+    time.sleep(1)  # Ensure a different token due to timestamp differences
     response = client.post(
         "/api/v2/users/refresh_token",
-         headers={
+        headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
             "x-mobile-ansari": "ANSARI",
         },
     )
     assert response.status_code == 200
-    assert "access_token" in response.json()
-    assert "refresh_token" in response.json()
-    # Test logging out with the old access_token
+    new_tokens = response.json()
+    assert "access_token" in new_tokens
+    assert "refresh_token" in new_tokens
+
+    # Test the old access token is invalidated
     response = client.post(
         "/api/v2/users/logout",
         headers={
@@ -277,7 +280,9 @@ async def test_refresh_token_request(login_user):
         },
     )
     assert response.status_code == 401
-    # Test refresh_token with the old refresh_token
+
+    # Test the old refresh token is invalidated after it expires from the cache
+    time.sleep(3)
     response = client.post(
         "/api/v2/users/refresh_token",
         headers={
@@ -287,6 +292,82 @@ async def test_refresh_token_request(login_user):
     )
     assert response.status_code == 401
 
+    # Validate new tokens work
+    response = client.post(
+        "/api/v2/users/logout",
+        headers={
+            "Authorization": f"Bearer {new_tokens['access_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_invalid_refresh_token():
+    response = client.post(
+        "/api/v2/users/refresh_token",
+        headers={
+            "Authorization": "Bearer invalid_refresh_token",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_concurrent_refresh_requests(login_user):
+    time.sleep(1)  # Ensure different token due to timestamp differences
+
+    # Send two concurrent refresh token requests
+    response1 = client.post(
+        "/api/v2/users/refresh_token",
+        headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    response2 = client.post(
+        "/api/v2/users/refresh_token",
+        headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    tokens1 = response1.json()
+    tokens2 = response2.json()
+
+    # Both responses should have the same token pair
+    assert tokens1["access_token"] == tokens2["access_token"]
+    assert tokens1["refresh_token"] == tokens2["refresh_token"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_cache_expiry(login_user):
+    time.sleep(1)  # Ensure different token due to timestamp differences
+
+    # Send two concurrent refresh token requests
+    response1 = client.post(
+        "/api/v2/users/refresh_token",
+        headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+    time.sleep(3) # cache expiry is 3 seconds
+    response2 = client.post(
+        "/api/v2/users/refresh_token",
+        headers={
+            "Authorization": f"Bearer {login_user['refresh_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
+    )
+
+    assert response1.status_code == 200
+    assert response2.status_code == 401
 
 @pytest.mark.asyncio
 async def test_create_thread(login_user):
