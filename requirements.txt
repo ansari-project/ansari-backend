@@ -18,3 +18,4 @@ zxcvbn
 sendgrid
 jinja2
 tenacity
+diskcache
