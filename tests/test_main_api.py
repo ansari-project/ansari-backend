@@ -1,5 +1,4 @@
 import time
-import json
 import uuid
 import logging
 
@@ -477,7 +476,7 @@ async def test_cors():
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"Origin": allowed_origin, "x-mobile-ansari": "ANSARI"},
+        headers={"origin": allowed_origin},
         json={
             "email": email,
             "password": valid_password,
@@ -486,15 +485,15 @@ async def test_cors():
         },
     )
     assert response.status_code == 200
-    assert "Access-Control-Allow-Origin" in response.headers
-    assert response.headers["Access-Control-Allow-Origin"] == allowed_origin
+    assert "access-control-allow-origin" in response.headers
+    assert response.headers["access-control-allow-origin"] == allowed_origin
 
     # Test with disallowed origin
     base, domain = valid_email_base.split("@")
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"Origin": disallowed_origin, "x-mobile-ansari": "ANSARI"},
+        headers={"origin": disallowed_origin},
         json={
             "email": email,
             "password": valid_password,
@@ -502,8 +501,8 @@ async def test_cors():
             "last_name": "Doe",
         },
     )
-    assert response.status_code == 200
-    assert "Access-Control-Allow-Origin" not in response.headers
+    assert response.status_code == 502
+    assert "access-control-allow-origin" not in response.headers
 
 @pytest.mark.asyncio
 async def test_add_feedback(login_user, create_thread):
