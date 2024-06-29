@@ -59,7 +59,7 @@ def insert_conversation(cursor, model_id, conversation):
 
 def insert_comparison(cursor, model_a_id, model_b_id, conversation_a_id, conversation_b_id, user_vote):
     cursor.execute(
-        "INSERT INTO comparison (model_a_id, model_b_id, conversation_a_id, conversation_b_id, user_vote, timestamp) "
+        "INSERT INTO comparisons (model_a_id, model_b_id, conversation_a_id, conversation_b_id, user_vote, timestamp) "
         "VALUES (%s, %s, %s, %s, %s, %s)",
         (model_a_id, model_b_id, conversation_a_id, conversation_b_id, user_vote, datetime.now(timezone.utc))
     )
