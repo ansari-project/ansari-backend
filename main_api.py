@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 
 import psycopg2
@@ -37,7 +36,7 @@ app.add_middleware(
 )
 
 db = AnsariDB()
-ansari = Ansari()
+ansari = Ansari(get_settings())
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()

@@ -1,4 +1,3 @@
-import os
 import json
 import logging
 from contextlib import contextmanager
@@ -12,15 +11,13 @@ import psycopg2.pool
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 
-MAX_THREAD_NAME_LENGTH = 100
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-
 # Initialize the connection pool
-db_connection_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk"))
+db_connection_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=str(get_settings().DATABASE_URL))
 
 @contextmanager
 def get_connection():
@@ -49,10 +46,10 @@ class MessageLogger:
 class AnsariDB:
     """Handles all database interactions."""
 
-    db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
-    token_secret_key = os.getenv("SECRET_KEY", "secret")
-    ALGORITHM = "HS256"
-    ENCODING = "utf-8"
+    db_url = str(get_settings().DATABASE_URL)
+    token_secret_key = get_settings().SECRET_KEY.get_secret_value()
+    ALGORITHM = get_settings().ALGORITHM
+    ENCODING = get_settings().ENCODING
 
     def __init__(self) -> None:
         if db_connection_pool is None:
@@ -289,8 +286,8 @@ class AnsariDB:
                         (
                             thread_id,
                             user_id,
-                            thread_name[:MAX_THREAD_NAME_LENGTH],
-                            thread_name[:MAX_THREAD_NAME_LENGTH],
+                            thread_name[:get_settings().MAX_THREAD_NAME_LENGTH],
+                            thread_name[:get_settings().MAX_THREAD_NAME_LENGTH],
                         ),
                     )
                     conn.commit()

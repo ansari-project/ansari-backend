@@ -7,9 +7,7 @@ import traceback
 from datetime import date, datetime
 
 import litellm
-from langfuse.model import CreateGeneration, CreateTrace, InitialGeneration
-from openai import OpenAI
-from pydantic import BaseModel
+from langfuse.model import CreateGeneration, CreateTrace
 
 from tools.search_hadith import SearchHadith
 from tools.search_mawsuah import SearchMawsuah
@@ -22,10 +20,6 @@ if os.environ.get("LANGFUSE_SECRET_KEY"):
     lf = Langfuse()
     lf.auth_check()
 
-MODEL = "gpt-4o-2024-05-13"
-
-MAX_FUNCTION_TRIES = 3
-MAX_FAILURES = 1
 
 logger = logging.getLogger(__name__ + ".Ansari")
 logger.setLevel(logging.INFO)
@@ -35,14 +29,15 @@ logger.addHandler(console_handler)
 
 class Ansari:
 
-    def __init__(self, message_logger=None, json_format=False):
-        sq = SearchQuran()
-        sh = SearchHadith()
-        sm = SearchMawsuah()
+    def __init__(self, settings, message_logger=None, json_format=False):
+        self.settings = settings
+        sq = SearchQuran(settings.KALEMAT_API_KEY)
+        sh = SearchHadith(settings.KALEMAT_API_KEY)
+        sm = SearchMawsuah(settings.VECTARA_AUTH_TOKEN, settings.VECTARA_CUSTOMER_ID, settings.VECTARA_CORPUS_ID)
         self.tools = {sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm}
-        self.model = MODEL
+        self.model = settings.MODEL
         self.pm = PromptMgr()
-        self.sys_msg = self.pm.bind("system_msg_fn").render()
+        self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
         self.functions = [x.get_function_description() for x in self.tools.values()]
         self.message_history = [{"role": "system", "content": self.sys_msg}]
         self.json_format = json_format
@@ -104,7 +99,7 @@ class Ansari:
                 # We want to yield from so that we can send the sequence through the input
                 # Also use functions only if we haven't tried too many times
                 use_function = True
-                if count >= MAX_FUNCTION_TRIES:
+                if count >= self.settings.MAX_FUNCTION_TRIES:
                     use_function = False
                     logger.warning("Not using functions -- tries exceeded")
                 yield from self.process_one_round(use_function)
@@ -115,7 +110,7 @@ class Ansari:
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
-                if failures >= MAX_FAILURES:
+                if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break
@@ -179,7 +174,7 @@ class Ansari:
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
-                if failures >= MAX_FAILURES:
+                if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break

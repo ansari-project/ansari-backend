@@ -1,18 +1,15 @@
 import json
-import os
-
 import requests
 
 VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
 FN_NAME = "search_mawsuah"
 
-
 class SearchMawsuah:
 
-    def __init__(self):
-        self.auth_token = os.getenv("VECTARA_AUTH_TOKEN")
-        self.customer_id = os.getenv("VECTARA_CUSTOMER_ID")
-        self.corpus_id = os.getenv("VECTARA_CORPUS_ID")
+    def __init__(self, vectara_auth_token, vectara_customer_id, vectara_corpus_id):
+        self.auth_token = vectara_auth_token
+        self.customer_id = vectara_customer_id
+        self.corpus_id = vectara_corpus_id
         self.base_url = VECTARA_BASE_URL
 
     def get_function_description(self):

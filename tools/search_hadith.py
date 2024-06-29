@@ -1,7 +1,6 @@
 import os
 
 import requests
-from pydantic import BaseModel
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
 FN_NAME = "search_hadith"
@@ -9,8 +8,8 @@ FN_NAME = "search_hadith"
 
 class SearchHadith:
 
-    def __init__(self):
-        self.api_key = os.getenv("KALEMAT_API_KEY")
+    def __init__(self, kalimat_api_key):
+        self.api_key = kalimat_api_key
         self.base_url = KALEMAT_BASE_URL
 
     def get_function_description(self):

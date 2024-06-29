@@ -1,6 +1,8 @@
 import os
 import psycopg2
 
+from config import get_settings
+
 def import_sql_files(directory, db_url):
     try:
         # Connect to the PostgreSQL database
@@ -44,6 +46,6 @@ def import_sql_files(directory, db_url):
 
 # Import all sql files under sql directory
 sql_directory = "sql"
-db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
+db_url = str(get_settings().DATABASE_URL)
 
 import_sql_files(sql_directory, db_url)
