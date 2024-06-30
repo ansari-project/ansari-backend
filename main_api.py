@@ -35,7 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db = AnsariDB()
+db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
 
 presenter = ApiPresenter(app, ansari)

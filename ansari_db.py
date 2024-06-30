@@ -11,21 +11,10 @@ import psycopg2.pool
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 
-from config import get_settings
+from config import get_settings, Settings
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-# Initialize the connection pool
-db_connection_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=str(get_settings().DATABASE_URL))
-
-@contextmanager
-def get_connection():
-    conn = db_connection_pool.getconn()
-    try:
-        yield conn
-    finally:
-        db_connection_pool.putconn(conn)
 
 class MessageLogger:
     """A simplified interface to AnsariDB so that we can log messages
@@ -46,15 +35,21 @@ class MessageLogger:
 class AnsariDB:
     """Handles all database interactions."""
 
-    db_url = str(get_settings().DATABASE_URL)
-    token_secret_key = get_settings().SECRET_KEY.get_secret_value()
-    ALGORITHM = get_settings().ALGORITHM
-    ENCODING = get_settings().ENCODING
+    def __init__(self, settings: Settings) -> None:
+        self.db_url = str(settings.DATABASE_URL)
+        self.token_secret_key = settings.SECRET_KEY.get_secret_value()
+        self.ALGORITHM = settings.ALGORITHM
+        self.ENCODING = settings.ENCODING
+        self.db_connection_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=10, dsn=str(settings.DATABASE_URL))
 
-    def __init__(self) -> None:
-        if db_connection_pool is None:
-            raise Exception("Connection pool is not initialized")
-
+    @contextmanager
+    def get_connection(self):
+        conn = self.db_connection_pool.getconn()
+        try:
+            yield conn
+        finally:
+            self.db_connection_pool.putconn(conn)
+    
     def hash_password(self, password):
         # Hash a password with a randomly-generated salt
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
@@ -104,7 +99,7 @@ class AnsariDB:
 
     def _validate_token_in_db(self, user_id: str, token: str, table: str) -> bool:
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = f"SELECT user_id FROM {table} WHERE user_id = %s AND token = %s;"
                     cur.execute(select_cmd, (user_id, token))
@@ -151,7 +146,7 @@ class AnsariDB:
 
     def register(self, email, first_name, last_name, password_hash):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);"""
                     cur.execute(insert_cmd, (email, password_hash, first_name, last_name))
@@ -163,7 +158,7 @@ class AnsariDB:
 
     def account_exists(self, email):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = """SELECT id FROM users WHERE email = %s;"""
                     cur.execute(select_cmd, (email,))
@@ -175,7 +170,7 @@ class AnsariDB:
 
     def save_access_token(self, user_id, token):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = f"INSERT INTO access_tokens (user_id, token) " + \
                     "VALUES (%s, %s) RETURNING id;"
@@ -189,7 +184,7 @@ class AnsariDB:
     
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = f"INSERT INTO refresh_tokens (user_id, token, access_token_id) " + \
                     "VALUES (%s, %s, %s);"
@@ -202,7 +197,7 @@ class AnsariDB:
 
     def save_reset_token(self, user_id, token):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = "INSERT INTO reset_tokens (user_id, token) " + \
                     "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s;"
@@ -215,7 +210,7 @@ class AnsariDB:
 
     def retrieve_user_info(self, email):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
                     cur.execute(select_cmd, (email,))
@@ -231,7 +226,7 @@ class AnsariDB:
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = "INSERT INTO feedback (user_id, thread_id, message_id, class, comment)" + \
                     " VALUES (%s, %s, %s, %s, %s);"
@@ -246,7 +241,7 @@ class AnsariDB:
 
     def create_thread(self, user_id):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = """INSERT INTO threads (user_id) values (%s) RETURNING id;"""
                     cur.execute(insert_cmd, (user_id,))
@@ -260,7 +255,7 @@ class AnsariDB:
 
     def get_all_threads(self, user_id):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = (
                         """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
@@ -277,7 +272,7 @@ class AnsariDB:
 
     def set_thread_name(self, thread_id, user_id, thread_name):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = "INSERT INTO threads (id, user_id, name) " + \
                     "VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = %s;"
@@ -298,7 +293,7 @@ class AnsariDB:
 
     def append_message(self, user_id, thread_id, role, content, function_name=None):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = "INSERT INTO messages (thread_id, user_id, role, content, function_name) " + \
                     "VALUES (%s, %s, %s, %s, %s);"
@@ -320,7 +315,7 @@ class AnsariDB:
         function messages are not included.
         """
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = "SELECT id, role, content FROM messages " + \
                     "WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"
@@ -350,7 +345,7 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = "SELECT role, content, function_name FROM messages " + \
                     "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
@@ -383,7 +378,7 @@ class AnsariDB:
             thread = self.get_thread(thread_id, user_id)
             logger.info(f"!!!!!! !!!! Thread is {json.dumps(thread)}")
             # Now we create a new thread
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
                     thread_as_json = json.dumps(thread)
@@ -400,7 +395,7 @@ class AnsariDB:
     def get_snapshot(self, share_uuid):
         """Retrieve a snapshot of a thread."""
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = """SELECT content FROM share WHERE id = %s;"""
                     cur.execute(select_cmd, (share_uuid,))
@@ -416,7 +411,7 @@ class AnsariDB:
         try:
             # We need to ensure that the user_id has access to the thread.
             # We must delete the messages associated with the thread first.
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     delete_cmd = (
                         """DELETE FROM messages WHERE thread_id = %s and user_id = %s;"""
@@ -444,7 +439,7 @@ class AnsariDB:
                 - 500 if there is an internal server error during the deletion process.
         """
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     # Retrieve the associated access_token_id
                     select_cmd = """SELECT access_token_id FROM refresh_tokens WHERE token = %s;"""
@@ -467,7 +462,7 @@ class AnsariDB:
 
     def delete_access_token(self, user_id, token):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     delete_cmd = """DELETE FROM access_tokens WHERE user_id = %s AND token = %s;"""
                     cur.execute(delete_cmd, (user_id, token))
@@ -479,7 +474,7 @@ class AnsariDB:
 
     def logout(self, user_id, token):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     for db_table in ["access_tokens", "refresh_tokens"]:
                         delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s AND token = %s;"""
@@ -491,7 +486,7 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
-        with get_connection() as conn:
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 insert_cmd = "INSERT INTO preferences (user_id, pref_key, pref_value) " + \
                 "VALUES (%s, %s, %s) ON CONFLICT (user_id, pref_key) DO UPDATE SET pref_value = %s;"
@@ -500,7 +495,7 @@ class AnsariDB:
                 return {"status": "success"}
 
     def get_prefs(self, user_id):
-        with get_connection() as conn:
+        with self.get_connection() as conn:
             with conn.cursor() as cur:
                 select_cmd = (
                     """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s;"""
@@ -514,7 +509,7 @@ class AnsariDB:
 
     def update_password(self, user_id, new_password_hash):
         try:
-            with get_connection() as conn:
+            with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     update_cmd = """UPDATE users SET password_hash = %s WHERE id = %s;"""
                     cur.execute(update_cmd, (new_password_hash, user_id))
