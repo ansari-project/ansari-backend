@@ -73,7 +73,7 @@ class Ansari:
                 name="ansari-gen",
                 startTime=self.start_time,
                 endTime=datetime.now(),
-                model=MODEL,
+                model=self.settings.MODEL,
                 prompt=self.message_history[:-1],
                 completion=self.message_history[-1]["content"],
             )

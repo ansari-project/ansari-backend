@@ -1,4 +1,5 @@
 import os
+import copy
 import random
 import itertools
 from datetime import datetime, timezone
@@ -6,15 +7,19 @@ from datetime import datetime, timezone
 import psycopg2
 from psycopg2.extras import Json
 import gradio as gr
-from openai import OpenAI
+from fastapi.responses import StreamingResponse
 
-from env_vars import *
+from agents.ansari import Ansari
+from config import get_settings
 
-api_key = OPENAI_API_KEY
-oai_model_name = "gpt-3.5-turbo"
-model_1_system_prompt = "You are helpful AI."
-model_2_system_prompt = "As a top-tier Python Software Engineer, prioritize concise, clear, and comprehensive communication. Be direct and detailed, optimizing your code for both readability and efficiency. Follow best practices to create minimal, effective lines of code. Apply these principles to elevate your programming skills."
-oai_client = OpenAI(api_key=api_key)
+# Two agents with two different system prompts
+settings_1 = get_settings()
+settings_1.SYSTEM_PROMPT_FILE_NAME = 'system_msg_fn_v1'
+agent_1 = Ansari(settings_1)
+settings_2 = get_settings()
+settings_2.SYSTEM_PROMPT_FILE_NAME = 'system_msg_fn'
+agent_2 = Ansari(settings_2)
+
 text_size = gr.themes.sizes.text_md
 block_css = "block_css.css"
 notice_markdown = """## Chat and Compare
@@ -69,8 +74,8 @@ def log_vote(right_chat_history, left_chat_history, vote, current_assignment):
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 # Insert conversations
-                system_prompt_a = model_1_system_prompt if current_assignment['A'] == MODEL_1_ID else model_2_system_prompt
-                system_prompt_b = model_2_system_prompt if current_assignment['B'] == MODEL_2_ID else model_1_system_prompt
+                system_prompt_a = agent_1.sys_msg if current_assignment['A'] == MODEL_1_ID else agent_2.sys_msg
+                system_prompt_b = agent_2.sys_msg if current_assignment['B'] == MODEL_2_ID else agent_1.sys_msg
                 conv_a_id = insert_conversation(cur, current_assignment['A'], [system_prompt_a] + left_chat_history)
                 conv_b_id = insert_conversation(cur, current_assignment['B'], [system_prompt_b] + right_chat_history)
 
@@ -101,20 +106,18 @@ def clear_conversation():
     new_assignment = randomly_assign_models()
     return (new_assignment,) + tuple([None] * 3 + [gr.Button(interactive=False, visible=True)]*6)
 
-def handle_chat(user_message, chat_history, model_id):
-    system_prompt = model_1_system_prompt if model_id == MODEL_1_ID else model_2_system_prompt
-    history_openai_format = [{"role": "system", "content": system_prompt}]
+def gr_chat_format_to_openai_chat_format(user_message, chat_history):
+    openai_chat_history = []
     for human, assistant in chat_history:
-        history_openai_format.append({"role": "user", "content": human})
-        history_openai_format.append({"role": "assistant", "content": assistant})
-    history_openai_format.append({"role": "user", "content": user_message})
+        openai_chat_history.append({"role": "user", "content": human})
+        openai_chat_history.append({"role": "assistant", "content": assistant})
+    openai_chat_history.append({"role": "user", "content": user_message})
+    return openai_chat_history
 
-    response = oai_client.chat.completions.create(model=oai_model_name,
-                                                  messages=history_openai_format,
-                                                  temperature=1.0,
-                                                  stream=True)
-
-    return response
+def handle_chat(user_message, chat_history, model_id):
+    agent = copy.deepcopy(agent_1 if model_id == MODEL_1_ID else agent_2)
+    openai_chat_history = gr_chat_format_to_openai_chat_format(user_message, chat_history)
+    return agent.replace_message_history(openai_chat_history)
 
 def handle_user_message(user_message, right_chat_history, left_chat_history, current_assignment):
     if not user_message.strip():
@@ -128,11 +131,11 @@ def handle_user_message(user_message, right_chat_history, left_chat_history, cur
 
         for right_chunk, left_chunk in itertools.zip_longest(right_chat_response, left_chat_response, fillvalue=None):
             if right_chunk:
-                right_content = right_chunk.choices[0].delta.content
+                right_content = right_chunk#.choices[0].delta.content
                 if right_content:
                     right_chat_history[-1][1] += right_content
             if left_chunk:
-                left_content = left_chunk.choices[0].delta.content
+                left_content = left_chunk#.choices[0].delta.content
                 if left_content:
                     left_chat_history[-1][1] += left_content
 
