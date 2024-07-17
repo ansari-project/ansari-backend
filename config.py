@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
 
     template_dir: DirectoryPath = Field(default="resources/templates")
-    diskcache_dir: DirectoryPath = Field(default="diskcache_dir")
+    diskcache_dir: str = Field(default="diskcache_dir")
 
     MODEL: str = Field(default="gpt-4o-2024-05-13")
     MAX_FUNCTION_TRIES: int = Field(default=3)

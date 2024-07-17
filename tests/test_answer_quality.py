@@ -7,6 +7,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 
 from agents.ansari import Ansari
+from config import get_settings
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -35,7 +36,7 @@ def answer_question(question, q_temp, cache):
     if prompt in cache.keys():
         LOGGER.info(f'Found {question["question"]} in cache')
         return cache[prompt]
-    ansari = Ansari()
+    ansari = Ansari(get_settings())
     result = "".join(filter(lambda x: x is not None, ansari.process_input(prompt)))
     LOGGER.info(f"Answer: {result}")
     cache[prompt] = result
