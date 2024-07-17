@@ -31,9 +31,9 @@ class Ansari:
 
     def __init__(self, settings, message_logger=None, json_format=False):
         self.settings = settings
-        sq = SearchQuran(settings.KALEMAT_API_KEY)
-        sh = SearchHadith(settings.KALEMAT_API_KEY)
-        sm = SearchMawsuah(settings.VECTARA_AUTH_TOKEN, settings.VECTARA_CUSTOMER_ID, settings.VECTARA_CORPUS_ID)
+        sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
+        sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
+        sm = SearchMawsuah(settings.VECTARA_AUTH_TOKEN.get_secret_value(), settings.VECTARA_CUSTOMER_ID, settings.VECTARA_CORPUS_ID)
         self.tools = {sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm}
         self.model = settings.MODEL
         self.pm = PromptMgr()
