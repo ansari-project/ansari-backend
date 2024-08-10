@@ -44,7 +44,7 @@ def answer_question(question, q_temp, cache):
 
 
 def extract_prediction(row):
-    try: 
+    try:
         raw = row["json_prediction"]
         raw = raw.replace("```", "")
         raw = raw.replace("json", "")
@@ -76,7 +76,7 @@ def test_ansari_agent(data):
     correct_percentage = df["correct_prediction"].mean() * 100
     LOGGER.info(f"Percentage of correct predictions: {correct_percentage:.2f}%")
 
-    wrong_predictions = df[df["correct_prediction"] == False]
+    wrong_predictions = df[~df["correct_prediction"]]
     if not wrong_predictions.empty:
         LOGGER.info("\nQuestions with wrong predictions:")
         for index, row in wrong_predictions.iterrows():

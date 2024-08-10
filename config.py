@@ -6,6 +6,7 @@ from pydantic import SecretStr, PostgresDsn, DirectoryPath, Field, field_validat
 
 logger = logging.getLogger(__name__)
 
+
 class Settings(BaseSettings):
     """
     Field value precedence in Pydantic Settings (highest to lowest priority):
@@ -17,11 +18,14 @@ class Settings(BaseSettings):
     5. Variables from the secrets directory.
     6. Default field values in the Settings model.
 
-    For more details, refer to the Pydantic documentation: 
+    For more details, refer to the Pydantic documentation:
     [https://docs.pydantic.dev/latest/concepts/pydantic_settings/#field-value-priority].
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
-    
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True
+    )
+
     DATABASE_URL: PostgresDsn
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
@@ -30,9 +34,11 @@ class Settings(BaseSettings):
     ALGORITHM: Literal["HS256"] = Field(default="HS256", frozen=True)
     ENCODING: Literal["utf-8"] = Field(default="utf-8", frozen=True)
     ACCESS_TOKEN_EXPIRY_HOURS: int = Field(default=2)
-    REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24*90)
+    REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24 * 90)
 
-    ORIGINS: Union[str, list[str]] = Field(default=["https://ansari.chat", "http://ansari.chat"], env="ORIGINS")
+    ORIGINS: Union[str, list[str]] = Field(
+        default=["https://ansari.chat", "http://ansari.chat"], env="ORIGINS"
+    )
     API_SERVER_PORT: int = Field(default=8000)
 
     OPENAI_API_KEY: SecretStr
@@ -59,7 +65,10 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.strip('"').split(",")]
         elif isinstance(v, list):
             return v
-        raise ValueError(f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list.")
+        raise ValueError(
+            f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list."
+        )
+
 
 @lru_cache()
 def get_settings() -> Settings:

@@ -1,5 +1,3 @@
-import os
-
 import requests
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
@@ -7,7 +5,6 @@ FN_NAME = "search_hadith"
 
 
 class SearchHadith:
-
     def __init__(self, kalimat_api_key):
         self.api_key = kalimat_api_key
         self.base_url = KALEMAT_BASE_URL
@@ -15,13 +12,17 @@ class SearchHadith:
     def get_function_description(self):
         return {
             "name": FN_NAME,
-            "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
+            "description": (
+                "Search the Hadith for relevant narrations. "
+                "Returns a list of hadith. "
+                "Multiple hadith may be relevant."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The topic to search the Hadith for ",
+                        "description": "The topic to search the Hadith for",
                     },
                 },
                 "required": ["query"],
@@ -32,7 +33,6 @@ class SearchHadith:
         return FN_NAME
 
     def run(self, query: str, numResults: int = 5):
-
         headers = {"x-api-key": self.api_key}
         payload = {
             "query": query,

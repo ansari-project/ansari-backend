@@ -5,7 +5,6 @@ FN_NAME = "search_quran"
 
 
 class SearchQuran:
-
     def __init__(self, kalimat_api_key):
         self.api_key = kalimat_api_key
         self.base_url = KALEMAT_BASE_URL
@@ -30,7 +29,6 @@ class SearchQuran:
         return FN_NAME
 
     def run(self, query: str, num_results: int = 5):
-
         headers = {"x-api-key": self.api_key}
         payload = {
             "query": query,

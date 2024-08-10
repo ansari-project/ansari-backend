@@ -3,6 +3,7 @@ import psycopg2
 
 from config import get_settings
 
+
 def import_sql_files(directory, db_url):
     try:
         # Connect to the PostgreSQL database
@@ -14,7 +15,7 @@ def import_sql_files(directory, db_url):
 
         # Sort files by name
         sorted_files = sorted(files)
-        
+
         # Iterate over each file in the directory
         for filename in sorted_files:
             if filename.endswith(".sql"):

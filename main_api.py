@@ -43,6 +43,7 @@ presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 
+
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
     try:
         logger.info(f"Raw request is {request.headers}")
@@ -99,7 +100,11 @@ class LoginRequest(BaseModel):
 
 
 @app.post("/api/v2/users/login")
-async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors), settings: Settings = Depends(get_settings)):
+async def login_user(
+    req: LoginRequest,
+    cors_ok: bool = Depends(validate_cors),
+    settings: Settings = Depends(get_settings),
+):
     """Logs the user in.
     Returns a token on success.
     Returns 403 if the password is incorrect or the user doesn't exist.
@@ -109,14 +114,28 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors), 
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                access_token = db.generate_token(user_id, token_type="access", expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS)
-                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS)
+                access_token = db.generate_token(
+                    user_id,
+                    token_type="access",
+                    expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+                )
+                refresh_token = db.generate_token(
+                    user_id,
+                    token_type="refresh",
+                    expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+                )
                 access_token_insert_result = db.save_access_token(user_id, access_token)
                 if access_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save access token")
-                refresh_token_insert_result = db.save_refresh_token(user_id, refresh_token, access_token_insert_result["token_db_id"])
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save access token"
+                    )
+                refresh_token_insert_result = db.save_refresh_token(
+                    user_id, refresh_token, access_token_insert_result["token_db_id"]
+                )
                 if refresh_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save refresh token"
+                    )
                 return {
                     "status": "success",
                     "access_token": access_token,
@@ -141,12 +160,12 @@ async def refresh_token(
 ):
     """
     Refresh both the access token and the refresh token.
-    
+
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
-    
+
     Raises:
-        HTTPException: 
+        HTTPException:
             - 403 if CORS validation fails or the token type is invalid.
             - 401 if the refresh token is invalid or has expired.
             - 500 if there is an internal server error during token generation or saving.
@@ -154,35 +173,56 @@ async def refresh_token(
     if cors_ok:
         old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
         token_params = db.decode_token(old_refresh_token)
-        
+
         lock_key = f"lock:{token_params['user_id']}"
         with Lock(cache, lock_key, expire=3):
             # Check cache for existing token pair
             cached_tokens = cache.get(old_refresh_token)
             if cached_tokens:
                 return {"status": "success", **cached_tokens}
-            
+
             # If no cached tokens, proceed to validate and generate new tokens
             try:
                 # Validate the refresh token and delete the old token pair
                 db.delete_access_refresh_tokens_pair(old_refresh_token)
-                
+
                 # Generate new tokens
-                new_access_token = db.generate_token(token_params["user_id"], token_type="access", expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS)
-                new_refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS)
+                new_access_token = db.generate_token(
+                    token_params["user_id"],
+                    token_type="access",
+                    expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+                )
+                new_refresh_token = db.generate_token(
+                    token_params["user_id"],
+                    token_type="refresh",
+                    expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+                )
 
                 # Save the new access token to the database
-                access_token_insert_result = db.save_access_token(token_params["user_id"], new_access_token)
+                access_token_insert_result = db.save_access_token(
+                    token_params["user_id"], new_access_token
+                )
                 if access_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save access token")
-                
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save access token"
+                    )
+
                 # Save the new refresh token to the database
-                refresh_token_insert_result = db.save_refresh_token(token_params["user_id"], new_refresh_token, access_token_insert_result["token_db_id"])
+                refresh_token_insert_result = db.save_refresh_token(
+                    token_params["user_id"],
+                    new_refresh_token,
+                    access_token_insert_result["token_db_id"],
+                )
                 if refresh_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
-                
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save refresh token"
+                    )
+
                 # Cache the new tokens with a short expiry (3 seconds)
-                new_tokens = {"access_token": new_access_token, "refresh_token": new_refresh_token}
+                new_tokens = {
+                    "access_token": new_access_token,
+                    "refresh_token": new_refresh_token,
+                }
                 cache.set(old_refresh_token, new_tokens, expire=3)
                 return {"status": "success", **new_tokens}
             except psycopg2.Error as e:
