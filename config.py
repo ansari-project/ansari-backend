@@ -1,20 +1,34 @@
 import logging
 from functools import lru_cache
-from typing import Union, Optional
+from typing import Union, Optional, Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, PostgresDsn, DirectoryPath, Field, validator
+from pydantic import SecretStr, PostgresDsn, DirectoryPath, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file="/home/abdullah/Documents/hdd/projects/ansari/ansari-backend/.env", env_file_encoding="utf-8", case_sensitive=True)
+    """
+    Field value precedence in Pydantic Settings (highest to lowest priority):
+
+    1. CLI arguments (if cli_parse_args is enabled).
+    2. Arguments passed to the Settings initializer.
+    3. Environment variables.
+    4. Variables from a dotenv (.env) file.
+    5. Variables from the secrets directory.
+    6. Default field values in the Settings model.
+
+    For more details, refer to the Pydantic documentation: 
+    [https://docs.pydantic.dev/latest/concepts/pydantic_settings/#field-value-priority].
+    """
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
     
-    DATABASE_URL: PostgresDsn = Field(default="postgresql://mwk@localhost:5432/mwk")
+    DATABASE_URL: PostgresDsn
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
-    SECRET_KEY: SecretStr = Field(default="secret")
-    ALGORITHM: str = Field(default="HS256")
-    ENCODING: str = Field(default="utf-8")
+    SECRET_KEY: SecretStr
+    # Literal ensures the allowed value(s), and frozen ensures it can't be changed after initialization
+    ALGORITHM: Literal["HS256"] = Field(default="HS256", frozen=True)
+    ENCODING: Literal["utf-8"] = Field(default="utf-8", frozen=True)
     ACCESS_TOKEN_EXPIRY_HOURS: int = Field(default=2)
     REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24*90)
 
@@ -39,7 +53,7 @@ class Settings(BaseSettings):
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_fn")
 
-    @validator("ORIGINS", pre=True)
+    @field_validator("ORIGINS")
     def parse_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.strip('"').split(",")]
@@ -49,9 +63,4 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    try:
-        settings = Settings()
-        return settings
-    except Exception as e:
-        logger.error(f"Error loading settings: {e}")
-        raise
+    return Settings()
