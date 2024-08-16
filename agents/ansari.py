@@ -10,8 +10,10 @@ import litellm
 from langfuse.model import CreateGeneration, CreateTrace
 
 from tools.search_hadith import SearchHadith
-from tools.search_mawsuah import SearchMawsuah
+
+# from tools.search_mawsuah import SearchMawsuah
 from tools.search_quran import SearchQuran
+from tools.search_vectara import SearchVectara
 from util.prompt_mgr import PromptMgr
 
 if os.environ.get("LANGFUSE_SECRET_KEY"):
@@ -33,10 +35,19 @@ class Ansari:
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchMawsuah(
+        # sm = SearchMawsuah(
+        #     settings.VECTARA_AUTH_TOKEN.get_secret_value(),
+        #     settings.VECTARA_CUSTOMER_ID,
+        #     settings.VECTARA_CORPUS_ID,
+        # )
+        sm = SearchVectara(
             settings.VECTARA_AUTH_TOKEN.get_secret_value(),
             settings.VECTARA_CUSTOMER_ID,
-            settings.VECTARA_CORPUS_ID,
+            settings.MAWSUAH_VECTARA_CORPUS_ID,
+            settings.MAWSUAH_FN_NAME,
+            settings.MAWSUAH_FN_DESCRIPTION,
+            settings.MAWSUAH_TOOL_PARAMS,
+            settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         self.tools = {sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm}
         self.model = settings.MODEL

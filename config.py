@@ -1,8 +1,9 @@
 import logging
 from functools import lru_cache
-from typing import Union, Optional, Literal
+from typing import Literal, Optional, Union
+
+from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, PostgresDsn, DirectoryPath, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", case_sensitive=True
     )
 
-    DATABASE_URL: PostgresDsn
+    DATABASE_URL: PostgresDsn = Field(alias="DATABASE_URL")
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
     SECRET_KEY: SecretStr
@@ -44,9 +45,30 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: SecretStr
     PGPASSWORD: SecretStr
     KALEMAT_API_KEY: SecretStr
+
     VECTARA_AUTH_TOKEN: SecretStr
     VECTARA_CUSTOMER_ID: str
-    VECTARA_CORPUS_ID: str
+
+    MAWSUAH_VECTARA_CORPUS_ID: str = Field(alias="VECTARA_CORPUS_ID")
+    MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
+    MAWSUAH_FN_DESCRIPTION: str = Field(
+        default="Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
+        "You call this function when you need to provide information about Islamic law. "
+        "Regardless of the language used in the original conversation, you will translate "
+        "the query into Arabic before searching the encyclopedia. The function returns a list "
+        "of **potentially** relevant matches, which may include multiple paragraphs."
+    )
+    MAWSUAH_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "The topic to search for in the fiqh encyclopedia. You will translate this query into Arabic.",
+            }
+        ]
+    )
+    MAWSUAH_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
@@ -54,7 +76,7 @@ class Settings(BaseSettings):
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
 
-    MODEL: str = Field(default="gpt-4o-2024-05-13")
+    MODEL: str = Field(default="gpt-4o-2024-08-06")
     MAX_FUNCTION_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_fn")
