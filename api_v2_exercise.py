@@ -1,16 +1,17 @@
-### The purpose of this file is to show how to use the Ansari API v2 in terms of the sequence of calls to make.
-### This is a bit more complicated than the v1 API because we have to create a thread and then add messages to it.
-### The v1 API just had one call to add a message.
-### This file is intended to be run from the command line.
-### It assumes that you have a running Ansari server on localhost:8000.
-### It also assumes that you have a running Ansari database on localhost:5432.
-### The steps are: register an account, log in with an accounnt, create a thread, add messages to the thread, and then get the thread.
+"""
+The purpose of this file is to show how to use the Ansari API v2 in terms of the sequence of calls to make.
 
-import json
-import os
+- This is a bit more complicated than the v1 API because we have to create a thread and then add messages to it.
+- The v1 API just had one call to add a message.
+- This file is intended to be run from the command line.
+- It assumes that you have a running Ansari server on `localhost:8000`.
+- It also assumes that you have a running Ansari database on `localhost:5432`.
+- The steps are: register an account, log in with an account, create a thread,
+  add messages to the thread, and then get the thread.
+"""
+
 import random
 import sys
-import time
 import uuid
 
 import requests
@@ -53,7 +54,7 @@ def login(url, email, password):
     response = requests.post(
         url + "/api/v2/users/login", json={"email": email, "password": password}
     )
-    result = response.json()
+
     print(f"Response is {response}")
 
     if response.status_code != 200:

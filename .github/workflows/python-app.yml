@@ -71,5 +71,6 @@ jobs:
         PGPASSWORD: postgres
         POSTGRES_PASSWORD: postgres
         DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+        SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
       run: |
         pytest --capture=tee-sys --cov=. 

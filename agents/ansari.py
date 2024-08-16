@@ -7,9 +7,7 @@ import traceback
 from datetime import date, datetime
 
 import litellm
-from langfuse.model import CreateGeneration, CreateTrace, InitialGeneration
-from openai import OpenAI
-from pydantic import BaseModel
+from langfuse.model import CreateGeneration, CreateTrace
 
 from tools.search_hadith import SearchHadith
 from tools.search_mawsuah import SearchMawsuah
@@ -22,27 +20,28 @@ if os.environ.get("LANGFUSE_SECRET_KEY"):
     lf = Langfuse()
     lf.auth_check()
 
-MODEL = "gpt-4o-2024-05-13"
-
-MAX_FUNCTION_TRIES = 3
-MAX_FAILURES = 1
 
 logger = logging.getLogger(__name__ + ".Ansari")
 logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO) 
+console_handler.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 
-class Ansari:
 
-    def __init__(self, message_logger=None, json_format=False):
-        sq = SearchQuran()
-        sh = SearchHadith()
-        sm = SearchMawsuah()
+class Ansari:
+    def __init__(self, settings, message_logger=None, json_format=False):
+        self.settings = settings
+        sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
+        sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
+        sm = SearchMawsuah(
+            settings.VECTARA_AUTH_TOKEN.get_secret_value(),
+            settings.VECTARA_CUSTOMER_ID,
+            settings.VECTARA_CORPUS_ID,
+        )
         self.tools = {sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm}
-        self.model = MODEL
+        self.model = settings.MODEL
         self.pm = PromptMgr()
-        self.sys_msg = self.pm.bind("system_msg_fn").render()
+        self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
         self.functions = [x.get_function_description() for x in self.tools.values()]
         self.message_history = [{"role": "system", "content": self.sys_msg}]
         self.json_format = json_format
@@ -73,12 +72,12 @@ class Ansari:
         logger.info(f"trace id is {trace_id}")
         trace = lf.trace(CreateTrace(id=trace_id, name="ansari-trace"))
 
-        generation = trace.generation(
+        _ = trace.generation(
             CreateGeneration(
                 name="ansari-gen",
                 startTime=self.start_time,
                 endTime=datetime.now(),
-                model=MODEL,
+                model=self.settings.MODEL,
                 prompt=self.message_history[:-1],
                 completion=self.message_history[-1]["content"],
             )
@@ -104,18 +103,18 @@ class Ansari:
                 # We want to yield from so that we can send the sequence through the input
                 # Also use functions only if we haven't tried too many times
                 use_function = True
-                if count >= MAX_FUNCTION_TRIES:
+                if count >= self.settings.MAX_FUNCTION_TRIES:
                     use_function = False
                     logger.warning("Not using functions -- tries exceeded")
                 yield from self.process_one_round(use_function)
                 count += 1
-            except Exception as e:
+            except Exception:
                 failures += 1
                 logger.warning("Exception occurred: {e}")
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
-                if failures >= MAX_FAILURES:
+                if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break
@@ -179,7 +178,7 @@ class Ansari:
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
                 time.sleep(5)
-                if failures >= MAX_FAILURES:
+                if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
                     break
@@ -205,12 +204,12 @@ class Ansari:
             # We process things differently depending on whether it is a function or a
             # text
             if response_mode == "words":
-                if delta.content == None:  # End token
+                if delta.content is None:  # End token
                     self.message_history.append({"role": "assistant", "content": words})
                     if self.message_logger:
                         self.message_logger.log("assistant", words)
                     break
-                elif delta.content != None:
+                elif delta.content is not None:
                     words += delta.content
                     yield delta.content
                 else:
@@ -218,9 +217,9 @@ class Ansari:
             elif response_mode == "fn":
                 logger.debug("Delta in: ", delta)
                 if (
-                    not "function_call" in delta or delta["function_call"] is None
+                    "function_call" not in delta or delta["function_call"] is None
                 ):  # End token
-                    function_call = function_name + "(" + function_arguments + ")"
+                    _ = function_name + "(" + function_arguments + ")"
                     # The function call below appends the function call to the message history
                     print(f"{function_name=}, {function_arguments=}")
                     yield self.process_fn_call(input, function_name, function_arguments)

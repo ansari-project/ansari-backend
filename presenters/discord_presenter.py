@@ -1,12 +1,7 @@
 import copy
-import os
 import time
 
 import discord
-from dotenv import load_dotenv
-
-from tools.search_hadith import SearchHadith
-from tools.search_quran import SearchQuran
 
 
 class MyClient(discord.Client):

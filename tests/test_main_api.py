@@ -1,5 +1,4 @@
 import time
-import json
 import uuid
 import logging
 
@@ -193,6 +192,7 @@ async def test_login_invalid_credentials():
     assert response.status_code == 403
     assert response.json()["detail"] == "Invalid username or password"
 
+
 @pytest.mark.asyncio
 async def test_login_from_several_devices(register_user, login_user):
     # Create another session, i.e. another access/refresh tokens pair
@@ -208,9 +208,9 @@ async def test_login_from_several_devices(register_user, login_user):
     assert response.status_code == 200
     assert "access_token" in response.json()
     assert "refresh_token" in response.json()
-    assert response.json()["access_token"]!= login_user["access_token"]
-    assert response.json()["refresh_token"]!= login_user["refresh_token"]
-    # Create two new threads, one using the new access token, 
+    assert response.json()["access_token"] != login_user["access_token"]
+    assert response.json()["refresh_token"] != login_user["refresh_token"]
+    # Create two new threads, one using the new access token,
     # the other using the old one
     test_create_thread(response.json())
     test_create_thread(login_user)
@@ -227,6 +227,7 @@ async def test_login_from_several_devices(register_user, login_user):
     assert response.status_code == 200
     assert response.json()["status"] == "success"
     test_create_thread(login_user)
+
 
 @pytest.mark.asyncio
 async def test_logout(login_user, create_thread):
@@ -251,11 +252,12 @@ async def test_logout(login_user, create_thread):
     )
     assert response.status_code == 401
 
+
 @pytest.mark.asyncio
 async def test_refresh_token_request(login_user):
     # Test logging in with valid credentials
-    # The JWT library in Python does not encode the timestamp with microsecond precision. 
-    # It only considers the number of seconds since the epoch. 
+    # The JWT library in Python does not encode the timestamp with microsecond precision.
+    # It only considers the number of seconds since the epoch.
     # Therefore, we need to wait for at least a second to get different tokens.
 
     time.sleep(1)  # Ensure a different token due to timestamp differences
@@ -301,6 +303,7 @@ async def test_refresh_token_request(login_user):
         },
     )
     assert response.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_invalid_refresh_token():
@@ -357,7 +360,7 @@ async def test_refresh_token_cache_expiry(login_user):
             "x-mobile-ansari": "ANSARI",
         },
     )
-    time.sleep(3) # cache expiry is 3 seconds
+    time.sleep(3)  # cache expiry is 3 seconds
     response2 = client.post(
         "/api/v2/users/refresh_token",
         headers={
@@ -368,6 +371,7 @@ async def test_refresh_token_cache_expiry(login_user):
 
     assert response1.status_code == 200
     assert response2.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_create_thread(login_user):
@@ -436,14 +440,12 @@ async def test_share_thread(login_user, create_thread):
         },
     )
     assert response.status_code == 200
-    assert response.json()["content"] == {'messages': [], 'thread_name': None}
+    assert response.json()["content"] == {"messages": [], "thread_name": None}
     assert response.json()["status"] == "success"
 
 
 @pytest.mark.asyncio
-async def test_thread_access(
-    login_user, create_thread, login_another_user
-):
+async def test_thread_access(login_user, create_thread, login_another_user):
     # Try to access the first user's thread with the second user's token
     response = client.get(
         f"/api/v2/threads/{create_thread}",
@@ -477,7 +479,7 @@ async def test_cors():
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"Origin": allowed_origin, "x-mobile-ansari": "ANSARI"},
+        headers={"origin": allowed_origin},
         json={
             "email": email,
             "password": valid_password,
@@ -486,15 +488,15 @@ async def test_cors():
         },
     )
     assert response.status_code == 200
-    assert "Access-Control-Allow-Origin" in response.headers
-    assert response.headers["Access-Control-Allow-Origin"] == allowed_origin
+    assert "access-control-allow-origin" in response.headers
+    assert response.headers["access-control-allow-origin"] == allowed_origin
 
     # Test with disallowed origin
     base, domain = valid_email_base.split("@")
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"Origin": disallowed_origin, "x-mobile-ansari": "ANSARI"},
+        headers={"origin": disallowed_origin},
         json={
             "email": email,
             "password": valid_password,
@@ -502,8 +504,9 @@ async def test_cors():
             "last_name": "Doe",
         },
     )
-    assert response.status_code == 200
-    assert "Access-Control-Allow-Origin" not in response.headers
+    assert response.status_code == 502
+    assert "access-control-allow-origin" not in response.headers
+
 
 @pytest.mark.asyncio
 async def test_add_feedback(login_user, create_thread):
@@ -511,25 +514,31 @@ async def test_add_feedback(login_user, create_thread):
     message_data = {"role": "user", "content": "Assalamu Alaikum Ansari! How are you?"}
     response = client.post(
         f"/api/v2/threads/{create_thread}",
-        headers={"Authorization": f"Bearer {login_user['access_token']}", "x-mobile-ansari": "ANSARI"},
+        headers={
+            "Authorization": f"Bearer {login_user['access_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
         json=message_data,
     )
     assert response.status_code == 200
     # log the response text
     for chunk in response.iter_text():
         print(chunk)
-        #logging.info(chunk)
+        # logging.info(chunk)
 
     # Add feedback to the message
     feedback_data = {
         "thread_id": create_thread,
-        "message_id": 1, # assuming the created message has an id of 1
+        "message_id": 1,  # assuming the created message has an id of 1
         "feedback_class": "thumbsup",
         "comment": "Great response!",
     }
     response = client.post(
         "/api/v2/feedback",
-        headers={"Authorization": f"Bearer {login_user['access_token']}", "x-mobile-ansari": "ANSARI"},
+        headers={
+            "Authorization": f"Bearer {login_user['access_token']}",
+            "x-mobile-ansari": "ANSARI",
+        },
         json=feedback_data,
     )
     assert response.status_code == 200

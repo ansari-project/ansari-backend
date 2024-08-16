@@ -7,6 +7,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 
 from agents.ansari import Ansari
+from config import get_settings
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -35,7 +36,7 @@ def answer_question(question, q_temp, cache):
     if prompt in cache.keys():
         LOGGER.info(f'Found {question["question"]} in cache')
         return cache[prompt]
-    ansari = Ansari()
+    ansari = Ansari(get_settings())
     result = "".join(filter(lambda x: x is not None, ansari.process_input(prompt)))
     LOGGER.info(f"Answer: {result}")
     cache[prompt] = result
@@ -43,7 +44,7 @@ def answer_question(question, q_temp, cache):
 
 
 def extract_prediction(row):
-    try: 
+    try:
         raw = row["json_prediction"]
         raw = raw.replace("```", "")
         raw = raw.replace("json", "")
@@ -75,7 +76,7 @@ def test_ansari_agent(data):
     correct_percentage = df["correct_prediction"].mean() * 100
     LOGGER.info(f"Percentage of correct predictions: {correct_percentage:.2f}%")
 
-    wrong_predictions = df[df["correct_prediction"] == False]
+    wrong_predictions = df[~df["correct_prediction"]]
     if not wrong_predictions.empty:
         LOGGER.info("\nQuestions with wrong predictions:")
         for index, row in wrong_predictions.iterrows():

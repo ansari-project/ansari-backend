@@ -1,7 +1,5 @@
 import copy
 import uuid
-from multiprocessing import Queue
-from threading import Thread
 
 import gradio as gr
 
