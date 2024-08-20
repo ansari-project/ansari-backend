@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 
 import psycopg2
@@ -18,28 +17,11 @@ from diskcache import FanoutCache, Lock
 from agents.ansari import Ansari
 from ansari_db import AnsariDB, MessageLogger
 from presenters.api_presenter import ApiPresenter
-
-# Initialize DiskCache
-diskcache_dir = os.getenv("diskcache_dir", "diskcache_dir")
-cache = FanoutCache(diskcache_dir, shards=4, timeout=1)
-
-# Read the ORIGINS environment variable as a comma-separated string
-origins_str = os.getenv('ORIGINS', 'https://ansari.chat,http://ansari.chat')
-
-# Split the string into a list of origins
-origins = origins_str.split(',')
+from config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-port = int(os.getenv("API_SERVER_PORT", 8000))
-db_url = os.getenv("DATABASE_URL", "postgresql://mwk@localhost:5432/mwk")
-token_secret_key = os.getenv("SECRET_KEY", "secret")
-ALGORITHM = "HS256"
-ENCODING = "utf-8"
-ACCESS_TOKEN_EXPIRY_HOURS = 2
-REFRESH_TOKEN_EXPIRY_HOURS = 24*90
-template_dir = "resources/templates"
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
 
@@ -47,24 +29,27 @@ psycopg2.extras.register_uuid()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=get_settings().ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-db = AnsariDB()
-ansari = Ansari()
+db = AnsariDB(get_settings())
+ansari = Ansari(get_settings())
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()
 
-def validate_cors(request: Request) -> bool:
+cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
+
+
+def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
     try:
         logger.info(f"Raw request is {request.headers}")
         origin = request.headers.get("origin", "")
         mobile = request.headers.get("x-mobile-ansari", "")
-        if origin and origin in origins or mobile == "ANSARI":
+        if origin and origin in settings.ORIGINS or mobile == "ANSARI":
             logger.debug("CORS OK")
             return True
         else:
@@ -115,7 +100,11 @@ class LoginRequest(BaseModel):
 
 
 @app.post("/api/v2/users/login")
-async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
+async def login_user(
+    req: LoginRequest,
+    cors_ok: bool = Depends(validate_cors),
+    settings: Settings = Depends(get_settings),
+):
     """Logs the user in.
     Returns a token on success.
     Returns 403 if the password is incorrect or the user doesn't exist.
@@ -125,14 +114,28 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
         if db.check_password(req.password, existing_hash):
             # Generate a token and return it
             try:
-                access_token = db.generate_token(user_id, token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
-                refresh_token = db.generate_token(user_id, token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+                access_token = db.generate_token(
+                    user_id,
+                    token_type="access",
+                    expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+                )
+                refresh_token = db.generate_token(
+                    user_id,
+                    token_type="refresh",
+                    expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+                )
                 access_token_insert_result = db.save_access_token(user_id, access_token)
                 if access_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save access token")
-                refresh_token_insert_result = db.save_refresh_token(user_id, refresh_token, access_token_insert_result["token_db_id"])
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save access token"
+                    )
+                refresh_token_insert_result = db.save_refresh_token(
+                    user_id, refresh_token, access_token_insert_result["token_db_id"]
+                )
                 if refresh_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save refresh token"
+                    )
                 return {
                     "status": "success",
                     "access_token": access_token,
@@ -153,15 +156,16 @@ async def login_user(req: LoginRequest, cors_ok: bool = Depends(validate_cors)):
 async def refresh_token(
     request: Request,
     cors_ok: bool = Depends(validate_cors),
+    settings: Settings = Depends(get_settings),
 ):
     """
     Refresh both the access token and the refresh token.
-    
+
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
-    
+
     Raises:
-        HTTPException: 
+        HTTPException:
             - 403 if CORS validation fails or the token type is invalid.
             - 401 if the refresh token is invalid or has expired.
             - 500 if there is an internal server error during token generation or saving.
@@ -169,35 +173,56 @@ async def refresh_token(
     if cors_ok:
         old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
         token_params = db.decode_token(old_refresh_token)
-        
+
         lock_key = f"lock:{token_params['user_id']}"
         with Lock(cache, lock_key, expire=3):
             # Check cache for existing token pair
             cached_tokens = cache.get(old_refresh_token)
             if cached_tokens:
                 return {"status": "success", **cached_tokens}
-            
+
             # If no cached tokens, proceed to validate and generate new tokens
             try:
                 # Validate the refresh token and delete the old token pair
                 db.delete_access_refresh_tokens_pair(old_refresh_token)
-                
+
                 # Generate new tokens
-                new_access_token = db.generate_token(token_params["user_id"], token_type="access", expiry_hours=ACCESS_TOKEN_EXPIRY_HOURS)
-                new_refresh_token = db.generate_token(token_params["user_id"], token_type="refresh", expiry_hours=REFRESH_TOKEN_EXPIRY_HOURS)
+                new_access_token = db.generate_token(
+                    token_params["user_id"],
+                    token_type="access",
+                    expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+                )
+                new_refresh_token = db.generate_token(
+                    token_params["user_id"],
+                    token_type="refresh",
+                    expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+                )
 
                 # Save the new access token to the database
-                access_token_insert_result = db.save_access_token(token_params["user_id"], new_access_token)
+                access_token_insert_result = db.save_access_token(
+                    token_params["user_id"], new_access_token
+                )
                 if access_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save access token")
-                
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save access token"
+                    )
+
                 # Save the new refresh token to the database
-                refresh_token_insert_result = db.save_refresh_token(token_params["user_id"], new_refresh_token, access_token_insert_result["token_db_id"])
+                refresh_token_insert_result = db.save_refresh_token(
+                    token_params["user_id"],
+                    new_refresh_token,
+                    access_token_insert_result["token_db_id"],
+                )
                 if refresh_token_insert_result["status"] != "success":
-                    raise HTTPException(status_code=500, detail="Couldn't save refresh token")
-                
+                    raise HTTPException(
+                        status_code=500, detail="Couldn't save refresh token"
+                    )
+
                 # Cache the new tokens with a short expiry (3 seconds)
-                new_tokens = {"access_token": new_access_token, "refresh_token": new_refresh_token}
+                new_tokens = {
+                    "access_token": new_access_token,
+                    "refresh_token": new_refresh_token,
+                }
                 cache.set(old_refresh_token, new_tokens, expire=3)
                 return {"status": "success", **new_tokens}
             except psycopg2.Error as e:
@@ -500,6 +525,7 @@ class ResetPasswordRequest(BaseModel):
 async def request_password_reset(
     req: ResetPasswordRequest,
     cors_ok: bool = Depends(validate_cors),
+    settings: Settings = Depends(get_settings),
 ):
     if cors_ok:
         logger.info(f"Request received to reset {req.email}")
@@ -508,7 +534,7 @@ async def request_password_reset(
             reset_token = db.generate_token(user_id, "reset")
             db.save_reset_token(user_id, reset_token)
             # shall we also revoke login and refresh tokens?
-            tenv = Environment(loader=FileSystemLoader(template_dir))
+            tenv = Environment(loader=FileSystemLoader(settings.template_dir))
             template = tenv.get_template("password_reset.html")
             rendered_template = template.render(reset_token=reset_token)
             message = Mail(
@@ -519,8 +545,8 @@ async def request_password_reset(
             )
 
             try:
-                if os.environ.get("SENDGRID_API_KEY"):
-                    sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
+                if settings.SENDGRID_API_KEY:
+                    sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
                     response = sg.send(message)
                     logger.debug(response.status_code)
                     logger.debug(response.body)

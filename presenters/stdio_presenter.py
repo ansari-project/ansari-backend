@@ -1,7 +1,5 @@
 import sys
 
-from agents.ansari import Ansari
-
 
 class StdioPresenter:
     def __init__(self, agent):

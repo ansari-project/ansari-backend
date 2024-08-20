@@ -1,6 +1,4 @@
 import json
-import os
-
 import requests
 
 VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
@@ -8,23 +6,31 @@ FN_NAME = "search_mawsuah"
 
 
 class SearchMawsuah:
-
-    def __init__(self):
-        self.auth_token = os.getenv("VECTARA_AUTH_TOKEN")
-        self.customer_id = os.getenv("VECTARA_CUSTOMER_ID")
-        self.corpus_id = os.getenv("VECTARA_CORPUS_ID")
+    def __init__(self, vectara_auth_token, vectara_customer_id, vectara_corpus_id):
+        self.auth_token = vectara_auth_token
+        self.customer_id = vectara_customer_id
+        self.corpus_id = vectara_corpus_id
         self.base_url = VECTARA_BASE_URL
 
     def get_function_description(self):
         return {
             "name": FN_NAME,
-            "description": "Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. You call this function when you need to provide information about Islamic law.  Regardless of the language used in the original conversation, you will translate the query into Arabic before searching the encyclopedia. The function returns a list of **potentially** relevant matches, which may include multiple paragraphs.",
+            "description": (
+                "Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
+                "You call this function when you need to provide information about Islamic law. "
+                "Regardless of the language used in the original conversation, you will translate "
+                "the query into Arabic before searching the encyclopedia. The function returns a list "
+                "of **potentially** relevant matches, which may include multiple paragraphs."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The topic to search for in the fiqh encyclopedia. You will translate this query into Arabic.",
+                        "description": (
+                            "The topic to search for in the fiqh encyclopedia. "
+                            "You will translate this query into Arabic."
+                        ),
                     }
                 },
                 "required": ["query"],

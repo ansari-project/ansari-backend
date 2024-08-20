@@ -19,3 +19,4 @@ sendgrid
 jinja2
 tenacity
 diskcache
+pydantic_settings==2.3.4
