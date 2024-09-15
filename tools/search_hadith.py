@@ -4,6 +4,7 @@ import os
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
 FN_NAME='search_hadith'
+
 class SearchHadith:
 
     def __init__(self):
@@ -12,24 +13,33 @@ class SearchHadith:
     
 
     def get_function_description(self):
-        return {"name": FN_NAME,
-            "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Hadith for ",
+        return {
+            "type": "function",
+            "function":
+            {
+                "name": FN_NAME,
+                "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
+                "parameters": 
+                {
+                    "type": "object",
+                    "properties": 
+                    {
+                        "query": 
+                        {
+                            "type": "string",
+                            "description": "The topic to search the Hadith for ",
+                        },
                     },
-                },
-                "required": ["query"],
+                    "required": ["query"],
+                }
             }
         }
 
     def get_fn_name(self):
-         return FN_NAME
+        return FN_NAME
 
     def run(self, query: str, numResults: int=5):
+        print('currently using search_hadith\'s run tool (function)')
 
         headers = {'x-api-key': self.api_key}
         payload = {
@@ -38,7 +48,7 @@ class SearchHadith:
             'indexes': '["sunnah_lk"]', 
             'getText': 2 
         }
-
+        
         response = requests.get(self.base_url, headers=headers, params=payload)
         
         if response.status_code != 200:

@@ -12,24 +12,33 @@ class SearchQuran:
     
 
     def get_function_description(self):
-        return {"name": FN_NAME,
-            "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Qur'an for ",
+        return {
+            "type": "function",
+            "function": 
+            {
+                "name": FN_NAME,
+                "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
+                "parameters": 
+                {
+                    "type": "object",
+                    "properties": 
+                    {
+                        "query": 
+                        {
+                            "type": "string",
+                            "description": "The topic to search the Qur'an for ",
+                        },
                     },
-                },
-                "required": ["query"],
+                    "required": ["query"],
+                }
             }
         }
 
     def get_fn_name(self):
-         return FN_NAME
+        return FN_NAME
 
     def run(self, query: str, num_results: int=5):
+        print('currently using search_quran\'s run tool (function)')
 
         headers = {'x-api-key': self.api_key}
         payload = {
@@ -37,7 +46,7 @@ class SearchQuran:
             'numResults': num_results,
             'getText': 1 # 1 is the Qur'an  
         }
-
+        
         response = requests.get(self.base_url, headers=headers, params=payload)
         
         if response.status_code != 200:

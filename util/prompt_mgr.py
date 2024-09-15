@@ -10,7 +10,8 @@ class Prompt(BaseModel):
 
     def render(self, **kwargs) -> str:
         if (self.cached is None) or (self.hot_reload):
-            with open(self.file_path, 'r') as f:
+            # utf-8 is used to properly display arabic words in the terminal (main_stdio.py)
+            with open(self.file_path, 'r', encoding='utf-8') as f:
                 self.cached = f.read()
         return self.cached.format(**kwargs)
     

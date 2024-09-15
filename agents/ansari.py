@@ -11,21 +11,27 @@ from datetime import datetime, date
 from langfuse.model import InitialGeneration, CreateGeneration, CreateTrace
 import hashlib
 
+from dotenv import load_dotenv
+load_dotenv()
+
+# litellm.set_verbose=True
+
 lf = Langfuse()
 lf.auth_check()
 
-MODEL = 'gpt-4o' 
+MODEL = 'gpt-4o' # 'groq/llama3-groq-70b-8192-tool-use-preview'
 
 MAX_FUNCTION_TRIES = 3 
 class Ansari: 
     def __init__(self, json_format = False):
         sq = SearchQuran()
         sh = SearchHadith()
+        # "function" is synonymous with "tool", but the former is deprecated in Litellm and replaced with the latter
         self.tools = { sq.get_fn_name(): sq, sh.get_fn_name(): sh}
         self.model = MODEL
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind('system_msg_fn').render()
-        self.functions = [x.get_function_description() for x in self.tools.values()]
+        self.tools = [x.get_function_description() for x in self.tools.values()]
         self.message_history = [{
             'role': 'system',
             'content': self.sys_msg
@@ -86,71 +92,55 @@ class Ansari:
                 print(f'Processing one round {self.message_history}')
                 # This is pretty complicated so leaving a comment. 
                 # We want to yield from so that we can send the sequence through the input
-                # Also use functions only if we haven't tried too many times
-                use_function = True
+                # Also use tools only if we haven't tried too many times
+                use_tool = True
                 if count >= MAX_FUNCTION_TRIES:
-                    use_function = False
-                    print('Not using functions -- tries exceeded')
-                yield from self.process_one_round(use_function)
+                    use_tool = False
+                    print('Not using tools -- tries exceeded')
+                yield from self.process_one_round(use_tool)
                 count += 1
             except Exception as e:
                 print('Exception occurred: ', e)
                 print('Retrying in 5 seconds...')
                 time.sleep(5)
         self.log()
+    
+    def get_completion(self, **kwargs):
+        return litellm.completion(
+            **kwargs
+        )
         
-        
-    def process_one_round(self, use_function = True):
+    def process_one_round(self, use_tool = True):
         response = None
+        print('should use tool', use_tool) # TODO: delete
+        common_params = {
+            'model': self.model,
+            'messages': self.message_history,
+            'stream': True,
+            'timeout': 30.0,
+            'temperature': 0.0,
+            'metadata': {'generation-name': 'ansari'},
+            'num_retries': 5
+        }
+
         while not response:
             try: 
-                if use_function: 
+                if use_tool: 
                     if self.json_format:
-                        response = litellm.completion(
-                            model = self.model,
-                            messages = self.message_history,
-                            stream = True,
-                            functions = self.functions, 
-                            timeout = 30.0,
-                            temperature = 0.0, 
-                            metadata = {'generation-name': 'ansari'},
-                            response_format = { "type": "json_object" }, 
-                            num_retries = 5
-                        )
+                        response = self.get_completion(**common_params, 
+                                                        tools=self.tools,
+                                                        response_format={"type": "json_object"})
                     else:
-                        response = litellm.completion(
-                            model = self.model,
-                            messages = self.message_history,
-                            stream = True,
-                            functions = self.functions, 
-                            timeout = 30.0,
-                            temperature = 0.0, 
-                            metadata = {'generation-name': 'ansari'},
-                            num_retries = 5
-                        )
+                        response = self.get_completion(**common_params,
+                                                        tools=self.tools)
+                                                        
                 else:
                     if  self.json_format:
-                        response = litellm.completion(
-                            model = self.model,
-                            messages = self.message_history,
-                            stream = True,
-                            timeout = 30.0,
-                            temperature = 0.0,  
-                            response_format = { "type": "json_object" }, 
-                            metadata = {'generation-name': 'ansari'},   
-                            num_retries = 5                  
-                        )
+                        response = self.get_completion(**common_params, 
+                                                        response_format={"type": "json_object"})
                     else: 
-                        response = litellm.completion(
-                            model = self.model,
-                            messages = self.message_history,
-                            stream = True,
-                            timeout = 30.0,
-                            temperature = 0.0,  
-                            metadata = {'generation-name': 'ansari'},   
-                            num_retries = 5                  
-                        )
-
+                        response = self.get_completion(**common_params)
+                print('Response is ', response)
             except Exception as e:
                 print('Exception occurred: ', e)
                 print('Retrying in 5 seconds...')
@@ -161,10 +151,11 @@ class Ansari:
         function_name = ''
         function_arguments = ''
         response_mode = '' # words or fn
+        # print('response is', response)
         for tok in response: 
-            #print(f'Tok is {tok}')
             delta = tok.choices[0].delta
             if not response_mode: 
+                print(f'\n\nFirst tok is {tok}\n\n')
                 # This code should only trigger the first 
                 # time through the loop.
                 if 'function_call' in delta and delta.function_call:

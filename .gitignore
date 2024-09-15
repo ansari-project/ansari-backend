@@ -10,3 +10,6 @@ abandoned/
 data/
 datasources/
 etc/
+.conda/*
+tst_grok.json
+tst_openai.json
