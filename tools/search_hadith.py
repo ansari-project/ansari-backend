@@ -12,7 +12,7 @@ class SearchHadith:
         self.base_url = KALEMAT_BASE_URL 
     
 
-    def get_function_description(self):
+    def get_tool_description(self):
         return {
             "type": "function",
             "function":

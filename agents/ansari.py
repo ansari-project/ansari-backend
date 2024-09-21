@@ -31,7 +31,7 @@ class Ansari:
         self.model = MODEL
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind('system_msg_fn').render()
-        self.tools = [x.get_function_description() for x in self.tools.values()]
+        self.tools = [x.get_tool_description() for x in self.tools.values()]
         self.message_history = [{
             'role': 'system',
             'content': self.sys_msg
@@ -112,7 +112,7 @@ class Ansari:
         
     def process_one_round(self, use_tool = True):
         response = None
-        print('should use tool', use_tool) # TODO: delete
+        print('should use tool', use_tool)
         common_params = {
             'model': self.model,
             'messages': self.message_history,
@@ -155,9 +155,9 @@ class Ansari:
         for tok in response: 
             delta = tok.choices[0].delta
             if not response_mode: 
-                print(f'\n\nFirst tok is {tok}\n\n')
                 # This code should only trigger the first 
                 # time through the loop.
+                # print(f'\n\nFirst tok is {tok}\n\n') # uncomment when debugging only
                 if 'function_call' in delta and delta.function_call:
                     # We are in function mode
                     response_mode = 'fn'
