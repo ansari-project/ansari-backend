@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     VECTARA_AUTH_TOKEN: SecretStr
     VECTARA_CUSTOMER_ID: str
 
-    MAWSUAH_VECTARA_CORPUS_ID: str = Field(alias="VECTARA_CORPUS_ID")
+    MAWSUAH_VECTARA_CORPUS_ID: str = Field(alias="MAWSUAH_VECTARA_CORPUS_ID")
     MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
     MAWSUAH_FN_DESCRIPTION: str = Field(
         default="Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
