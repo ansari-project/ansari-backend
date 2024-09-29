@@ -36,7 +36,7 @@ class SearchVectara:
         self.fn_description = fn_description
         self.params = params
         self.required_params = required_params
-    
+
     def get_function_description(self):
         return {
             "name": self.fn_name,
@@ -44,13 +44,11 @@ class SearchVectara:
             "parameters": {
                 "type": "object",
                 "properties": {
-
                     param["name"]: {
                         "type": param["type"],
                         "description": param["description"],
                     }
                     for param in self.params
-
                 },
                 "required": self.required_params,
             },
