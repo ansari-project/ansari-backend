@@ -8,6 +8,7 @@ from datetime import date, datetime
 
 import litellm
 from langfuse.model import CreateGeneration, CreateTrace
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from tools.search_hadith import SearchHadith
 
@@ -35,11 +36,6 @@ class Ansari:
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
-        # sm = SearchMawsuah(
-        #     settings.VECTARA_AUTH_TOKEN.get_secret_value(),
-        #     settings.VECTARA_CUSTOMER_ID,
-        #     settings.VECTARA_CORPUS_ID,
-        # )
         sm = SearchVectara(
             settings.VECTARA_AUTH_TOKEN.get_secret_value(),
             settings.VECTARA_CUSTOMER_ID,
@@ -128,71 +124,42 @@ class Ansari:
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
-                    break
         self.log()
 
     def process_one_round(self, use_function=True):
-        response = None
-        failures = 0
-        while not response:
-            try:
-                if use_function:
-                    if self.json_format:
-                        response = litellm.completion(
-                            model=self.model,
-                            messages=self.message_history,
-                            stream=True,
-                            functions=self.functions,
-                            timeout=30.0,
-                            temperature=0.0,
-                            metadata={"generation-name": "ansari"},
-                            response_format={"type": "json_object"},
-                            num_retries=1,
-                        )
-                    else:
-                        response = litellm.completion(
-                            model=self.model,
-                            messages=self.message_history,
-                            stream=True,
-                            functions=self.functions,
-                            timeout=30.0,
-                            temperature=0.0,
-                            metadata={"generation-name": "ansari"},
-                            num_retries=1,
-                        )
-                else:
-                    if self.json_format:
-                        response = litellm.completion(
-                            model=self.model,
-                            messages=self.message_history,
-                            stream=True,
-                            timeout=30.0,
-                            temperature=0.0,
-                            response_format={"type": "json_object"},
-                            metadata={"generation-name": "ansari"},
-                            num_retries=1,
-                        )
-                    else:
-                        response = litellm.completion(
-                            model=self.model,
-                            messages=self.message_history,
-                            stream=True,
-                            timeout=30.0,
-                            temperature=0.0,
-                            metadata={"generation-name": "ansari"},
-                            num_retries=1,
-                        )
+        # Create a local function to delegate retry logic to the `tenacity` lib
+        @retry(
+            stop=stop_after_attempt(
+                self.settings.MAX_FAILURES
+            ),  # Use dynamic retry limit
+            wait=wait_fixed(5),  # Wait 5 seconds between retries
+            retry=retry_if_exception_type(Exception),  # Retry on any exception
+            reraise=True,  # Re-raise the last exception after retries are exhausted
+            before_sleep=lambda retry_state: logger.warning(
+                f"Error getting completion: {retry_state.outcome.exception()}\n"
+                f"{''.join(traceback.format_exception(type(retry_state.outcome.exception()), retry_state.outcome.exception(), retry_state.outcome.exception().__traceback__))}\n"
+                f"Retrying in {retry_state.next_action.sleep} seconds..."
+            ),
+        )
+        def make_completion_request():
+            return litellm.completion(
+                **{
+                    "model": self.model,
+                    "messages": self.message_history,
+                    "stream": True,
+                    "timeout": 30.0,
+                    "temperature": 0.0,
+                    "metadata": {"generation-name": "ansari"},
+                    "num_retries": 1,
+                    "response_format": {"type": "json_object"}
+                    if self.json_format
+                    else None,
+                    "functions": self.functions if use_function else None,
+                }
+            )
 
-            except Exception as e:
-                failures += 1
-                logger.warning("Exception occurred: ", e)
-                logger.warning(traceback.format_exc())
-                logger.warning("Retrying in 5 seconds...")
-                time.sleep(5)
-                if failures >= self.settings.MAX_FAILURES:
-                    logger.error("Too many failures, aborting")
-                    raise Exception("Too many failures")
-                    break
+        # Attempt to get a response, with tenacity handling retries
+        response = make_completion_request()
 
         words = ""
         function_name = ""
