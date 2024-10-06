@@ -163,57 +163,49 @@ class Ansari:
         function_name = ""
         function_arguments = ""
         response_mode = ""  # words or fn
+
+        # Early mode determination (words or fn)
         for tok in response:
-            logger.debug(f"Tok is {tok}")
             delta = tok.choices[0].delta
+
             if not response_mode:
-                # This code should only trigger the first
-                # time through the loop.
                 if "function_call" in delta and delta.function_call:
-                    # We are in function mode
                     response_mode = "fn"
                     function_name = delta.function_call.name
+                    logger.info(
+                        f"Response mode: fn with function name: {function_name}"
+                    )
                 else:
                     response_mode = "words"
-                logger.info("Response mode: " + response_mode)
+                    logger.info("Response mode: words")
 
-            # We process things differently depending on whether it is a function or a
-            # text
+            # Processing words (text) mode
             if response_mode == "words":
-                if delta.content is None:  # End token
+                if delta.content is None:  # End of text response
                     self.message_history.append({"role": "assistant", "content": words})
                     if self.message_logger:
                         self.message_logger.log("assistant", words)
-                    break
-                elif delta.content is not None:
+                    break  # Exit after completing text response
+                else:
                     words += delta.content
-                    yield delta.content
-                else:
-                    continue
+                    yield delta.content  # Yield content progressively
+
+            # Processing function call (fn) mode
             elif response_mode == "fn":
-                logger.debug("Delta in: ", delta)
-                if (
-                    "function_call" not in delta or delta["function_call"] is None
-                ):  # End token
-                    _ = function_name + "(" + function_arguments + ")"
-                    # The function call below appends the function call to the message history
-                    print(f"{function_name=}, {function_arguments=}")
+                logger.debug(f"Function delta received: {delta}")
+
+                if delta.function_call is None:  # End of function call
+                    function_call_str = f"{function_name}({function_arguments})"
+                    logger.debug(f"Completed function call: {function_call_str}")
                     yield self.process_fn_call(input, function_name, function_arguments)
-                    #
-                    break
-                elif (
-                    "function_call" in delta
-                    and delta.function_call
-                    and delta.function_call.arguments
-                ):
+                    break  # Exit after function call processing is done
+                elif delta.function_call.arguments:
                     function_arguments += delta.function_call.arguments
-                    logger.debug(f"Function arguments are {function_arguments}")
-                    yield ""  # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
+                    logger.debug(
+                        f"Accumulated function arguments: {function_arguments}"
+                    )
                 else:
-                    logger.warning(f"Weird delta: {delta}")
-                    continue
-            else:
-                raise Exception("Invalid response mode: " + response_mode)
+                    logger.warning(f"Unexpected delta structure: {delta}")
 
     def process_fn_call(self, orig_question, function_name, function_arguments):
         if function_name in self.tools.keys():
