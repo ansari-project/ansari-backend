@@ -23,13 +23,15 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True,extra='ignore', 
+        missing = 'ignore'
+
     )
 
-    DATABASE_URL: PostgresDsn
+    DATABASE_URL: PostgresDsn = Field(default="postgresql://postgres:password@localhost:5432/ansari")
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
-    SECRET_KEY: SecretStr
+    SECRET_KEY: SecretStr =  Field(default="secret")
     # Literal ensures the allowed value(s), and frozen ensures it can't be changed after initialization
     ALGORITHM: Literal["HS256"] = Field(default="HS256", frozen=True)
     ENCODING: Literal["utf-8"] = Field(default="utf-8", frozen=True)
@@ -42,7 +44,7 @@ class Settings(BaseSettings):
     API_SERVER_PORT: int = Field(default=8000)
 
     OPENAI_API_KEY: SecretStr
-    PGPASSWORD: SecretStr
+    PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
     VECTARA_AUTH_TOKEN: SecretStr
     VECTARA_CUSTOMER_ID: str
@@ -54,7 +56,7 @@ class Settings(BaseSettings):
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
 
-    MODEL: str = Field(default="gpt-4o-2024-05-13")
+    MODEL: str = Field(default="gpt-4o")
     MAX_FUNCTION_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_fn")

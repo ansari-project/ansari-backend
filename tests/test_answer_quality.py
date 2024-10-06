@@ -24,7 +24,7 @@ LOGGER.addHandler(console_handler)
 def data():
     tenv = Environment(loader=FileSystemLoader("resources/templates/"))
     q_temp = tenv.get_template("ask_question.txt")
-    df = pd.read_csv("evals/batik/batik-v1.csv")
+    df = pd.read_csv("tests/batik-v1-en.csv")
     cache = {}
     return df, q_temp, cache
 
