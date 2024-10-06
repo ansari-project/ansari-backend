@@ -137,25 +137,23 @@ class Ansari:
             reraise=True,  # Re-raise the last exception after retries are exhausted
             before_sleep=lambda retry_state: logger.warning(
                 f"Error getting completion: {retry_state.outcome.exception()}\n"
-                f"{''.join(traceback.format_exception(type(retry_state.outcome.exception()), retry_state.outcome.exception(), retry_state.outcome.exception().__traceback__))}\n"
+                f"{''.join(traceback.format_exception(type(retry_state.outcome.exception()), 
+                                                      retry_state.outcome.exception(), 
+                                                      retry_state.outcome.exception().__traceback__))}\n"
                 f"Retrying in {retry_state.next_action.sleep} seconds..."
             ),
         )
         def make_completion_request():
             return litellm.completion(
-                **{
-                    "model": self.model,
-                    "messages": self.message_history,
-                    "stream": True,
-                    "timeout": 30.0,
-                    "temperature": 0.0,
-                    "metadata": {"generation-name": "ansari"},
-                    "num_retries": 1,
-                    "response_format": {"type": "json_object"}
-                    if self.json_format
-                    else None,
-                    "functions": self.functions if use_function else None,
-                }
+                model=self.model,
+                messages=self.message_history,
+                stream=True,
+                timeout=30.0,
+                temperature=0.0,
+                metadata={"generation-name": "ansari"},
+                num_retries=1,
+                response_format={"type": "json_object"} if self.json_format else None,
+                functions=self.functions if use_function else None,
             )
 
         # Attempt to get a response, with tenacity handling retries
