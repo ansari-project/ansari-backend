@@ -5,31 +5,61 @@ name: Ansari CICD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "api-v2" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "api-v2" ]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  ansari-container-job:
 
     runs-on: ubuntu-latest
-    env: 
+    env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       KALEMAT_API_KEY: ${{ secrets.KALEMAT_API_KEY }}
+      VECTARA_AUTH_TOKEN: ${{ secrets.VECTARA_AUTH_TOKEN }}
+      VECTARA_CUSTOMER_ID: ${{ secrets.VECTARA_CUSTOMER_ID }}
+      VECTARA_CORPUS_ID: ${{ secrets.VECTARA_CORPUS_ID }}
+    
+    container: python:3.10
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_PASSWORD: postgres
+          PGPASSWORD: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
+
+    - name: Check out repository code
+      uses: actions/checkout@v4
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
+        pip install flake8 pytest pytest-asyncio pytest-cov
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Install PostgreSQL client
+      run: |
+        apt-get update
+        apt-get install --yes --no-install-recommends postgresql-client
+    - name: Create tables
+      env:
+        PGPASSWORD: postgres
+        POSTGRES_PASSWORD: postgres
+      run: |
+        for sql_file in sql/*.sql; do
+          psql -h postgres -p 5432 -U postgres -d postgres -f "$sql_file"
+        done
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -37,5 +67,10 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
+      env:
+        PGPASSWORD: postgres
+        POSTGRES_PASSWORD: postgres
+        DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+        SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
       run: |
-        pytest
+        pytest --capture=tee-sys --cov=. 

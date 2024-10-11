@@ -1,0 +1,11 @@
+Select the best answer to the following question: 
+
+{{ question }}
+
+from the list of options (one option per line)
+
+{% for option in options %}{{ option }}
+{% endfor %}
+
+Output your answer in json format, with a single field, "answer" 
+and the answer to the above question. 
