@@ -9,5 +9,14 @@ uvicorn
 gunicorn
 discord.py
 typer
-litellm
+litellm==1.37.7 # pinning for now because the latest version 1.37.9 is buggy
 langfuse==1.14.0
+psycopg2-binary
+bcrypt
+pyjwt
+zxcvbn
+sendgrid
+jinja2
+tenacity
+diskcache
+pydantic_settings==2.3.4

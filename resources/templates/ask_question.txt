@@ -1,0 +1,17 @@
+Read the provided question, consider all the listed options after "OPTIONS:", and select the correct answer option. Provide an elaboration for your choice in the "explanation" field. Respond strictly in the specified JSON format with the keys "explanation" and "answer" (for the option text). Replace "Correct Option" with the exact text of the chosen option, without including any option letter or number. Ensure the response adheres to the JSON structure with the key "answer" and the correct option text as the value, enclosed in double quotes. Do not provide any additional explanations or comments outside the JSON format.
+
+---
+
+Question: {{ question }}
+
+OPTIONS:
+{% for option in options -%}
+{{ option }}{% if not loop.last %}, {% endif %}
+{%- endfor %}
+
+```json
+{
+"explanation": "explanation",
+"answer": "Correct Option"
+}
+```
