@@ -67,5 +67,5 @@ class SearchHadith:
 
     def run_as_string(self, query: str, num_results: int = 3):
         results = self.run(query, num_results)
-        rstring = "\n".join([self.pp_ayah(r) for r in results])
+        rstring = "\n".join([self.pp_hadith(r) for r in results])
         return rstring

@@ -90,6 +90,22 @@ class Ansari:
             )
         )
 
+    def execute_workflow(self, workflow_steps):
+        # this function handles v3 logic
+        # the idea is to have Ansari execute a workflow
+        # that can be a list of steps
+        # allowed steps are:
+        # a. search using user input
+        # b. generate a search query from user input
+        # c. search using search query
+        # d. generate given user input and optionally a search query with search results
+        for step_name, step_params in workflow_steps:
+            if step_name == "search_quran":
+                step_results = self.sq.run_as_string(step_params["query"], num_results=5)
+            elif step_name == "search_hadith":
+                step_results = self.sh.run_as_string(step_params["query"], num_results=5)
+
+    
     def replace_message_history(self, message_history):
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
