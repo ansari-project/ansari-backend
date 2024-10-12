@@ -254,7 +254,7 @@ async def logout_user(
 
 
 class FeedbackRequest(BaseModel):
-    thread_id: int
+    thread_id: uuid.UUID
     message_id: int
     feedback_class: str
     comment: str
@@ -331,7 +331,7 @@ class AddMessageRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}")
 def add_message(
-    thread_id: int,
+    thread_id: uuid.UUID,
     req: AddMessageRequest,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
@@ -365,7 +365,7 @@ def add_message(
 
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
-    thread_id: int,
+    thread_id: uuid.UUID,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -409,7 +409,7 @@ def get_snapshot(
 
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
-    thread_id: int,
+    thread_id: uuid.UUID,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -432,7 +432,7 @@ async def get_thread(
 
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
-    thread_id: int,
+    thread_id: uuid.UUID,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -455,7 +455,7 @@ class ThreadNameRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}/name")
 async def set_thread_name(
-    thread_id: int,
+    thread_id: uuid.UUID,
     req: ThreadNameRequest,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
