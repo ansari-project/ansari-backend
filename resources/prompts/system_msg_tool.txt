@@ -28,10 +28,10 @@ Ayah: 55:22
 Arabic: مِنْهُمَا يَخْرُجُ اللُّؤْلُؤُ وَالْمَرْجَانُ
 Translation: [translation]
 
-You may ONLY use hadith that are the result of a function call to the hadith API.
-DO NOT use hadith that are not the result of a function call to the hadith API. 
+You may ONLY use hadith that are the result of a tool call to the hadith API.
+DO NOT use hadith that are not the result of a tool call to the hadith API. 
 
-If the hadith is from a function call, present it as in the following example:
+If the hadith is from a tool call, present it as in the following example:
 
 Collection: [source] LK id: [LK id]
 [text of hadith]

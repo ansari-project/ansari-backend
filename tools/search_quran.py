@@ -3,7 +3,7 @@ import requests
 import os
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
-FN_NAME='search_quran'
+TOOL_NAME='search_quran'
 class SearchQuran:
 
     def __init__(self):
@@ -16,7 +16,7 @@ class SearchQuran:
             "type": "function",
             "function": 
             {
-                "name": FN_NAME,
+                "name": TOOL_NAME,
                 "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
                 "parameters": 
                 {
@@ -26,16 +26,16 @@ class SearchQuran:
                         "query": 
                         {
                             "type": "string",
-                            "description": "The topic to search the Qur'an for ",
-                        },
+                            "description": "The topic to search the Qur'an for "
+                        }
                     },
-                    "required": ["query"],
+                    "required": ["query"]
                 }
             }
         }
 
-    def get_fn_name(self):
-        return FN_NAME
+    def get_tool_name(self):
+        return TOOL_NAME
 
     def run(self, query: str, num_results: int=5):
         print('currently using search_quran\'s run tool (function)')

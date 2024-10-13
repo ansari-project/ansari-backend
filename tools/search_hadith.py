@@ -3,7 +3,7 @@ import requests
 import os
 
 KALEMAT_BASE_URL='https://api.kalimat.dev/search'
-FN_NAME='search_hadith'
+TOOL_NAME='search_hadith'
 
 class SearchHadith:
 
@@ -17,7 +17,7 @@ class SearchHadith:
             "type": "function",
             "function":
             {
-                "name": FN_NAME,
+                "name": TOOL_NAME,
                 "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
                 "parameters": 
                 {
@@ -27,16 +27,16 @@ class SearchHadith:
                         "query": 
                         {
                             "type": "string",
-                            "description": "The topic to search the Hadith for ",
-                        },
+                            "description": "The topic to search the Hadith for "
+                        }
                     },
-                    "required": ["query"],
+                    "required": ["query"]
                 }
             }
         }
 
-    def get_fn_name(self):
-        return FN_NAME
+    def get_tool_name(self):
+        return TOOL_NAME
 
     def run(self, query: str, numResults: int=5):
         print('currently using search_hadith\'s run tool (function)')
@@ -71,6 +71,7 @@ class SearchHadith:
         results =  self.run(query, num_results)
         return [self.pp_hadith(r) for r in results]
     
+    # draft: currently not used
     def run_as_string(self, query: str, num_results: int=3):
         results =  self.run(query, num_results)
         rstring = '\n'.join([self.pp_ayah(r) for r in results])
