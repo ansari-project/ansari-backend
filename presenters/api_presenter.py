@@ -1,6 +1,7 @@
 import copy
 
 from fastapi.responses import StreamingResponse
+from langfuse.decorators import observe, langfuse_context
 
 
 class ApiPresenter:
@@ -8,6 +9,7 @@ class ApiPresenter:
         self.app = app
         self.agent = agent
 
+    @observe()
     def complete(self, messages, message_logger=None):
         print("Complete called.")
         agent = copy.deepcopy(self.agent)

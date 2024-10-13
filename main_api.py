@@ -18,6 +18,7 @@ from agents.ansari import Ansari
 from ansari_db import AnsariDB, MessageLogger
 from presenters.api_presenter import ApiPresenter
 from config import Settings, get_settings
+from langfuse.decorators import observe, langfuse_context
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -25,15 +26,20 @@ logger.setLevel(logging.DEBUG)
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
 
-
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+
+def main():
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_settings().ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+main()
 
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
@@ -286,6 +292,7 @@ async def add_feedback(
 
 
 @app.post("/api/v2/threads")
+@observe(capture_output=False)
 async def create_thread(
     request: Request,
     cors_ok: bool = Depends(validate_cors),
@@ -296,6 +303,11 @@ async def create_thread(
         # Now create a thread and return the thread_id
         try:
             thread_id = db.create_thread(token_params["user_id"])
+            print(f'Created thread {thread_id}')
+            langfuse_context.update_current_trace(
+                session_id=str(thread_id), 
+                user_id=token_params["user_id"]
+            )
             return thread_id
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
@@ -328,8 +340,8 @@ class AddMessageRequest(BaseModel):
     role: str
     content: str
 
-
 @app.post("/api/v2/threads/{thread_id}")
+@observe(capture_output=False)
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
@@ -352,6 +364,13 @@ def add_message(
                     token_params["user_id"],
                     history["messages"][0]["content"],
                 )
+                print(f'Added thread {thread_id}')
+
+            langfuse_context.update_current_trace(
+                session_id=str(thread_id), 
+                user_id=token_params["user_id"],
+                tags=['debug']
+            )
             return presenter.complete(
                 history,
                 message_logger=MessageLogger(db, token_params["user_id"], thread_id),

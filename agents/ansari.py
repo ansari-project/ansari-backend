@@ -7,19 +7,12 @@ import traceback
 from datetime import date, datetime
 
 import litellm
-from langfuse.model import CreateGeneration, CreateTrace
 
 from tools.search_hadith import SearchHadith
 from tools.search_mawsuah import SearchMawsuah
 from tools.search_quran import SearchQuran
 from util.prompt_mgr import PromptMgr
-
-if os.environ.get("LANGFUSE_SECRET_KEY"):
-    from langfuse import Langfuse
-
-    lf = Langfuse()
-    lf.auth_check()
-
+from langfuse.decorators import observe, langfuse_context
 
 logger = logging.getLogger(__name__ + ".Ansari")
 logger.setLevel(logging.INFO)
@@ -70,29 +63,24 @@ class Ansari:
             return
         trace_id = self.compute_trace_id()
         logger.info(f"trace id is {trace_id}")
-        trace = lf.trace(CreateTrace(id=trace_id, name="ansari-trace"))
-
-        _ = trace.generation(
-            CreateGeneration(
-                name="ansari-gen",
-                startTime=self.start_time,
-                endTime=datetime.now(),
-                model=self.settings.MODEL,
-                prompt=self.message_history[:-1],
-                completion=self.message_history[-1]["content"],
-            )
-        )
-
+  
+    @observe()
     def replace_message_history(self, message_history):
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
         ] + message_history
-        for m in self.process_message_history():
+        for m in self.process_message_history(langfuse_parent_trace_id= langfuse_context.get_current_trace_id()):
             if m:
                 yield m
 
+    @observe(capture_output = False)
     def process_message_history(self):
         # Keep processing the user input until we get something from the assistant
+        langfuse_context.update_current_observation(
+            user_id = self.message_logger.user_id,
+            session_id = str(self.message_logger.thread_id),
+            
+        )
         self.start_time = datetime.now()
         count = 0
         failures = 0
@@ -120,6 +108,7 @@ class Ansari:
                     break
         self.log()
 
+    @observe(as_type="generator")
     def process_one_round(self, use_function=True):
         response = None
         failures = 0
@@ -239,6 +228,7 @@ class Ansari:
             else:
                 raise Exception("Invalid response mode: " + response_mode)
 
+    @observe()
     def process_fn_call(self, orig_question, function_name, function_arguments):
         if function_name in self.tools.keys():
             args = json.loads(function_arguments)

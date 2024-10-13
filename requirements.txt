@@ -1,5 +1,5 @@
-gradio>=3.42.0
-gradio_client>=0.2.5
+gradio
+gradio_client
 openai
 tiktoken
 rich
@@ -9,8 +9,8 @@ uvicorn
 gunicorn
 discord.py
 typer
-litellm==1.37.7 # pinning for now because the latest version 1.37.9 is buggy
-langfuse==1.14.0
+litellm
+langfuse
 psycopg2-binary
 bcrypt
 pyjwt
@@ -19,4 +19,4 @@ sendgrid
 jinja2
 tenacity
 diskcache
-pydantic_settings==2.3.4
+pydantic_settings
