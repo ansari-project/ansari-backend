@@ -193,7 +193,6 @@ class Ansari:
         function_arguments = ""
         response_mode = ""  # words or fn
         for tok in response:
-            print('Tok is ', tok)
             if len(tok.choices) == 0: # in case usage is defind.q 
                 logging.warning(f"Token has no choices: {tok}")
                 langfuse_context.update_current_observation(usage = tok.usage)  
