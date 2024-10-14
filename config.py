@@ -51,9 +51,9 @@ class Settings(BaseSettings):
     VECTARA_CORPUS_ID: str
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
-    LANGFUSE_SECRET_KEY: SecretStr = Field(default=None)
-    LANGFUSE_PUBLIC_KEY: SecretStr = Field(default=None)
-    LANGFUSE_HOST: str = Field(default=None) 
+    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
+    LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
+    LANGFUSE_HOST: Optional[str] = Field(default=None) 
 
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
