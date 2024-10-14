@@ -25,7 +25,8 @@ class MessageLogger:
     def __init__(self, db, user_id: int, thread_id: int) -> None:
         self.user_id = user_id
         self.thread_id = thread_id
-        self.db = db,
+        logger.debug(f'DB is {db}')
+        self.db = db
 
     def log(self, role, content, function_name=None):
         self.db.append_message(
