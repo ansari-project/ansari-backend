@@ -85,12 +85,13 @@ class Ansari:
 
     @observe(capture_input = False,capture_output = False)
     def process_message_history(self):
-        langfuse_context.update_current_trace(
-            user_id = self.message_logger.user_id,
-            session_id = str(self.message_logger.thread_id),
-            tags = ['debug', 'replace_message_history'],
-            input = self.message_history
-        )
+        if self.message_logger is not None:
+            langfuse_context.update_current_trace(
+                user_id = self.message_logger.user_id,
+                session_id = str(self.message_logger.thread_id),
+                tags = ['debug', 'replace_message_history'],
+                input = self.message_history
+            )
         # Keep processing the user input until we get something from the assistant
         self.start_time = datetime.now()
         count = 0
