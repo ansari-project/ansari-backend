@@ -65,22 +65,33 @@ class Ansari:
         logger.info(f"trace id is {trace_id}")
   
     @observe()
-    def replace_message_history(self, message_history):
+    def replace_message_history(self, message_history ):
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
         ] + message_history
-        for m in self.process_message_history(langfuse_parent_trace_id= langfuse_context.get_current_trace_id()):
-            if m:
-                yield m
-
-    @observe(capture_output = False)
-    def process_message_history(self):
-        # Keep processing the user input until we get something from the assistant
-        langfuse_context.update_current_observation(
+        print(f'Original trace is {self.message_logger.trace_id}');
+        print(f'Id 1 is {langfuse_context.get_current_trace_id()}');
+        #langfuse_context._set_root_trace_id(self.message_logger.trace_id)
+        print(f'Id 2 is {langfuse_context.get_current_trace_id()}');
+        langfuse_context.update_current_observation (
             user_id = self.message_logger.user_id,
             session_id = str(self.message_logger.thread_id),
-            
+            tags = ['debug', 'replace_message_history']
         )
+        for m in self.process_message_history():
+            if m:
+                yield m
+    
+
+    @observe(capture_input = False,capture_output = False)
+    def process_message_history(self):
+        langfuse_context.update_current_trace(
+            user_id = self.message_logger.user_id,
+            session_id = str(self.message_logger.thread_id),
+            tags = ['debug', 'replace_message_history'],
+            input = self.message_history
+        )
+        # Keep processing the user input until we get something from the assistant
         self.start_time = datetime.now()
         count = 0
         failures = 0
@@ -110,6 +121,11 @@ class Ansari:
 
     @observe(as_type="generator")
     def process_one_round(self, use_function=True):
+        langfuse_context.update_current_trace(
+            user_id = self.message_logger.user_id,
+            session_id = str(self.message_logger.thread_id),
+            tags = ['debug', 'replace_message_history']
+        )
         response = None
         failures = 0
         while not response:
@@ -195,6 +211,10 @@ class Ansari:
             if response_mode == "words":
                 if delta.content is None:  # End token
                     self.message_history.append({"role": "assistant", "content": words})
+                    langfuse_context.update_current_observation(
+                        output = words, 
+                        metadata = {"delta": delta}
+                    )
                     if self.message_logger:
                         self.message_logger.log("assistant", words)
                     break
@@ -230,6 +250,11 @@ class Ansari:
 
     @observe()
     def process_fn_call(self, orig_question, function_name, function_arguments):
+        langfuse_context.update_current_trace(
+            user_id = self.message_logger.user_id,
+            session_id = str(self.message_logger.thread_id),
+            tags = ['debug', 'replace_message_history']
+        )
         if function_name in self.tools.keys():
             args = json.loads(function_arguments)
             query = args["query"]

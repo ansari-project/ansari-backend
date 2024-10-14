@@ -292,7 +292,6 @@ async def add_feedback(
 
 
 @app.post("/api/v2/threads")
-@observe(capture_output=False)
 async def create_thread(
     request: Request,
     cors_ok: bool = Depends(validate_cors),
@@ -304,10 +303,6 @@ async def create_thread(
         try:
             thread_id = db.create_thread(token_params["user_id"])
             print(f'Created thread {thread_id}')
-            langfuse_context.update_current_trace(
-                session_id=str(thread_id), 
-                user_id=token_params["user_id"]
-            )
             return thread_id
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
@@ -347,6 +342,7 @@ def add_message(
     req: AddMessageRequest,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
+    settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
     """Adds a message to a thread. If the message is the first message in the thread,
     we set the name of the thread to the content of the message.
@@ -369,11 +365,14 @@ def add_message(
             langfuse_context.update_current_trace(
                 session_id=str(thread_id), 
                 user_id=token_params["user_id"],
-                tags=['debug']
+                tags=['debug'],
+                metadata={
+                    'db_host': settings.DATABASE_URL.hosts()[0]['host'],
+                }
             )
             return presenter.complete(
                 history,
-                message_logger=MessageLogger(db, token_params["user_id"], thread_id),
+                message_logger=MessageLogger(db, token_params["user_id"], thread_id, langfuse_context.get_current_trace_id())
             )
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
