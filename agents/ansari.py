@@ -122,11 +122,6 @@ class Ansari:
 
     @observe(as_type="generator")
     def process_one_round(self, use_function=True):
-        langfuse_context.update_current_trace(
-            user_id = self.message_logger.user_id,
-            session_id = str(self.message_logger.thread_id),
-            tags = ['debug', 'replace_message_history']
-        )
         response = None
         failures = 0
         while not response:
@@ -137,6 +132,7 @@ class Ansari:
                             model=self.model,
                             messages=self.message_history,
                             stream=True,
+                            stream_options = {"include_usage": True}, 
                             functions=self.functions,
                             timeout=30.0,
                             temperature=0.0,
@@ -149,6 +145,7 @@ class Ansari:
                             model=self.model,
                             messages=self.message_history,
                             stream=True,
+                            stream_options = {"include_usage": True}, 
                             functions=self.functions,
                             timeout=30.0,
                             temperature=0.0,
@@ -161,6 +158,7 @@ class Ansari:
                             model=self.model,
                             messages=self.message_history,
                             stream=True,
+                            stream_options = {"include_usage": True}, 
                             timeout=30.0,
                             temperature=0.0,
                             response_format={"type": "json_object"},
@@ -172,6 +170,7 @@ class Ansari:
                             model=self.model,
                             messages=self.message_history,
                             stream=True,
+                            stream_options = {"include_usage": True}, 
                             timeout=30.0,
                             temperature=0.0,
                             metadata={"generation-name": "ansari"},
@@ -194,7 +193,10 @@ class Ansari:
         function_arguments = ""
         response_mode = ""  # words or fn
         for tok in response:
-            logger.debug(f"Tok is {tok}")
+            print('Tok is ', tok)
+            if len(tok.choices) == 0: # in case usage is defind.q 
+                logging.warning(f"Token has no choices: {tok}")
+                langfuse_context.update_current_observation(usage = tok.usage)  
             delta = tok.choices[0].delta
             if not response_mode:
                 # This code should only trigger the first
@@ -251,11 +253,6 @@ class Ansari:
 
     @observe()
     def process_fn_call(self, orig_question, function_name, function_arguments):
-        langfuse_context.update_current_trace(
-            user_id = self.message_logger.user_id,
-            session_id = str(self.message_logger.thread_id),
-            tags = ['debug', 'replace_message_history']
-        )
         if function_name in self.tools.keys():
             args = json.loads(function_arguments)
             query = args["query"]
