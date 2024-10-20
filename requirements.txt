@@ -1,5 +1,5 @@
-gradio>=3.42.0
-gradio_client>=0.2.5
+gradio
+gradio_client
 openai
 tiktoken
 rich
@@ -10,4 +10,13 @@ gunicorn
 discord.py
 typer
 litellm
-langfuse==1.14.0
+langfuse
+psycopg2-binary
+bcrypt
+pyjwt
+zxcvbn
+sendgrid
+jinja2
+tenacity
+diskcache
+pydantic_settings
