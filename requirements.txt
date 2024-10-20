@@ -10,7 +10,8 @@ gunicorn
 discord.py
 typer
 litellm
-langfuse
+# should be >= 2 in order for "from langfuse.decorators" to work
+langfuse>=2.0.0
 psycopg2-binary
 bcrypt
 pyjwt

@@ -1,7 +1,7 @@
 import requests
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
-FN_NAME = "search_quran"
+TOOL_NAME = "search_quran"
 
 
 class SearchQuran:
@@ -9,9 +9,9 @@ class SearchQuran:
         self.api_key = kalimat_api_key
         self.base_url = KALEMAT_BASE_URL
 
-    def get_function_description(self):
+    def get_tool_description(self):
         return {
-            "name": FN_NAME,
+            "name": TOOL_NAME,
             "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
             "parameters": {
                 "type": "object",
@@ -25,8 +25,8 @@ class SearchQuran:
             },
         }
 
-    def get_fn_name(self):
-        return FN_NAME
+    def get_too_name(self):
+        return TOOL_NAME
 
     def run(self, query: str, num_results: int = 5):
         headers = {"x-api-key": self.api_key}

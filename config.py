@@ -23,9 +23,8 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True,extra='ignore', 
-        missing = 'ignore'
-
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, 
+        extra='ignore', missing = 'ignore'
     )
 
     DATABASE_URL: PostgresDsn = Field(default="postgresql://postgres:password@localhost:5432/ansari")
@@ -59,9 +58,9 @@ class Settings(BaseSettings):
     diskcache_dir: str = Field(default="diskcache_dir")
 
     MODEL: str = Field(default="gpt-4o")
-    MAX_FUNCTION_TRIES: int = Field(default=3)
+    MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
-    SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_fn")
+    SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

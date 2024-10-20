@@ -2,7 +2,7 @@ import json
 import requests
 
 VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
-FN_NAME = "search_mawsuah"
+TOOL_NAME = "search_mawsuah"
 
 
 class SearchMawsuah:
@@ -12,14 +12,14 @@ class SearchMawsuah:
         self.corpus_id = vectara_corpus_id
         self.base_url = VECTARA_BASE_URL
 
-    def get_function_description(self):
+    def get_tool_description(self):
         return {
-            "name": FN_NAME,
+            "name": TOOL_NAME,
             "description": (
                 "Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
-                "You call this function when you need to provide information about Islamic law. "
+                "You call this tool when you need to provide information about Islamic law. "
                 "Regardless of the language used in the original conversation, you will translate "
-                "the query into Arabic before searching the encyclopedia. The function returns a list "
+                "the query into Arabic before searching the encyclopedia. The tool returns a list "
                 "of **potentially** relevant matches, which may include multiple paragraphs."
             ),
             "parameters": {
@@ -37,8 +37,8 @@ class SearchMawsuah:
             },
         }
 
-    def get_fn_name(self):
-        return FN_NAME
+    def get_tool_name(self):
+        return TOOL_NAME
 
     def run(self, query: str, num_results: int = 5):
         print(f'Searching al-mawsuah for "{query}"')

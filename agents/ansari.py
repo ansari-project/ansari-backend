@@ -31,11 +31,11 @@ class Ansari:
             settings.VECTARA_CUSTOMER_ID,
             settings.VECTARA_CORPUS_ID,
         )
-        self.tools = {sq.get_fn_name(): sq, sh.get_fn_name(): sh, sm.get_fn_name(): sm}
+        self.tools = {sq.get_tool_name(): sq, sh.get_tool_name(): sh, sm.get_tool_name(): sm}
         self.model = settings.MODEL
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
-        self.functions = [x.get_function_description() for x in self.tools.values()]
+        self.tools = [x.get_tool_description() for x in self.tools.values()]
         self.message_history = [{"role": "system", "content": self.sys_msg}]
         self.json_format = json_format
         self.message_logger = message_logger
@@ -98,15 +98,15 @@ class Ansari:
         failures = 0
         while self.message_history[-1]["role"] != "assistant":
             try:
-                logger.info(f"Processing one round {self.message_history}")
+                logger.info(f"Process attempt #{count+failures+1} of this message history: {self.message_history}")
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
-                # Also use functions only if we haven't tried too many times
-                use_function = True
-                if count >= self.settings.MAX_FUNCTION_TRIES:
-                    use_function = False
-                    logger.warning("Not using functions -- tries exceeded")
-                yield from self.process_one_round(use_function)
+                # Also use tools only if we haven't tried too many times
+                use_tool = True
+                if count >= self.settings.MAX_TOOL_TRIES:
+                    use_tool = False
+                    logger.warning("Not using tools -- tries exceeded")
+                yield from self.process_one_round(use_tool)
                 count += 1
             except Exception:
                 failures += 1
@@ -121,19 +121,19 @@ class Ansari:
         self.log()
 
     @observe(as_type="generator")
-    def process_one_round(self, use_function=True):
+    def process_one_round(self, use_tool=True):
         response = None
         failures = 0
         while not response:
             try:
-                if use_function:
+                if use_tool:
                     if self.json_format:
                         response = litellm.completion(
                             model=self.model,
                             messages=self.message_history,
                             stream=True,
                             stream_options = {"include_usage": True}, 
-                            functions=self.functions,
+                            tools=self.tools,
                             timeout=30.0,
                             temperature=0.0,
                             metadata={"generation-name": "ansari"},
@@ -146,7 +146,7 @@ class Ansari:
                             messages=self.message_history,
                             stream=True,
                             stream_options = {"include_usage": True}, 
-                            functions=self.functions,
+                            tools=self.tools,
                             timeout=30.0,
                             temperature=0.0,
                             metadata={"generation-name": "ansari"},
@@ -189,9 +189,9 @@ class Ansari:
                     break
 
         words = ""
-        function_name = ""
-        function_arguments = ""
-        response_mode = ""  # words or fn
+        tool_name = ""
+        tool_arguments = ""
+        response_mode = ""  # words or tool
         for tok in response:
             if len(tok.choices) == 0: # in case usage is defind.q 
                 logging.warning(f"Token has no choices: {tok}")
@@ -200,15 +200,15 @@ class Ansari:
             if not response_mode:
                 # This code should only trigger the first
                 # time through the loop.
-                if "function_call" in delta and delta.function_call:
-                    # We are in function mode
-                    response_mode = "fn"
-                    function_name = delta.function_call.name
+                if "tool_call" in delta and delta.tool_call:
+                    # We are in tool mode
+                    response_mode = "tool"
+                    tool_name = delta.tool_call.name
                 else:
                     response_mode = "words"
                 logger.info("Response mode: " + response_mode)
 
-            # We process things differently depending on whether it is a function or a
+            # We process things differently depending on whether it is a tool or a
             # text
             if response_mode == "words":
                 if delta.content is None:  # End token
@@ -225,25 +225,25 @@ class Ansari:
                     yield delta.content
                 else:
                     continue
-            elif response_mode == "fn":
+            elif response_mode == "tool":
                 logger.debug("Delta in: ", delta)
                 if (
-                    "function_call" not in delta or delta["function_call"] is None
+                    "tool_call" not in delta or delta["tool_call"] is None
                 ):  # End token
-                    _ = function_name + "(" + function_arguments + ")"
-                    # The function call below appends the function call to the message history
-                    print(f"{function_name=}, {function_arguments=}")
-                    yield self.process_fn_call(input, function_name, function_arguments)
+                    _ = tool_name + "(" + tool_arguments + ")"
+                    # The tool call below appends the tool call to the message history
+                    print(f"{tool_name=}, {tool_arguments=}")
+                    yield self.process_tool_call(input, tool_name, tool_arguments)
                     #
                     break
                 elif (
-                    "function_call" in delta
-                    and delta.function_call
-                    and delta.function_call.arguments
+                    "tool_call" in delta
+                    and delta.tool_call
+                    and delta.tool_call.arguments
                 ):
-                    function_arguments += delta.function_call.arguments
-                    logger.debug(f"Function arguments are {function_arguments}")
-                    yield ""  # delta['function_call']['arguments'] # we shouldn't yield anything if it's a fn
+                    tool_arguments += delta.tool_call.arguments
+                    logger.debug(f"tool arguments are {tool_arguments}")
+                    yield ""  # delta['tool_call']['arguments'] # we shouldn't yield anything if it's a tool
                 else:
                     logger.warning(f"Weird delta: {delta}")
                     continue
@@ -251,31 +251,31 @@ class Ansari:
                 raise Exception("Invalid response mode: " + response_mode)
 
     @observe()
-    def process_fn_call(self, orig_question, function_name, function_arguments):
-        if function_name in self.tools.keys():
-            args = json.loads(function_arguments)
+    def process_tool_call(self, orig_question, tool_name, tool_arguments):
+        if tool_name in self.tools.keys():
+            args = json.loads(tool_arguments)
             query = args["query"]
-            results = self.tools[function_name].run_as_list(query)
+            results = self.tools[tool_name].run_as_list(query)
             logger.debug(f"Results are {results}")
             # Now we have to pass the results back in
             if len(results) > 0:
                 for result in results:
                     self.message_history.append(
-                        {"role": "function", "name": function_name, "content": result}
+                        {"role": "tool", "name": tool_name, "content": result}
                     )
                     if self.message_logger:
-                        self.message_logger.log("function", result, function_name)
+                        self.message_logger.log("tool", result, tool_name)
             else:
                 self.message_history.append(
                     {
-                        "role": "function",
-                        "name": function_name,
+                        "role": "tool",
+                        "name": tool_name,
                         "content": "No results found",
                     }
                 )
                 if self.message_logger:
                     self.message_logger.log(
-                        "function", "No results found", function_name
+                        "tool", "No results found", tool_name
                     )
         else:
-            logger.warning(f"Unknown function name: {function_name}")
+            logger.warning(f"Unknown tool name: {tool_name}")
