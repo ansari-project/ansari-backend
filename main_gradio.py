@@ -1,5 +1,5 @@
-from config import Settings, get_settings
 from agents.ansari import Ansari
+from config import get_settings
 from presenters.gradio_presenter import GradioPresenter
 
 if __name__ == "__main__":

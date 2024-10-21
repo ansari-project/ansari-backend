@@ -1,10 +1,9 @@
 from agents.ansari import Ansari
+from config import get_settings
 from presenters.discord_presenter import DiscordPresenter
 
-from config import get_settings
-
 # This work involves 3 agents, with Ansari as primary.
-agent = Ansari()
+agent = Ansari(get_settings())
 presenter = DiscordPresenter(
     agent, token=get_settings().DISCORD_TOKEN.get_secret_value()
 )

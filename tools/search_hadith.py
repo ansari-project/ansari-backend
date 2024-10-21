@@ -11,21 +11,20 @@ class SearchHadith:
 
     def get_tool_description(self):
         return {
-            "name": TOOL_NAME,
-            "description": (
-                "Search the Hadith for relevant narrations. "
-                "Returns a list of hadith. "
-                "Multiple hadith may be relevant."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Hadith for",
+            "type": "function",
+            "function": {
+                "name": TOOL_NAME,
+                "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The topic to search the Hadith for ",
+                        }
                     },
+                    "required": ["query"],
                 },
-                "required": ["query"],
             },
         }
 

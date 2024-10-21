@@ -1,7 +1,7 @@
 import logging
 
-from config import Settings, get_settings
 from agents.ansari import Ansari
+from config import get_settings
 from presenters.stdio_presenter import StdioPresenter
 
 if __name__ == "__main__":
