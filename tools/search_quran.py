@@ -55,12 +55,12 @@ class SearchQuran:
         )
         return result
 
-    def run_as_list(self, query: str, num_results: int = 1):
+    def run_as_list(self, query: str, num_results: int = 10):
         print(f'Searching quran for "{query}"')
         results = self.run(query, num_results)
         return [self.pp_ayah(r) for r in results]
 
-    def run_as_string(self, query: str, num_results: int = 1, getText: int = 1):
+    def run_as_string(self, query: str, num_results: int = 10, getText: int = 1):
         results = self.run(query, num_results, getText)
         rstring = "\n".join([self.pp_ayah(r) for r in results])
         return rstring

@@ -238,8 +238,8 @@ class Ansari:
         tool_arguments = ""
         tool_id = ""
         response_mode = ""  # words or tool
-        # print(f"response is:\n{response}")  # should be litellm.utils.CustomStreamWrapper object
 
+        # side note: the `response` should be litellm.utils.CustomStreamWrapper object
         for tok in response:
             if len(tok.choices) == 0:  # in case usage is defind.q
                 logging.warning(f"Token has no choices: {tok}")
@@ -293,7 +293,6 @@ class Ansari:
                 else:
                     # this returned list could have > 1 element if the
                     # AI model deduced that the user queried for > 1 topic in the same prompt
-                    # therefore, we should the default num_results param of search_* tools to 1
                     tool_arguments: list[dict[str, str]] = (
                         self._extract_unique_json_objects(tool_arguments)
                     )
@@ -334,8 +333,8 @@ class Ansari:
         results = tool_instance.run_as_list(query)
         # print(f"Results are {results}")
 
-        # we have to first add this message before any tool response, as mentioned here:
-        # https://til.magmalabs.io/posts/af0854e7d5-an-assistant-message-with-toolcalls-must-be-followed-by-tool-messages-responding-to-each-toolcallid
+        # we have to first add this message before any tool response, as mentioned in this source:
+        # https://platform.openai.com/docs/guides/function-calling/step-5-provide-the-function-call-result-back-to-the-model
         self.message_history.append(
             {
                 "role": "assistant",
@@ -353,7 +352,8 @@ class Ansari:
             # instruct the model to paraphrase the tool's output
             logger.debug(f"#num of returned results from external API: {len(results)}")
             msg_prefix = (
-                "Integrate the following most relevant ayahs in your final response:\n"
+                ""
+                # "Integrate the following most relevant ayahs in your final response:\n"
             )
 
         # Now we have to pass the results back in
