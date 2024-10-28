@@ -1,7 +1,7 @@
 import requests
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
-FN_NAME = "search_quran"
+TOOL_NAME = "search_quran"
 
 
 class SearchQuran:
@@ -9,24 +9,27 @@ class SearchQuran:
         self.api_key = kalimat_api_key
         self.base_url = KALEMAT_BASE_URL
 
-    def get_function_description(self):
+    def get_tool_description(self):
         return {
-            "name": FN_NAME,
-            "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Qur'an for ",
+            "type": "function",
+            "function": {
+                "name": TOOL_NAME,
+                "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The topic to search the Qur'an for ",
+                        }
                     },
+                    "required": ["query"],
                 },
-                "required": ["query"],
             },
         }
 
-    def get_fn_name(self):
-        return FN_NAME
+    def get_tool_name(self):
+        return TOOL_NAME
 
     def run(self, query: str, num_results: int = 5):
         headers = {"x-api-key": self.api_key}
@@ -45,12 +48,8 @@ class SearchQuran:
 
     def pp_ayah(self, ayah):
         ayah_num = ayah["id"]
-        ayah_ar = "Not retrieved"
-        if "text" in ayah:
-            ayah_ar = ayah["text"]
-        ayah_en = "Not retrieved"
-        if "en_text" in ayah:
-            ayah_en = ayah["en_text"]
+        ayah_ar = ayah.get("text", "Not retrieved")
+        ayah_en = ayah.get("en_text", "Not retrieved")
         result = (
             f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n"
         )

@@ -105,6 +105,8 @@ If you just want to run Ansari on the command line such that it takes input from
 % python main_stdio.py
 ```
 
+Side note: If you're contributing to the [main project](https://github.com/ansari-project/ansari-backend), you should style your code with [ruff](https://github.com/astral-sh/ruff).
+
 # The Roadmap
 
 This roadmap is preliminary, but it gives you an idea of where Ansari is heading. Please contact us at `feedback@ansari.chat `if you’d like to help with these.  

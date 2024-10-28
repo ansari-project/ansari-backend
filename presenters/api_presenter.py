@@ -1,7 +1,7 @@
 import copy
 
 from fastapi.responses import StreamingResponse
-from langfuse.decorators import observe, langfuse_context
+from langfuse.decorators import observe
 
 
 class ApiPresenter:
