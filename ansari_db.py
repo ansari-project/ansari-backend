@@ -155,19 +155,18 @@ class AnsariDB:
         logger.info(f"Payload is {payload}")
         return payload
 
-    def register(self, email, first_name, last_name, password_hash):
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);"""
-                    cur.execute(
-                        insert_cmd, (email, password_hash, first_name, last_name)
-                    )
-                    conn.commit()
-                    return {"status": "success"}
-        except Exception as e:
-            logger.warning(f"Error is {e}")
-            return {"status": "failure", "error": str(e)}
+    def register(self, email, first_name, last_name, password_hash, is_guest):
+    try:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name, is_guest) values (%s, %s, %s, %s, %s);"""
+                cur.execute(insert_cmd, (email, password_hash, first_name, last_name, is_guest))
+                conn.commit()
+                return {"status": "success"}
+    except Exception as e:
+        logger.warning(f"Error is {e}")
+        return {"status": "failure", "error": str(e)}
+
 
     def account_exists(self, email):
         try:
@@ -232,20 +231,22 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def retrieve_user_info(self, email):
-        try:
-            with self.get_connection() as conn:
-                with conn.cursor() as cur:
-                    select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
-                    cur.execute(select_cmd, (email,))
-                    result = cur.fetchone()
-                    user_id = result[0]
-                    existing_hash = result[1]
-                    first_name = result[2]
-                    last_name = result[3]
-                    return user_id, existing_hash, first_name, last_name
-        except Exception as e:
-            logger.warning(f"Error is {e}")
-            return None, None, None, None
+    try:
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                select_cmd = "SELECT id, password_hash, first_name, last_name, is_guest FROM users WHERE email = %s;"
+                cur.execute(select_cmd, (email,))
+                result = cur.fetchone()
+                user_id = result[0]
+                existing_hash = result[1]
+                first_name = result[2]
+                last_name = result[3]
+                is_guest = result[4]
+                return user_id, existing_hash, first_name, last_name, is_guest
+    except Exception as e:
+        logger.warning(f"Error is {e}")
+        return None, None, None, None, None
+
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
