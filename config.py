@@ -59,12 +59,11 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_HOST: Optional[str] = Field(default=None)
-    WHATSAPP_APP_ID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_APP_SECRET: Optional[SecretStr] = Field(default=None)
     WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_VERSION: Optional[str] = Field(default="v13.0")
-    WHATSAPP_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_ACCESS_TOKEN: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_API_VERSION: Optional[str] = Field(default="v13.0")
+    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
 
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -73,6 +72,8 @@ class Settings(BaseSettings):
     MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
+
+    LOGGING_LEVEL: str = Field(default="INFO")
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

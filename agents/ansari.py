@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-import sys
 import time
 import traceback
 from datetime import date, datetime
@@ -12,19 +11,15 @@ from typing import Union
 import litellm
 from langfuse.decorators import langfuse_context, observe
 
+from config import get_settings
 from tools.search_hadith import SearchHadith
 from tools.search_mawsuah import SearchMawsuah
 from tools.search_quran import SearchQuran
 from util.prompt_mgr import PromptMgr
 
 logger = logging.getLogger(__name__ + ".Ansari")
-
-if not sys.argv[0].endswith("main_api.py"):
-    logging_mode = logging.DEBUG
-else:
-    logging_mode = logging.INFO
-
-logger.setLevel(logging_mode)
+logging_level = get_settings().LOGGING_LEVEL.upper()
+logger.setLevel(logging_level)
 
 # # Uncomment below when logging above doesn't output to std, and you want to see the logs in the console
 # console_handler = logging.StreamHandler()

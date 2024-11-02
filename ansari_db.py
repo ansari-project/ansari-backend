@@ -3,18 +3,18 @@ import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
-
-import jwt
 import bcrypt
+import jwt
 import psycopg2
 import psycopg2.pool
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 
-from config import get_settings, Settings
+from config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logging_level = get_settings().LOGGING_LEVEL.upper()
+logger.setLevel(logging_level)
 
 
 class MessageLogger:
@@ -26,13 +26,11 @@ class MessageLogger:
         self.user_id = user_id
         self.thread_id = thread_id
         self.trace_id = trace_id
-        logger.debug(f'DB is {db}')
+        logger.debug(f"DB is {db}")
         self.db = db
 
     def log(self, role, content, tool_name=None):
-        self.db.append_message(
-            self.user_id, self.thread_id, role, content, tool_name
-        )
+        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name)
 
 
 class AnsariDB:
@@ -324,7 +322,7 @@ class AnsariDB:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = (
-                        # TODO: check if "function" can be renamed to "tool" like the rest of the codebase or not
+                        # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
                         "INSERT INTO messages (thread_id, user_id, role, content, function_name) "
                         + "VALUES (%s, %s, %s, %s, %s);"
                     )
@@ -370,7 +368,8 @@ class AnsariDB:
                         "messages": [
                             self.convert_message(x)
                             for x in result
-                            if x[1] != "function" # TODO: check if "function" can be renamed to "tool" like the rest of the codebase or not 
+                            if x[1]
+                            != "function"  # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
                         ],
                     }
                     return retval
@@ -387,7 +386,7 @@ class AnsariDB:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     select_cmd = (
-                        # TODO: check if "function" can be renamed to "tool" like the rest of the codebase or not
+                        # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
                         "SELECT role, content, function_name FROM messages "
                         + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
                     )
