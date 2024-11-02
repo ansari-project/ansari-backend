@@ -66,7 +66,6 @@ async def verification_webhook(request: Request) -> Optional[str]:
     mode = request.query_params.get("hub.mode")
     verify_token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
-    print(f"mode: {mode}, verify_token: {verify_token}, challenge: {challenge}")
 
     if mode and verify_token:
         if (
@@ -74,7 +73,7 @@ async def verification_webhook(request: Request) -> Optional[str]:
             and verify_token
             == get_settings().WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK.get_secret_value()
         ):
-            logger.debug(f"WHATSAPP_WEBHOOK_VERIFIED, CHALLENGE: {challenge}")
+            logger.info("WHATSAPP WEBHOOK VERIFIED SUCCESFULLY!")
             # Tricky note: apparently, you have to wrap the challenge in an HTMLResponse
             # in order for meta to accept and verify the callback
             # source: https://stackoverflow.com/a/74394602/13626137
@@ -111,11 +110,11 @@ async def main_webhook(request: Request) -> None:
     # Get relevant info from Meta's API
     business_phone_number_id, from_whatsapp_number, incoming_msg_body = result
 
-    # Send acknowledgment message
-    # (uncomment this and comment any function(s) below it when you want to quickly test that the webhook works)
-    await presenter.send_whatsapp_message(
-        from_whatsapp_number, f"Ack: {incoming_msg_body}"
-    )
+    # # Send acknowledgment message
+    # # (uncomment this and comment any function(s) below it when you want to quickly test that the webhook works)
+    # await presenter.send_whatsapp_message(
+    #     from_whatsapp_number, f"Ack: {incoming_msg_body}"
+    # )
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
     await presenter.process_and_reply_to_whatsapp_sender(

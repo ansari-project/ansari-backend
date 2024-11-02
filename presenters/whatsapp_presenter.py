@@ -44,17 +44,13 @@ class WhatsAppPresenter:
             from_whatsapp_number (str): The sender's WhatsApp number.
             incoming_msg_body (str): The incoming message body from the sender.
         """
-        print("currently in process_and_reply_to_whatsapp_sender")
         try:
             agent = copy.deepcopy(self.agent)
             logger.info(f"User said: {incoming_msg_body}")
 
             # Process the input and get the final response
-            # TODO (odyash): uncomment below, and remove the response line below it
-            # response = agent.process_input(incoming_msg_body)
-            response = (
-                "AI RESPONSE UNTIL process_input CAN BE IMPLEMENTED WITHOUT STREAMING"
-            )
+            response = [tok for tok in agent.process_input(incoming_msg_body) if tok]
+            response = "".join(response)
 
             if response:
                 await self.send_whatsapp_message(from_whatsapp_number, response)

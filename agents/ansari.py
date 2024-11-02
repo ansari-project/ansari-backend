@@ -30,6 +30,8 @@ logger.setLevel(logging_level)
 class Ansari:
     def __init__(self, settings, message_logger=None, json_format=False):
         self.settings = settings
+        self.json_format = json_format
+        self.message_logger = message_logger
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
         sm = SearchMawsuah(
@@ -49,8 +51,6 @@ class Ansari:
             x.get_tool_description() for x in self.tool_name_to_instance.values()
         ]
         self.message_history = [{"role": "system", "content": self.sys_msg}]
-        self.json_format = json_format
-        self.message_logger = message_logger
 
     def set_message_logger(self, message_logger):
         self.message_logger = message_logger
