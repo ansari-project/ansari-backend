@@ -1,10 +1,7 @@
 import logging
-import os
 from typing import Optional
 
-import uvicorn
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from agents.ansari import Ansari
@@ -16,18 +13,9 @@ logger = logging.getLogger(__name__)
 logging_level = get_settings().LOGGING_LEVEL.upper()
 logger.setLevel(logging_level)
 
-# Initialize FastAPI app
-app = FastAPI()
 
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Create a router in order to make the FastAPI functions here an extension of the main FastAPI app
+router = APIRouter()
 
 # Initialize the agent
 ansari = Ansari(get_settings())
@@ -41,18 +29,8 @@ presenter = WhatsAppPresenter(
 )
 presenter.present()
 
-if __name__ == "__main__":
-    # Start a Uvicorn server to run the FastAPI application
-    # Note: if you instead run
-    #   uvicorn main_whatsapp:app --host YOUR_HOST --port YOUR_PORT
-    # in the terminal, then this block will be ignored
-    filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]
-    uvicorn.run(
-        f"{filename_without_extension}:app", host="127.0.0.1", port=8000, reload=True
-    )
 
-
-@app.get("/whatsapp/v1")
+@router.get("/whatsapp/v1")
 async def verification_webhook(request: Request) -> Optional[str]:
     """
     Handles the WhatsApp webhook verification request.
@@ -84,7 +62,7 @@ async def verification_webhook(request: Request) -> Optional[str]:
         raise HTTPException(status_code=400, detail="Bad Request")
 
 
-@app.post("/whatsapp/v1")
+@router.post("/whatsapp/v1")
 async def main_webhook(request: Request) -> None:
     """
     Handles the incoming WhatsApp webhook message.

@@ -1,4 +1,5 @@
 import logging
+import os
 import uuid
 
 import psycopg2
@@ -30,7 +31,7 @@ psycopg2.extras.register_uuid()
 app = FastAPI()
 
 
-def main():
+def add_app_middleware():
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_settings().ORIGINS,
@@ -40,7 +41,7 @@ def main():
     )
 
 
-main()
+add_app_middleware()
 
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
@@ -49,6 +50,18 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
+
+if __name__ == "__main__" and get_settings().LOGGING_LEVEL.upper() == "DEBUG":
+    # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
+    # Note: if you instead run
+    #   uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT
+    # in the terminal, then this block will be ignored
+    import uvicorn
+
+    filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]
+    uvicorn.run(
+        f"{filename_without_extension}:app", host="127.0.0.1", port=8000, reload=True
+    )
 
 
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
