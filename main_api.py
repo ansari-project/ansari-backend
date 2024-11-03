@@ -73,28 +73,35 @@ class RegisterRequest(BaseModel):
 
 @app.post("/api/v2/users/register")
 async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_cors)):
-  """Register a new user.
+    """Register a new user.
     If the user exists, returns 403.
     Returns 200 on success.
     Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
+
     password_hash = db.hash_password(req.password)
-    logger.info(f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}")
+    logger.info(
+        f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}"
+    )
     try:
+        # Check if account exists
         if db.account_exists(req.email):
             raise HTTPException(status_code=403, detail="Account already exists")
-
         passwd_quality = zxcvbn(req.password)
         if passwd_quality["score"] < 2:
             raise HTTPException(
                 status_code=400,
-                detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
+                detail="Password is too weak. Suggestions: "
+                + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
+        
+        is_guest = False
+        if req.email.startswith('guest_') and req.email.endswith('@endeavorpal.com') and req.first_name == 'Welcome' and req.last_name == 'Guest':
+            is_guest = True
 
-        is_guest = True if "guest" in req.email else False
         return db.register(req.email, req.first_name, req.last_name, password_hash, is_guest)
     except psycopg2.Error as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
 
 
