@@ -156,18 +156,18 @@ class AnsariDB:
         return payload
 
     def register(self, email, first_name, last_name, password_hash, is_guest: bool):
-    try:
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name, is_guest) values (%s, %s, %s, %s, %s);"""
-                cur.execute(
-                    insert_cmd, (email, password_hash, first_name, last_name, is_guest)
-                )
-                conn.commit()
-                return {"status": "success"}
-    except Exception as e:
-        logger.warning(f"Error is {e}")
-        return {"status": "failure", "error": str(e)}
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name, is_guest) values (%s, %s, %s, %s, %s);"""
+                    cur.execute(
+                        insert_cmd, (email, password_hash, first_name, last_name, is_guest)
+                    )
+                    conn.commit()
+                    return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return {"status": "failure", "error": str(e)}
 
 
     def account_exists(self, email):
