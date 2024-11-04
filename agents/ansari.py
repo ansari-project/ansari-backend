@@ -82,7 +82,7 @@ class Ansari:
         logger.info(f"trace id is {trace_id}")
 
     @observe()
-    def replace_message_history(self, message_history):
+    def replace_message_history(self, message_history, use_tool=True, stream=True):
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
         ] + message_history
@@ -95,12 +95,12 @@ class Ansari:
             session_id=str(self.message_logger.thread_id),
             tags=["debug", "replace_message_history"],
         )
-        for m in self.process_message_history():
+        for m in self.process_message_history(use_tool, stream=stream):
             if m:
                 yield m
 
     @observe(capture_input=False, capture_output=False)
-    def process_message_history(self):
+    def process_message_history(self, use_tool=True, stream=True):
         if self.message_logger is not None:
             langfuse_context.update_current_trace(
                 user_id=self.message_logger.user_id,
@@ -126,7 +126,7 @@ class Ansari:
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times  (failure) and if the last message was not from the tool (success!)
-                use_tool = (
+                use_tool = use_tool and (
                     count < self.settings.MAX_TOOL_TRIES
                 ) and self.message_history[-1]["role"] != "tool"
                 if not use_tool:
@@ -136,7 +136,7 @@ class Ansari:
                         else 'Used tools! will paraphrase using "words" mode ...'
                     )
                     logger.warning(status_msg)
-                yield from self.process_one_round(use_tool)
+                yield from self.process_one_round(use_tool, stream=stream)
                 count += 1
             except Exception as e:
                 failures += 1
@@ -183,41 +183,30 @@ class Ansari:
 
         return json_objects
 
-    @observe(as_type="generator")
-    def process_one_round(self, use_tool=True):
-        response = None
+    @observe(as_type="generation")
+    def process_one_round(self, use_tool=True, stream=True):
         common_params = {
             "model": self.model,
             "messages": self.message_history,
-            "stream": True,
+            "stream": stream,
             "stream_options": {"include_usage": True},
             "timeout": 30.0,
             "temperature": 0.0,
             "metadata": {"generation-name": "ansari"},
             "num_retries": 1,
         }
+    
         failures = 0
+        response = None
+        
         while not response:
             try:
-                if use_tool:
-                    tools_params = {"tools": self.tools, "tool_choice": "auto"}
-                    if self.json_format:
-                        response = self.get_completion(
-                            **common_params,
-                            **tools_params,
-                            response_format={"type": "json_object"},
-                        )
-                    else:
-                        response = self.get_completion(**common_params, **tools_params)
-
-                else:
-                    if self.json_format:
-                        response = self.get_completion(
-                            **common_params, response_format={"type": "json_object"}
-                        )
-                    else:
-                        response = self.get_completion(**common_params)
-                # print('Response is ', response)
+                params = {
+                    **common_params,
+                    **({"tools": self.tools, "tool_choice": "auto"} if use_tool else {}),
+                    **({"response_format": {"type": "json_object"}} if self.json_format else {})
+                }
+                response = self.get_completion(**params)
 
             except Exception as e:
                 failures += 1
