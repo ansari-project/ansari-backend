@@ -71,9 +71,9 @@ class Ansari:
         self.greeting = self.pm.bind("greeting")
         return self.greeting.render()
 
-    def process_input(self, user_input, use_tool=True):
+    def process_input(self, user_input, use_tool=True, stream=True):
         self.message_history.append({"role": "user", "content": user_input})
-        return self.process_message_history(use_tool)
+        return self.process_message_history(use_tool, stream=stream)
 
     def log(self):
         if not os.environ.get("LANGFUSE_SECRET_KEY"):
@@ -82,21 +82,28 @@ class Ansari:
         logger.info(f"trace id is {trace_id}")
     
     def _execute_search_step(self, step_params, prev_outputs):
-        source_name_to_tool = {"quran": self.sq, "hadith": self.sh, "mawsuah": self.sm}
-        tool = source_name_to_tool[step_params["source"]]
-        if step_params.get("query"):
+        tool = self.tool_name_to_instance[step_params["tool_name"]]
+        print(tool)
+        print(step_params)
+        print(prev_outputs)
+        print(prev_outputs[step_params["query_from_prev_output_index"]])
+        if "query" in step_params:
             results = tool.run_as_string(step_params["query"])
-        elif step_params.get("query_from_prev_output_index"):
+        elif "query_from_prev_output_index" in step_params:
             results = tool.run_as_string(prev_outputs[step_params["query_from_prev_output_index"]])
         else:
             raise ValueError("search step must have either query or query_from_prev_output_index")
         return results
 
     def _execute_gen_query_step(self, step_params, prev_outputs):
-        prompt = f"""Write 5 words or phrases that best answer the following question: '{step_params["question"]}' in the '{step_params["target_corpus"]}' corpus. Those words or phrases must exist or approximate the words or phrases in the '{step_params["target_corpus"]}'.""" # TODO(abdullah): refine the prompt
-        return litellm.completion(
+        prompt = f"""Generate 3-5 key terms or phrases for searching the input: '{step_params["input"]}' in the '{step_params["target_corpus"]}' corpus. These search terms should be:
+
+        - Relevant words/phrases that appear in or closely match content in '{step_params["target_corpus"]}'
+        - Usable for both keyword and semantic search
+        - Given as a simple list without explanation or complete sentences"""
+        model_response = litellm.completion(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "system", "content": self.sys_msg}, {"role": "user", "content": prompt}],
                 stream=False,
                 timeout=30.0,
                 temperature=0.0,
@@ -105,15 +112,20 @@ class Ansari:
                 response_format=None,
                 functions=None,
             )
+        return model_response.choices[0].message.content
 
 
     def _execute_gen_answer_step(self, step_params, prev_outputs):
-        for function_name, step_idx in step_params["use_functions"].items():
-            result  = prev_outputs[step_idx]
-            self.message_history.append(
-                            {"role": "function", "name": function_name, "content": result}
-                        )
-        return self.process_input(step_params["user_msg"], use_tool=False)
+        if step_params.get("search_results_indices"):
+            search_results = "\n---\n".join([prev_outputs[i] for i in step_params["search_results_indices"]])
+        prompt = f"""Using {search_results}, compose a response that:
+            1. Answers the query
+            2. Matches user's language/tone
+            3. Adheres to your system instructions as Ansari."""
+        self.message_history.append(
+                        {"role": "system", "content": prompt}
+                    )
+        return self.process_input(step_params["input"], use_tool=False, stream=False)
 
     def execute_workflow(self, workflow_steps: list[tuple[str, dict]]):
         # this function handles v3 logic
@@ -127,9 +139,10 @@ class Ansari:
         step_name_to_fn = {"search": self._execute_search_step, "gen_query": self._execute_gen_query_step, "gen_answer": self._execute_gen_answer_step}
         for step_name, step_params in workflow_steps:
             outputs.append(step_name_to_fn[step_name](step_params, outputs))
+        return outputs
 
     @observe()
-    def replace_message_history(self, message_history, use_tool=True):
+    def replace_message_history(self, message_history, use_tool=True, stream=True):
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
         ] + message_history
@@ -142,12 +155,12 @@ class Ansari:
             session_id=str(self.message_logger.thread_id),
             tags=["debug", "replace_message_history"],
         )
-        for m in self.process_message_history(use_tool):
+        for m in self.process_message_history(use_tool, stream=stream):
             if m:
                 yield m
 
     @observe(capture_input=False, capture_output=False)
-    def process_message_history(self, use_tool=True):
+    def process_message_history(self, use_tool=True, stream=True):
         if self.message_logger is not None:
             langfuse_context.update_current_trace(
                 user_id=self.message_logger.user_id,
@@ -183,7 +196,7 @@ class Ansari:
                         else 'Used tools! will paraphrase using "words" mode ...'
                     )
                     logger.warning(status_msg)
-                yield from self.process_one_round(use_tool)
+                yield from self.process_one_round(use_tool, stream=stream)
                 count += 1
             except Exception as e:
                 failures += 1
@@ -230,41 +243,30 @@ class Ansari:
 
         return json_objects
 
-    @observe(as_type="generator")
-    def process_one_round(self, use_tool=True):
-        response = None
+    @observe(as_type="generation")
+    def process_one_round(self, use_tool=True, stream=True):
         common_params = {
             "model": self.model,
             "messages": self.message_history,
-            "stream": True,
+            "stream": stream,
             "stream_options": {"include_usage": True},
             "timeout": 30.0,
             "temperature": 0.0,
             "metadata": {"generation-name": "ansari"},
             "num_retries": 1,
         }
+    
         failures = 0
+        response = None
+        
         while not response:
             try:
-                if use_tool:
-                    tools_params = {"tools": self.tools, "tool_choice": "auto"}
-                    if self.json_format:
-                        response = self.get_completion(
-                            **common_params,
-                            **tools_params,
-                            response_format={"type": "json_object"},
-                        )
-                    else:
-                        response = self.get_completion(**common_params, **tools_params)
-
-                else:
-                    if self.json_format:
-                        response = self.get_completion(
-                            **common_params, response_format={"type": "json_object"}
-                        )
-                    else:
-                        response = self.get_completion(**common_params)
-                # print('Response is ', response)
+                params = {
+                    **common_params,
+                    **({"tools": self.tools, "tool_choice": "auto"} if use_tool else {}),
+                    **({"response_format": {"type": "json_object"}} if self.json_format else {})
+                }
+                response = self.get_completion(**params)
 
             except Exception as e:
                 failures += 1
