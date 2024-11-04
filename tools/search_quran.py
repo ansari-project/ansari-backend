@@ -60,7 +60,7 @@ class SearchQuran:
         results = self.run(query, num_results)
         return [self.pp_ayah(r) for r in results]
 
-    def run_as_string(self, query: str, num_results: int = 10, getText: int = 1):
-        results = self.run(query, num_results, getText)
+    def run_as_string(self, query: str, num_results: int = 10):
+        results = self.run(query, num_results)
         rstring = "\n".join([self.pp_ayah(r) for r in results])
         return rstring
