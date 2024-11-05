@@ -13,7 +13,7 @@ import litellm
 from langfuse.decorators import langfuse_context, observe
 
 from tools.search_hadith import SearchHadith
-from tools.search_mawsuah import SearchMawsuah
+from tools.search_vectara import SearchVectara
 from tools.search_quran import SearchQuran
 from util.prompt_mgr import PromptMgr
 
@@ -37,10 +37,14 @@ class Ansari:
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchMawsuah(
+        sm = SearchVectara(
             settings.VECTARA_AUTH_TOKEN.get_secret_value(),
             settings.VECTARA_CUSTOMER_ID,
-            settings.VECTARA_CORPUS_ID,
+            settings.MAWSUAH_VECTARA_CORPUS_ID,
+            settings.MAWSUAH_FN_NAME,
+            settings.MAWSUAH_FN_DESCRIPTION,
+            settings.MAWSUAH_TOOL_PARAMS,
+            settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         self.tool_name_to_instance = {
             sq.get_tool_name(): sq,

@@ -13,11 +13,11 @@ import litellm
 from langfuse.decorators import langfuse_context, observe
 
 from tools.search_hadith import SearchHadith
-from tools.search_mawsuah import SearchMawsuah
+from tools.search_vectara import SearchVectara
 from tools.search_quran import SearchQuran
 from util.prompt_mgr import PromptMgr
 
-logger = logging.getLogger(__name__ + ".Ansari")
+logger = logging.getLogger(__name__ + ".AnsariWorkflow")
 
 if not sys.argv[0].endswith("main_api.py"):
     logging_mode = logging.DEBUG
@@ -37,10 +37,14 @@ class Ansari:
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchMawsuah(
+        sm = SearchVectara(
             settings.VECTARA_AUTH_TOKEN.get_secret_value(),
             settings.VECTARA_CUSTOMER_ID,
-            settings.VECTARA_CORPUS_ID,
+            settings.MAWSUAH_VECTARA_CORPUS_ID,
+            settings.MAWSUAH_FN_NAME,
+            settings.MAWSUAH_FN_DESCRIPTION,
+            settings.MAWSUAH_TOOL_PARAMS,
+            settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         self.tool_name_to_instance = {
             sq.get_tool_name(): sq,
@@ -74,10 +78,6 @@ class Ansari:
     
     def _execute_search_step(self, step_params, prev_outputs):
         tool = self.tool_name_to_instance[step_params["tool_name"]]
-        print(tool)
-        print(step_params)
-        print(prev_outputs)
-        print(prev_outputs[step_params["query_from_prev_output_index"]])
         if "query" in step_params:
             results = tool.run_as_string(step_params["query"])
         elif "query_from_prev_output_index" in step_params:
@@ -140,5 +140,3 @@ class Ansari:
         for step_name, step_params in workflow_steps:
             outputs.append(step_name_to_fn[step_name](step_params, outputs))
         return outputs
-
-    
