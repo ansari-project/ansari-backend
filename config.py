@@ -24,11 +24,16 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, 
-        extra='ignore', missing = 'ignore'
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+        missing="ignore",
     )
 
-    DATABASE_URL: PostgresDsn = Field(default="postgresql://postgres:password@localhost:5432/ansari")
+    DATABASE_URL: PostgresDsn = Field(
+        default="postgresql://postgres:password@localhost:5432/ansari"
+    )
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
     SECRET_KEY: SecretStr = Field(default="secret")
@@ -49,7 +54,9 @@ class Settings(BaseSettings):
 
     VECTARA_API_KEY: SecretStr
 
-    MAWSUAH_VECTARA_CORPUS_KEY: str = Field(alias="MAWSUAH_VECTARA_CORPUS_KEY", default="mawsuah_unstructured")
+    MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
+        alias="MAWSUAH_VECTARA_CORPUS_KEY", default="mawsuah_unstructured"
+    )
     MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
     MAWSUAH_FN_DESCRIPTION: str = Field(
         default="Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
@@ -69,7 +76,9 @@ class Settings(BaseSettings):
     )
     MAWSUAH_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
-    TAFSIR_VECTARA_CORPUS_KEY: str = Field(alias="TAFSIR_VECTARA_CORPUS_KEY", default="tafsirs")
+    TAFSIR_VECTARA_CORPUS_KEY: str = Field(
+        alias="TAFSIR_VECTARA_CORPUS_KEY", default="tafsirs"
+    )
     TAFSIR_FN_NAME: str = Field(default="search_tafsir")
     TAFSIR_FN_DESCRIPTION: str = Field(
         default="""

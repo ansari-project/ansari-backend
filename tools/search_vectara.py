@@ -1,6 +1,7 @@
 import json
 import requests
 
+
 class SearchVectara:
     def __init__(
         self,
@@ -42,7 +43,9 @@ class SearchVectara:
     def get_tool_name(self):
         return self.fn_name
 
-    def _build_request_payload(self, query: str, num_results: int = 5, **kwargs) -> dict:
+    def _build_request_payload(
+        self, query: str, num_results: int = 5, **kwargs
+    ) -> dict:
         return {
             "query": query,
             "search": {
@@ -58,7 +61,7 @@ class SearchVectara:
                     "sentences_before": kwargs.get("sentences_before", 3),
                     "sentences_after": kwargs.get("sentences_after", 3),
                     "start_tag": kwargs.get("start_tag", "<em>"),
-                    "end_tag": kwargs.get("end_tag", "</em>")
+                    "end_tag": kwargs.get("end_tag", "</em>"),
                 },
                 # "reranker": {
                 #     "type": "customer_reranker",
@@ -77,46 +80,46 @@ class SearchVectara:
             #     "citations": kwargs.get("citations", {"style": "none"}),
             #     "enable_factual_consistency_score": kwargs.get("enable_factual_consistency_score", True)
             # },
-            "stream_response": kwargs.get("stream_response", False)
+            "stream_response": kwargs.get("stream_response", False),
         }
 
     def run(self, query: str, num_results: int = 5, **kwargs) -> dict:
         headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'x-api-key': self.api_key
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "x-api-key": self.api_key,
         }
         data = self._build_request_payload(query, num_results, **kwargs)
 
         response = requests.post(self.base_url, headers=headers, data=json.dumps(data))
-        
+
         if response.status_code != 200:
             error_msg = f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
             raise requests.exceptions.HTTPError(error_msg)
-            
+
         return response.json()
 
     def pp_response(self, response: dict) -> list:
         """Extract text from response"""
         if not response.get("responseSet"):
             return []
-            
+
         results = []
         for response_item in response["responseSet"]:
             results.extend(result["text"] for result in response_item["response"])
         return results
 
-    def run_as_list(self, query: str, num_results: int = 5) -> list:
+    def run_as_list(self, query: str, num_results: int = 5, **kwargs) -> list:
         """Return results as a list of strings"""
-        response = self.run(query, num_results)
+        response = self.run(query, num_results, **kwargs)
         return self.pp_response(response)
 
-    def run_as_json(self, query: str, num_results: int = 5) -> dict:
+    def run_as_json(self, query: str, num_results: int = 5, **kwargs) -> dict:
         """Return results wrapped in a JSON object"""
-        response = self.run(query, num_results)
+        response = self.run(query, num_results, **kwargs)
         return {"matches": self.pp_response(response)}
-    
-    def run_as_string(self, query: str, num_results: int = 5) -> str:
+
+    def run_as_string(self, query: str, num_results: int = 5, **kwargs) -> str:
         """Return results as a newline-separated string"""
-        results = self.run_as_list(query, num_results)
+        results = self.run_as_list(query, num_results, **kwargs)
         return "\n".join(results)

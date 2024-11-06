@@ -30,7 +30,6 @@ app = FastAPI()
 
 
 def main():
-    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_settings().ORIGINS,
@@ -38,6 +37,7 @@ def main():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
 
 main()
 
@@ -302,7 +302,7 @@ async def create_thread(
         # Now create a thread and return the thread_id
         try:
             thread_id = db.create_thread(token_params["user_id"])
-            print(f'Created thread {thread_id}')
+            print(f"Created thread {thread_id}")
             return thread_id
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
@@ -335,6 +335,7 @@ class AddMessageRequest(BaseModel):
     role: str
     content: str
 
+
 @app.post("/api/v2/threads/{thread_id}")
 @observe(capture_output=False)
 def add_message(
@@ -360,19 +361,24 @@ def add_message(
                     token_params["user_id"],
                     history["messages"][0]["content"],
                 )
-                print(f'Added thread {thread_id}')
+                print(f"Added thread {thread_id}")
 
             langfuse_context.update_current_trace(
-                session_id=str(thread_id), 
+                session_id=str(thread_id),
                 user_id=token_params["user_id"],
-                tags=['debug'],
+                tags=["debug"],
                 metadata={
-                    'db_host': settings.DATABASE_URL.hosts()[0]['host'],
-                }
+                    "db_host": settings.DATABASE_URL.hosts()[0]["host"],
+                },
             )
             return presenter.complete(
                 history,
-                message_logger=MessageLogger(db, token_params["user_id"], thread_id, langfuse_context.get_current_trace_id())
+                message_logger=MessageLogger(
+                    db,
+                    token_params["user_id"],
+                    thread_id,
+                    langfuse_context.get_current_trace_id(),
+                ),
             )
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")

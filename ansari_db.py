@@ -26,13 +26,11 @@ class MessageLogger:
         self.user_id = user_id
         self.thread_id = thread_id
         self.trace_id = trace_id
-        logger.debug(f'DB is {db}')
+        logger.debug(f"DB is {db}")
         self.db = db
 
     def log(self, role, content, tool_name=None):
-        self.db.append_message(
-            self.user_id, self.thread_id, role, content, tool_name
-        )
+        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name)
 
 
 class AnsariDB:
@@ -370,7 +368,8 @@ class AnsariDB:
                         "messages": [
                             self.convert_message(x)
                             for x in result
-                            if x[1] != "function" # TODO: check if "function" can be renamed to "tool" like the rest of the codebase or not 
+                            if x[1]
+                            != "function"  # TODO: check if "function" can be renamed to "tool" like the rest of the codebase or not
                         ],
                     }
                     return retval

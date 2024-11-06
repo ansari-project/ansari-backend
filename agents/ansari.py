@@ -35,8 +35,8 @@ logger.setLevel(logging_mode)
 class Ansari:
     def __init__(self, settings, message_logger=None, json_format=False):
         self.settings = settings
-        sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
-        sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
+        # sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
+        # sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
         sm = SearchVectara(
             settings.VECTARA_API_KEY.get_secret_value(),
             settings.MAWSUAH_VECTARA_CORPUS_KEY,
@@ -46,8 +46,8 @@ class Ansari:
             settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         self.tool_name_to_instance = {
-            sq.get_tool_name(): sq,
-            sh.get_tool_name(): sh,
+            # sq.get_tool_name(): sq,
+            # sh.get_tool_name(): sh,
             sm.get_tool_name(): sm,
         }
         self.model = settings.MODEL
@@ -129,9 +129,11 @@ class Ansari:
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times  (failure) and if the last message was not from the tool (success!)
-                use_tool = use_tool and (
-                    count < self.settings.MAX_TOOL_TRIES
-                ) and self.message_history[-1]["role"] != "tool"
+                use_tool = (
+                    use_tool
+                    and (count < self.settings.MAX_TOOL_TRIES)
+                    and self.message_history[-1]["role"] != "tool"
+                )
                 if not use_tool:
                     status_msg = (
                         "Not using tools -- tries exceeded"
@@ -198,16 +200,22 @@ class Ansari:
             "metadata": {"generation-name": "ansari"},
             "num_retries": 1,
         }
-    
+
         failures = 0
         response = None
-        
+
         while not response:
             try:
                 params = {
                     **common_params,
-                    **({"tools": self.tools, "tool_choice": "auto"} if use_tool else {}),
-                    **({"response_format": {"type": "json_object"}} if self.json_format else {})
+                    **(
+                        {"tools": self.tools, "tool_choice": "auto"} if use_tool else {}
+                    ),
+                    **(
+                        {"response_format": {"type": "json_object"}}
+                        if self.json_format
+                        else {}
+                    ),
                 }
                 response = self.get_completion(**params)
 
