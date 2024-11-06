@@ -47,10 +47,9 @@ class Settings(BaseSettings):
     PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
 
-    VECTARA_AUTH_TOKEN: SecretStr
-    VECTARA_CUSTOMER_ID: str
+    VECTARA_API_KEY: SecretStr
 
-    MAWSUAH_VECTARA_CORPUS_ID: str = Field(alias="MAWSUAH_VECTARA_CORPUS_ID")
+    MAWSUAH_VECTARA_CORPUS_KEY: str = Field(alias="MAWSUAH_VECTARA_CORPUS_KEY", default="mawsuah_unstructured")
     MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
     MAWSUAH_FN_DESCRIPTION: str = Field(
         default="Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
@@ -69,6 +68,30 @@ class Settings(BaseSettings):
         ]
     )
     MAWSUAH_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    TAFSIR_VECTARA_CORPUS_KEY: str = Field(alias="TAFSIR_VECTARA_CORPUS_KEY", default="tafsirs")
+    TAFSIR_FN_NAME: str = Field(default="search_tafsir")
+    TAFSIR_FN_DESCRIPTION: str = Field(
+        default="""
+        Queries Tafsir Ibn Kathir (the renowned Qur'anic exegesis) for relevant 
+        interpretations and explanations. You call this function when you need to 
+        provide authoritative Qur'anic commentary and understanding based on Ibn 
+        Kathir's work. Regardless of the language used in the original conversation, 
+        you will translate the query into English before searching the tafsir. The 
+        function returns a list of **potentially** relevant matches, which may include 
+        multiple passages of interpretation and analysis.
+        """
+    )
+    TAFSIR_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "The topic to search for in Tafsir Ibn Kathir. You will translate this query into English.",
+            }
+        ]
+    )
+    TAFSIR_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
