@@ -57,7 +57,6 @@ class SearchHadith:
             grade = f"\nGrade: {grade}\n"
         src = f"Collection: {h['source_book']} Chapter: {h['chapter_number']} Hadith: {h['hadith_number']} LK id: {h['id']}"
         result = f"{src}\n{en}\n{grade}"
-        # print(f'Hadith is: {result}')
         return result
 
     def run_as_list(self, query: str, num_results: int = 3):
@@ -67,5 +66,5 @@ class SearchHadith:
 
     def run_as_string(self, query: str, num_results: int = 3):
         results = self.run(query, num_results)
-        rstring = "\n".join([self.pp_ayah(r) for r in results])
+        rstring = "\n".join([self.pp_hadith(r) for r in results])
         return rstring
