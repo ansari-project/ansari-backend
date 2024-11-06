@@ -1,13 +1,8 @@
 import hashlib
-import json
 import logging
 import os
-import re
 import sys
-import time
-import traceback
-from datetime import date, datetime
-from typing import Union
+from datetime import date
 
 import litellm
 from langfuse.decorators import langfuse_context, observe
@@ -32,24 +27,63 @@ logger.setLevel(logging_mode)
 # logger.addHandler(console_handler)
 
 
-class Ansari:
+class AnsariWorkflow:
+    """
+    AnsariWorkflow manages the execution of modular workflow steps for processing user queries.
+
+    This class provides a flexible framework for generating queries, performing searches,
+    and generating answers based on the results. It supports customizable workflow steps
+    that can be combined in various ways to handle different types of user interactions.
+
+    Attributes:
+        tool_name_to_instance (dict): Mapping of tool names to their respective instances.
+        model (str): The name of the language model to use.
+        sys_msg (str): The system message used for prompts.
+
+    Example usage:
+        ansari = AnsariWorkflow(settings)
+        
+        # Example 1: Generate query, search, and answer
+        workflow_steps = [
+            ("gen_query", {"input": "What is the Islamic view on charity?", "target_corpus": "mawsuah"}),
+            ("search", {"query_from_prev_output_index": 0, "tool_name": "search_mawsuah"}),
+            ("gen_answer", {"input": "What is the Islamic view on charity?", "search_results_indices": [1]})
+        ]
+        results = ansari.execute_workflow(workflow_steps)
+
+        # Example 2: Direct search and answer
+        workflow_steps = [
+            ("search", {"query": "zakat calculation", "tool_name": "search_mawsuah"}),
+            ("gen_answer", {"input": "How is zakat calculated?", "search_results_indices": [0]})
+        ]
+        results = ansari.execute_workflow(workflow_steps)
+    """
+
     def __init__(self, settings, message_logger=None, json_format=False):
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
         sm = SearchVectara(
-            settings.VECTARA_AUTH_TOKEN.get_secret_value(),
-            settings.VECTARA_CUSTOMER_ID,
-            settings.MAWSUAH_VECTARA_CORPUS_ID,
+            settings.VECTARA_API_KEY.get_secret_value(),
+            settings.MAWSUAH_VECTARA_CORPUS_KEY,
             settings.MAWSUAH_FN_NAME,
             settings.MAWSUAH_FN_DESCRIPTION,
             settings.MAWSUAH_TOOL_PARAMS,
             settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
+        st = SearchVectara(
+            settings.VECTARA_API_KEY.get_secret_value(),
+            settings.TAFSIR_VECTARA_CORPUS_KEY,
+            settings.TAFSIR_FN_NAME,
+            settings.TAFSIR_FN_DESCRIPTION,
+            settings.TAFSIR_TOOL_PARAMS,
+            settings.TAFSIR_TOOL_REQUIRED_PARAMS,
+        )
         self.tool_name_to_instance = {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
             sm.get_tool_name(): sm,
+            st.get_tool_name(): st,
         }
         self.model = settings.MODEL
         self.pm = PromptMgr()
