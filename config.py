@@ -59,18 +59,16 @@ class Settings(BaseSettings):
     )
     MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
     MAWSUAH_FN_DESCRIPTION: str = Field(
-        default="Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
-        "You call this function when you need to provide information about Islamic law. "
-        "Regardless of the language used in the original conversation, you will translate "
-        "the query into Arabic before searching the encyclopedia. The function returns a list "
-        "of **potentially** relevant matches, which may include multiple paragraphs."
+        default="Search and retrieve relevant rulings from the Islamic jurisprudence (fiqh) encyclopedia based on a specific topic. "
+        "Returns a list of potentially relevant matches that may span multiple paragraphs. "
+        "The search will be based on the 'query' parameter, which must be provided."
     )
     MAWSUAH_TOOL_PARAMS: list = Field(
         default=[
             {
                 "name": "query",
                 "type": "string",
-                "description": "The topic to search for in the fiqh encyclopedia. You will translate this query into Arabic.",
+                "description": "Topic or subject matter to search for within the fiqh encyclopedia. Write the query in Arabic.",
             }
         ]
     )
