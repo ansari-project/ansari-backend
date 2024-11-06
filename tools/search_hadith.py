@@ -13,18 +13,18 @@ class SearchHadith:
         return {
             "type": "function",
             "function": {
-                "name": TOOL_NAME,
-                "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
-            },
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Hadith for ",
-                    }
+                "name": "search_hadith",
+                "description": "Search for relevant Hadith narrations based on a specific topic.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Topic or subject matter to search for in Hadith collections",
+                        }
+                    },
+                    "required": ["query"],
                 },
-                "required": ["query"],
             },
         }
 

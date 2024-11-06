@@ -26,17 +26,17 @@ class SearchVectara:
             "function": {
                 "name": self.fn_name,
                 "description": self.fn_description,
-            },
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    param["name"]: {
-                        "type": param["type"],
-                        "description": param["description"],
-                    }
-                    for param in self.params
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        param["name"]: {
+                            "type": param["type"],
+                            "description": param["description"],
+                        }
+                        for param in self.params
+                    },
+                    "required": self.required_params,
                 },
-                "required": self.required_params,
             },
         }
 

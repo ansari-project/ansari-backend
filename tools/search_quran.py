@@ -13,18 +13,18 @@ class SearchQuran:
         return {
             "type": "function",
             "function": {
-                "name": TOOL_NAME,
-                "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
-            },
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search the Qur'an for ",
-                    }
+                "name": "search_quran",
+                "description": "Search and retrieve relevant ayahs based on a specific topic. Returns multiple ayahs when applicable.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Topic or subject matter to search for within the Holy Quran",
+                        }
+                    },
+                    "required": ["query"],
                 },
-                "required": ["query"],
             },
         }
 
