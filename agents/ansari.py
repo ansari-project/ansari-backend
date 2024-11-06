@@ -35,8 +35,8 @@ logger.setLevel(logging_mode)
 class Ansari:
     def __init__(self, settings, message_logger=None, json_format=False):
         self.settings = settings
-        # sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
-        # sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
+        sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
+        sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
         sm = SearchVectara(
             settings.VECTARA_API_KEY.get_secret_value(),
             settings.MAWSUAH_VECTARA_CORPUS_KEY,
@@ -46,8 +46,8 @@ class Ansari:
             settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         self.tool_name_to_instance = {
-            # sq.get_tool_name(): sq,
-            # sh.get_tool_name(): sh,
+            sq.get_tool_name(): sq,
+            sh.get_tool_name(): sh,
             sm.get_tool_name(): sm,
         }
         self.model = settings.MODEL
@@ -154,7 +154,6 @@ class Ansari:
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures")
-                    break
         self.log()
 
     def get_completion(self, **kwargs):
@@ -232,86 +231,60 @@ class Ansari:
                     raise Exception("Too many failures")
 
         words = ""
-        # "tool" is synonymous with "function", as that's currently the only
-        # supported type by the model provider (e.g., OpenAI)
-        tool_name = ""
-        tool_arguments = ""
-        tool_id = ""
-        response_mode = ""  # words or tool
+        tool_calls = []
+        response_mode = ""
 
-        # side note: the `response` should be litellm.utils.CustomStreamWrapper object
-        for tok in response:
-            if len(tok.choices) == 0:  # in case usage is defind.q
-                logging.warning(f"Token has no choices: {tok}")
-                langfuse_context.update_current_observation(usage=tok.usage)
-            delta = tok.choices[0].delta
-            if not response_mode:
-                # This code should only trigger the first
-                # time through the loop.
-                logger.debug(
-                    f"\n\nFirst tok is {tok}\n\n"
-                )  # uncomment when debugging only
-                if "tool_calls" in delta and delta.tool_calls:
-                    # We are in tool mode
-                    response_mode = "tool"
-                    tool_name = delta.tool_calls[0].function.name
-                    tool_id = delta.tool_calls[0].id
-                else:
-                    response_mode = "words"
-                logger.info("Response mode: " + response_mode)
+        for chunk in response:
+            delta = chunk.choices[0].delta
+            logger.debug(f"chunk: {delta}")
 
-            # We process things differently depending on whether it is a tool or a
-            # text
-            if response_mode == "words":
-                # there are still tokens to be processed
-                if delta.content is not None:
-                    words += delta.content
-                    yield delta.content
-                # End token
-                elif delta.content is None:
-                    self.message_history.append({"role": "assistant", "content": words})
-                    langfuse_context.update_current_observation(
-                        output=words, metadata={"delta": delta}
+            if delta.content is not None:
+                # content chunk
+                words += delta.content
+                yield delta.content
+                response_mode = "words"
+
+            elif delta.tool_calls:
+                response_mode = "tool"
+                tcchunklist = delta.tool_calls
+                for tcchunk in tcchunklist:
+                    if len(tool_calls) <= tcchunk.index:
+                        tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                    tc = tool_calls[tcchunk.index]
+
+                    if tcchunk.id:
+                        tc["id"] += tcchunk.id
+                    if tcchunk.function.name:
+                        tc["function"]["name"] += tcchunk.function.name
+                    if tcchunk.function.arguments:
+                        tc["function"]["arguments"] += tcchunk.function.arguments
+
+        if response_mode == "words":
+            self.message_history.append({"role": "assistant", "content": words})
+            langfuse_context.update_current_observation(
+                output=words, metadata={"delta": delta}
+            )
+            if self.message_logger:
+                self.message_logger.log("assistant", words)
+
+        elif response_mode == "tool":
+            for tc in tool_calls:
+                try:
+                    tool_arguments = json.loads(tc["function"]["arguments"])
+                    self.process_tool_call(
+                        tc["function"]["name"],
+                        tool_arguments,
+                        tc["id"],
+                        tool_definition={
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"],
+                        },
                     )
-                    if self.message_logger:
-                        self.message_logger.log("assistant", words)
-                    break
-                else:
-                    continue
-            elif response_mode == "tool":
-                logger.debug(f"Delta in: {delta}")
-                # shouldn't occur unless model provider's/LiteLLM's API is changed
-                if "tool_calls" not in delta:
-                    logger.warning(f"Weird delta: {delta}")
-                    continue
-                # There are still tokens to be processed
-                if delta.tool_calls:
-                    # logger.debug(f"delta.tool_calls is {delta.tool_calls}")
-                    args_str = delta.tool_calls[0].function.arguments
-                    tool_arguments += args_str
-                # End token
-                else:
-                    # this returned list could have > 1 element if the
-                    # AI model deduced that the user queried for > 1 topic in the same prompt
-                    tool_arguments: list[dict[str, str]] = (
-                        self._extract_unique_json_objects(tool_arguments)
-                    )
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse tool arguments: {tc['function']['arguments']}")
 
-                    # "process_tool_call" will append the tool call(s) to the message history
-                    for cur_args in tool_arguments:
-                        self.process_tool_call(
-                            tool_name,
-                            cur_args,
-                            tool_id,
-                            tool_definition={
-                                "name": tool_name,
-                                # can be "arguments": "{}" as well
-                                "arguments": str(cur_args),
-                            },
-                        )
-                    break
-            else:
-                raise Exception("Invalid response mode: " + response_mode)
+        else:
+            raise Exception("Invalid response mode: " + response_mode)
 
     @observe()
     def process_tool_call(
