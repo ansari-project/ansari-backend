@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import sys
 import time
 import traceback
@@ -89,10 +88,10 @@ class Ansari:
         self.message_history = [
             {"role": "system", "content": self.sys_msg}
         ] + message_history
-        print(f"Original trace is {self.message_logger.trace_id}")
-        print(f"Id 1 is {langfuse_context.get_current_trace_id()}")
+        logger.info(f"Original trace is {self.message_logger.trace_id}")
+        logger.info(f"Id 1 is {langfuse_context.get_current_trace_id()}")
         # langfuse_context._set_root_trace_id(self.message_logger.trace_id)
-        print(f"Id 2 is {langfuse_context.get_current_trace_id()}")
+        logger.info(f"Id 2 is {langfuse_context.get_current_trace_id()}")
         langfuse_context.update_current_observation(
             user_id=self.message_logger.user_id,
             session_id=str(self.message_logger.thread_id),
@@ -153,39 +152,11 @@ class Ansari:
                 time.sleep(5)
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
-                    raise Exception("Too many failures")
+                    raise Exception("Too many failures") from e
         self.log()
 
     def get_completion(self, **kwargs):
         return litellm.completion(**kwargs)
-
-    @staticmethod
-    def _extract_unique_json_objects(json_string: str) -> list[dict[str, str]]:
-        """
-        Extract unique JSON objects from a string and return them as a list of JSON strings.
-
-        This function takes a string containing multiple JSON objects and extracts unique JSON objects,
-        returning them as a list of JSON strings.
-
-        Args:
-            json_string (str): A string containing multiple JSON objects.
-
-        Returns:
-            list: A list of unique JSON strings.
-
-        Example:
-            >>> json_string = '{"query": "2:1"}{"query": "2:2"}{"query": "2:1"}'
-            >>> unique_json_list = _extract_unique_json_objects(json_string)
-            >>> print(unique_json_list)
-            ['{"query": "2:1"}', '{"query": "2:2"}']
-        """
-        # Use regular expression to find all unique JSON objects in the string
-        json_strs = list(set(re.findall(r"\{.*?\}", json_string)))
-
-        # Convert to list of python dictionaries
-        json_objects = [json.loads(s) for s in json_strs]
-
-        return json_objects
 
     @observe(as_type="generation")
     def process_one_round(self, use_tool=True, stream=True):
@@ -228,7 +199,7 @@ class Ansari:
                 time.sleep(5)
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
-                    raise Exception("Too many failures")
+                    raise Exception("Too many failures") from e
 
         words = ""
         tool_calls = []
@@ -249,7 +220,13 @@ class Ansari:
                 tcchunklist = delta.tool_calls
                 for tcchunk in tcchunklist:
                     if len(tool_calls) <= tcchunk.index:
-                        tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                        tool_calls.append(
+                            {
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            }
+                        )
                     tc = tool_calls[tcchunk.index]
 
                     if tcchunk.id:
@@ -281,7 +258,9 @@ class Ansari:
                         },
                     )
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse tool arguments: {tc['function']['arguments']}")
+                    logger.warning(
+                        f"Failed to parse tool arguments: {tc['function']['arguments']}"
+                    )
 
         else:
             raise Exception("Invalid response mode: " + response_mode)
