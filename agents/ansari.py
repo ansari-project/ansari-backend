@@ -38,9 +38,8 @@ class Ansari:
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
         sm = SearchVectara(
-            settings.VECTARA_AUTH_TOKEN.get_secret_value(),
-            settings.VECTARA_CUSTOMER_ID,
-            settings.MAWSUAH_VECTARA_CORPUS_ID,
+            settings.VECTARA_API_KEY.get_secret_value(),
+            settings.MAWSUAH_VECTARA_CORPUS_KEY,
             settings.MAWSUAH_FN_NAME,
             settings.MAWSUAH_FN_DESCRIPTION,
             settings.MAWSUAH_TOOL_PARAMS,
