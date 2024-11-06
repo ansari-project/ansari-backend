@@ -15,16 +15,16 @@ class SearchHadith:
             "function": {
                 "name": TOOL_NAME,
                 "description": "Search the Hadith for relevant narrations. Returns a list of hadith. Multiple hadith may be relevant.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The topic to search the Hadith for ",
-                        }
-                    },
-                    "required": ["query"],
+            },
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The topic to search the Hadith for ",
+                    }
                 },
+                "required": ["query"],
             },
         }
 
@@ -43,9 +43,10 @@ class SearchHadith:
         response = requests.get(self.base_url, headers=headers, params=payload)
 
         if response.status_code != 200:
-            raise Exception(
-                f"Request failed with status {response.status_code} {response.text}"
+            print(
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
             )
+            response.raise_for_status()
 
         return response.json()
 

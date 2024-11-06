@@ -15,16 +15,16 @@ class SearchQuran:
             "function": {
                 "name": TOOL_NAME,
                 "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The topic to search the Qur'an for ",
-                        }
-                    },
-                    "required": ["query"],
+            },
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The topic to search the Qur'an for ",
+                    }
                 },
+                "required": ["query"],
             },
         }
 
@@ -42,7 +42,10 @@ class SearchQuran:
         response = requests.get(self.base_url, headers=headers, params=payload)
 
         if response.status_code != 200:
-            raise Exception(f"Request failed with status {response.status_code}")
+            print(
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
+            )
+            response.raise_for_status()
 
         return response.json()
 

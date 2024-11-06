@@ -25,19 +25,16 @@ class SearchMawsuah:
                     "the query into Arabic before searching the encyclopedia. The tool returns a list "
                     "of **potentially** relevant matches, which may include multiple paragraphs."
                 ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": (
-                                "The topic to search for in the fiqh encyclopedia. "
-                                "You will translate this query into Arabic."
-                            ),
-                        }
-                    },
-                    "required": ["query"],
+            },
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The topic to search for in the fiqh encyclopedia. You will translate this query into Arabic.",
+                    }
                 },
+                "required": ["query"],
             },
         }
 
