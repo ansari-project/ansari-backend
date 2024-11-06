@@ -207,7 +207,6 @@ class Ansari:
 
         for chunk in response:
             delta = chunk.choices[0].delta
-            logger.debug(f"chunk: {delta}")
 
             if delta.content is not None:
                 # content chunk
@@ -277,13 +276,11 @@ class Ansari:
             logger.warning(f"Unknown tool name: {tool_name}")
             return
 
-        logger.debug(f"tool_arguments are\n{tool_arguments}\n")
         query: str = tool_arguments["query"]
         tool_instance: Union[SearchQuran, SearchHadith] = self.tool_name_to_instance[
             tool_name
         ]
         results = tool_instance.run_as_list(query)
-        # print(f"Results are {results}")
 
         # we have to first add this message before any tool response, as mentioned in this source:
         # https://platform.openai.com/docs/guides/function-calling/step-5-provide-the-function-call-result-back-to-the-model
