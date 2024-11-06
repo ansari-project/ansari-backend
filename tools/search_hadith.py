@@ -31,11 +31,11 @@ class SearchHadith:
     def get_tool_name(self):
         return TOOL_NAME
 
-    def run(self, query: str, numResults: int = 5):
+    def run(self, query: str, num_results: int = 5):
         headers = {"x-api-key": self.api_key}
         payload = {
             "query": query,
-            "numResults": numResults,
+            "numResults": num_results,
             "indexes": '["sunnah_lk"]',
             "getText": 2,
         }
