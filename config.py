@@ -103,6 +103,7 @@ class Settings(BaseSettings):
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
+    QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
 
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
