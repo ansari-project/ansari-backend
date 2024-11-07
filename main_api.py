@@ -46,6 +46,8 @@ def add_app_middleware():
         allow_headers=["*"],
     )
 
+main() 
+
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
 
