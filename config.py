@@ -1,8 +1,10 @@
 import logging
 from functools import lru_cache
-from typing import Union, Optional, Literal
+from typing import Literal, Optional, Union
+
+from pydantic import (DirectoryPath, Field, PostgresDsn, SecretStr,
+                      field_validator)
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, PostgresDsn, DirectoryPath, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +25,19 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, 
-        extra='ignore', missing = 'ignore'
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+        missing="ignore",
     )
 
-    DATABASE_URL: PostgresDsn = Field(default="postgresql://postgres:password@localhost:5432/ansari")
+    DATABASE_URL: PostgresDsn = Field(
+        default="postgresql://postgres:password@localhost:5432/ansari"
+    )
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
-    SECRET_KEY: SecretStr =  Field(default="secret")
+    SECRET_KEY: SecretStr = Field(default="secret")
     # Literal ensures the allowed value(s), and frozen ensures it can't be changed after initialization
     ALGORITHM: Literal["HS256"] = Field(default="HS256", frozen=True)
     ENCODING: Literal["utf-8"] = Field(default="utf-8", frozen=True)
@@ -52,7 +59,12 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
-    LANGFUSE_HOST: Optional[str] = Field(default=None) 
+    LANGFUSE_HOST: Optional[str] = Field(default=None)
+    WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
+    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
 
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -61,6 +73,8 @@ class Settings(BaseSettings):
     MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
+
+    LOGGING_LEVEL: str = Field(default="INFO")
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

@@ -1,27 +1,30 @@
 import logging
+import os
 import uuid
 
 import psycopg2
 import psycopg2.extras
+from diskcache import FanoutCache, Lock
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from jwt import PyJWTError
+from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from zxcvbn import zxcvbn
-from diskcache import FanoutCache, Lock
 
 from agents.ansari import Ansari
 from ansari_db import AnsariDB, MessageLogger
-from presenters.api_presenter import ApiPresenter
 from config import Settings, get_settings
-from langfuse.decorators import observe, langfuse_context
+from main_whatsapp import router as whatsapp_router
+from presenters.api_presenter import ApiPresenter
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logging_level = get_settings().LOGGING_LEVEL.upper()
+logger.setLevel(logging_level)
 
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -29,8 +32,7 @@ psycopg2.extras.register_uuid()
 app = FastAPI()
 
 
-def main():
-    
+def add_app_middleware():
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_settings().ORIGINS,
@@ -39,7 +41,8 @@ def main():
         allow_headers=["*"],
     )
 
-main()
+
+add_app_middleware()
 
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
@@ -48,6 +51,21 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
+
+# Include the WhatsApp router
+app.include_router(whatsapp_router)
+
+if __name__ == "__main__" and get_settings().LOGGING_LEVEL.upper() == "DEBUG":
+    # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
+    # Note: if you instead run
+    #   uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT
+    # in the terminal, then this block will be ignored
+    import uvicorn
+
+    filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]
+    uvicorn.run(
+        f"{filename_without_extension}:app", host="127.0.0.1", port=8000, reload=True
+    )
 
 
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
@@ -302,7 +320,7 @@ async def create_thread(
         # Now create a thread and return the thread_id
         try:
             thread_id = db.create_thread(token_params["user_id"])
-            print(f'Created thread {thread_id}')
+            print(f"Created thread {thread_id}")
             return thread_id
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
@@ -335,6 +353,7 @@ class AddMessageRequest(BaseModel):
     role: str
     content: str
 
+
 @app.post("/api/v2/threads/{thread_id}")
 @observe(capture_output=False)
 def add_message(
@@ -360,19 +379,24 @@ def add_message(
                     token_params["user_id"],
                     history["messages"][0]["content"],
                 )
-                print(f'Added thread {thread_id}')
+                print(f"Added thread {thread_id}")
 
             langfuse_context.update_current_trace(
-                session_id=str(thread_id), 
+                session_id=str(thread_id),
                 user_id=token_params["user_id"],
-                tags=['debug'],
+                tags=["debug"],
                 metadata={
-                    'db_host': settings.DATABASE_URL.hosts()[0]['host'],
-                }
+                    "db_host": settings.DATABASE_URL.hosts()[0]["host"],
+                },
             )
             return presenter.complete(
                 history,
-                message_logger=MessageLogger(db, token_params["user_id"], thread_id, langfuse_context.get_current_trace_id())
+                message_logger=MessageLogger(
+                    db,
+                    token_params["user_id"],
+                    thread_id,
+                    langfuse_context.get_current_trace_id(),
+                ),
             )
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
