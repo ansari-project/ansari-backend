@@ -2,7 +2,8 @@ import logging
 from functools import lru_cache
 from typing import Literal, Optional, Union
 
-from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
+from pydantic import (DirectoryPath, Field, PostgresDsn, SecretStr,
+                      field_validator)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class Settings(BaseSettings):
     LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_HOST: Optional[str] = Field(default=None)
     WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_API_VERSION: Optional[str] = Field(default="v13.0")
+    WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
