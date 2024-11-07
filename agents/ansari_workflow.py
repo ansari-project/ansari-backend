@@ -112,10 +112,13 @@ class AnsariWorkflow:
     def _execute_search_step(self, step_params, prev_outputs):
         tool = self.tool_name_to_instance[step_params["tool_name"]]
         if "query" in step_params:
-            results = tool.run_as_string(step_params["query"])
+            results = tool.run_as_string(
+                step_params["query"], metadata_filter=step_params.get("metadata_filter")
+            )
         elif "query_from_prev_output_index" in step_params:
             results = tool.run_as_string(
-                prev_outputs[step_params["query_from_prev_output_index"]]
+                prev_outputs[step_params["query_from_prev_output_index"]],
+                metadata_filter=step_params.get("metadata_filter")
             )
         else:
             raise ValueError(
