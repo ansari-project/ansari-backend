@@ -90,23 +90,18 @@ class SearchVectara:
             "x-api-key": self.api_key,
         }
         data = self._build_request_payload(query, num_results, **kwargs)
-
         response = requests.post(self.base_url, headers=headers, data=json.dumps(data))
-
         if response.status_code != 200:
             error_msg = f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
             raise requests.exceptions.HTTPError(error_msg)
-
         return response.json()
 
     def pp_response(self, response: dict) -> list:
         """Extract text from response"""
-        if not response.get("responseSet"):
+        if not response.get("search_results"):
             return []
 
-        results = []
-        for response_item in response["responseSet"]:
-            results.extend(result["text"] for result in response_item["response"])
+        results = [r["text"] for r in response["search_results"]]
         return results
 
     def run_as_list(self, query: str, num_results: int = 5, **kwargs) -> list:
