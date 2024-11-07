@@ -15,6 +15,7 @@ from zxcvbn import zxcvbn
 from diskcache import FanoutCache, Lock
 
 from agents.ansari import Ansari
+from agents.ansari_workflow import AnsariWorkflow
 from ansari_db import AnsariDB, MessageLogger
 from presenters.api_presenter import ApiPresenter
 from config import Settings, get_settings
@@ -662,3 +663,72 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
         return presenter.complete(body)
     else:
         raise HTTPException(status_code=403, detail="CORS not permitted")
+
+class AyahQuestionRequest(BaseModel):
+    surah: int
+    ayah: int
+    question: str
+    augment_question: bool | None = False
+    apikey: str
+
+@app.post("/api/v2/ayah")
+async def answer_ayah_question(
+    req: AyahQuestionRequest,
+    settings: Settings = Depends(get_settings),
+    db: AnsariDB = Depends(lambda: AnsariDB(get_settings()))
+):
+    if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        # Create AnsariWorkflow instance
+        ansari_workflow = AnsariWorkflow(settings)
+
+        ayah_id = req.surah*1000 + req.ayah
+
+        # Check if the answer is already stored in the database
+        stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
+        if stored_answer:
+            return {"response": stored_answer}
+
+        # Define the workflow steps
+        workflow_steps = [
+            (
+                "search",
+                {
+                    "query": req.question,
+                    "tool_name": "search_tafsir",
+                    "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}"
+                }
+            ),
+            (
+                "gen_query",
+                {
+                    "input": req.question,
+                    "target_corpus": "tafsir"
+                }
+            ),
+            (
+                "gen_answer",
+                {
+                    "input": req.question,
+                    "search_results_indices": [0]
+                }
+            )
+        ]
+        if not req.augment_question:
+            workflow_steps.pop(1)
+
+        # Execute the workflow
+        workflow_output = ansari_workflow.execute_workflow(workflow_steps)
+
+        # The answer is the last item in the workflow output
+        ansari_answer = workflow_output[-1]
+
+        # Store the answer in the database
+        db.store_quran_answer(req.surah, req.ayah, req.question, ansari_answer)
+
+        return {"response": ansari_answer}
+    except Exception as e:
+        logger.error(f"Error in answer_ayah_question: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
