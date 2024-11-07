@@ -19,9 +19,10 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       KALEMAT_API_KEY: ${{ secrets.KALEMAT_API_KEY }}
-      VECTARA_AUTH_TOKEN: ${{ secrets.VECTARA_AUTH_TOKEN }}
-      VECTARA_CUSTOMER_ID: ${{ secrets.VECTARA_CUSTOMER_ID }}
-      VECTARA_CORPUS_ID: ${{ secrets.VECTARA_CORPUS_ID }}
+      VECTARA_API_KEY: ${{ secrets.VECTARA_API_KEY }}
+      MAWSUAH_VECTARA_CORPUS_KEY: ${{ secrets.MAWSUAH_VECTARA_CORPUS_KEY }}
+      TAFSIR_VECTARA_CORPUS_KEY: ${{ secrets.TAFSIR_VECTARA_CORPUS_KEY }}
+      QURAN_DOT_COM_API_KEY: ${{ secrets.QURAN_DOT_COM_API_KEY }}
       WHATSAPP_RECIPIENT_WAID: ${{ secrets.WHATSAPP_RECIPIENT_WAID }}
       WHATSAPP_API_VERSION: ${{ secrets.WHATSAPP_API_VERSION }}
       WHATSAPP_BUSINESS_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_BUSINESS_PHONE_NUMBER_ID }}
@@ -36,7 +37,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           PGPASSWORD: postgres
         ports:
-          - "5432:5432"
+          - "5433:5432"
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -48,11 +49,15 @@ jobs:
     - name: Check out repository code
       uses: actions/checkout@v4
     
+    - name: Install uv
+      run: |
+        pip install uv
+        # TODO(abdullah): create a venv using uv
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-asyncio pytest-cov
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        uv pip install --system flake8 pytest pytest-asyncio pytest-cov 
+        if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
     - name: Install PostgreSQL client
       run: |
         apt-get update

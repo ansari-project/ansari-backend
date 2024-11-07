@@ -4,6 +4,7 @@ from typing import Literal, Optional, Union
 
 from pydantic import (DirectoryPath, Field, PostgresDsn, SecretStr,
                       field_validator)
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -52,14 +53,61 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: SecretStr
     PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
-    VECTARA_AUTH_TOKEN: SecretStr
-    VECTARA_CUSTOMER_ID: str
-    VECTARA_CORPUS_ID: str
+
+    VECTARA_API_KEY: SecretStr
+
+    MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
+        alias="MAWSUAH_VECTARA_CORPUS_KEY", default="mawsuah_unstructured"
+    )
+    MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
+    MAWSUAH_FN_DESCRIPTION: str = Field(
+        default="Search and retrieve relevant rulings from the Islamic jurisprudence (fiqh) encyclopedia based on a specific topic. "
+        "Returns a list of potentially relevant matches that may span multiple paragraphs. "
+        "The search will be based on the 'query' parameter, which must be provided."
+    )
+    MAWSUAH_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Topic or subject matter to search for within the fiqh encyclopedia. Write the query in Arabic.",
+            }
+        ]
+    )
+    MAWSUAH_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    TAFSIR_VECTARA_CORPUS_KEY: str = Field(
+        alias="TAFSIR_VECTARA_CORPUS_KEY", default="tafsirs"
+    )
+    TAFSIR_FN_NAME: str = Field(default="search_tafsir")
+    TAFSIR_FN_DESCRIPTION: str = Field(
+        default="""
+        Queries Tafsir Ibn Kathir (the renowned Qur'anic exegesis) for relevant 
+        interpretations and explanations. You call this function when you need to 
+        provide authoritative Qur'anic commentary and understanding based on Ibn 
+        Kathir's work. Regardless of the language used in the original conversation, 
+        you will translate the query into English before searching the tafsir. The 
+        function returns a list of **potentially** relevant matches, which may include 
+        multiple passages of interpretation and analysis.
+        """
+    )
+    TAFSIR_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "The topic to search for in Tafsir Ibn Kathir. You will translate this query into English.",
+            }
+        ]
+    )
+    TAFSIR_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
-    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
+    QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
     LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
     LANGFUSE_HOST: Optional[str] = Field(default=None)
+    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
     WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
     WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)

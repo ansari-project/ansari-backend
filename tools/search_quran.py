@@ -13,14 +13,14 @@ class SearchQuran:
         return {
             "type": "function",
             "function": {
-                "name": TOOL_NAME,
-                "description": "Search the Qur'an for relevant verses. Returns a list of verses. Multiple verses may be relevant.",
+                "name": "search_quran",
+                "description": "Search and retrieve relevant ayahs based on a specific topic. Returns multiple ayahs when applicable.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "The topic to search the Qur'an for ",
+                            "description": "Topic or subject matter to search for within the Holy Quran",
                         }
                     },
                     "required": ["query"],
@@ -42,7 +42,10 @@ class SearchQuran:
         response = requests.get(self.base_url, headers=headers, params=payload)
 
         if response.status_code != 200:
-            raise Exception(f"Request failed with status {response.status_code}")
+            print(
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
+            )
+            response.raise_for_status()
 
         return response.json()
 
@@ -60,7 +63,7 @@ class SearchQuran:
         results = self.run(query, num_results)
         return [self.pp_ayah(r) for r in results]
 
-    def run_as_string(self, query: str, num_results: int = 10, getText: int = 1):
-        results = self.run(query, num_results, getText)
+    def run_as_string(self, query: str, num_results: int = 10):
+        results = self.run(query, num_results)
         rstring = "\n".join([self.pp_ayah(r) for r in results])
         return rstring
