@@ -1,6 +1,6 @@
+import logging
 import time
 import uuid
-import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -125,7 +125,7 @@ async def test_register_new_user():
     assert response.status_code == 200
 
 
-# TODO: implement the email validation logic, then uncomment this test
+# TODO (abdullah): implement the email validation logic, then uncomment this test
 # This test will fail, because the email is not validated
 # @pytest.mark.asyncio
 # async def test_register_invalid_email():

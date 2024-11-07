@@ -2,7 +2,9 @@ import logging
 from functools import lru_cache
 from typing import Literal, Optional, Union
 
-from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
+from pydantic import (DirectoryPath, Field, PostgresDsn, SecretStr,
+                      field_validator)
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -102,8 +104,15 @@ class Settings(BaseSettings):
 
     DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
     SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
-    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
+    LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
+    LANGFUSE_HOST: Optional[str] = Field(default=None)
+    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
+    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
 
     template_dir: DirectoryPath = Field(default="resources/templates")
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -112,6 +121,8 @@ class Settings(BaseSettings):
     MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
+
+    LOGGING_LEVEL: str = Field(default="INFO")
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

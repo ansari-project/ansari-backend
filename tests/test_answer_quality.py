@@ -10,7 +10,8 @@ from agents.ansari import Ansari
 from config import get_settings
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
+logging_level = get_settings().LOGGING_LEVEL.upper()
+LOGGER.setLevel(logging_level)
 
 # Create a handler and set the logging level
 console_handler = StreamHandler()

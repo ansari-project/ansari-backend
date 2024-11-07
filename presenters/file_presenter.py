@@ -17,7 +17,7 @@ class FilePresenter:
                 print(f"Answering: {line}")
                 agent = copy.deepcopy(self.agent)
                 # Drop none that occurs between answers.
-                result = [x for x in agent.process_input(line) if x]
+                result = [tok for tok in agent.process_input(line) if tok]
                 answer = "".join(result)
                 (question, answer) = (line.strip(), answer)
                 output_file.write(f"## {question}\n\n{answer}\n\n")

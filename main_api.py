@@ -1,28 +1,31 @@
 import logging
+import os
 import uuid
 
 import psycopg2
 import psycopg2.extras
+from diskcache import FanoutCache, Lock
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from jwt import PyJWTError
+from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from zxcvbn import zxcvbn
-from diskcache import FanoutCache, Lock
 
 from agents.ansari import Ansari
 from agents.ansari_workflow import AnsariWorkflow
 from ansari_db import AnsariDB, MessageLogger
-from presenters.api_presenter import ApiPresenter
 from config import Settings, get_settings
-from langfuse.decorators import observe, langfuse_context
+from main_whatsapp import router as whatsapp_router
+from presenters.api_presenter import ApiPresenter
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logging_level = get_settings().LOGGING_LEVEL.upper()
+logger.setLevel(logging_level)
 
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -31,6 +34,10 @@ app = FastAPI()
 
 
 def main():
+  add_app_middleware()
+
+  
+def add_app_middleware():
     app.add_middleware(
         CORSMiddleware,
         allow_origins=get_settings().ORIGINS,
@@ -39,9 +46,6 @@ def main():
         allow_headers=["*"],
     )
 
-
-main()
-
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
 
@@ -49,6 +53,21 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
+
+# Include the WhatsApp router
+app.include_router(whatsapp_router)
+
+if __name__ == "__main__" and get_settings().LOGGING_LEVEL.upper() == "DEBUG":
+    # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
+    # Note: if you instead run
+    #   uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT
+    # in the terminal, then this block will be ignored
+    import uvicorn
+
+    filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]
+    uvicorn.run(
+        f"{filename_without_extension}:app", host="127.0.0.1", port=8000, reload=True
+    )
 
 
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
