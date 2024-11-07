@@ -19,6 +19,7 @@ from zxcvbn import zxcvbn
 from agents.ansari import Ansari
 from ansari_db import AnsariDB, MessageLogger
 from config import Settings, get_settings
+from main_whatsapp import router as whatsapp_router
 from presenters.api_presenter import ApiPresenter
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
+
+# Include the WhatsApp router
+app.include_router(whatsapp_router)
 
 if __name__ == "__main__" and get_settings().LOGGING_LEVEL.upper() == "DEBUG":
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
