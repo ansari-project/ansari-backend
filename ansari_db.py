@@ -575,3 +575,48 @@ class AnsariDB:
             return {"role": msg[0], "content": msg[1], "name": msg[2]}
         else:
             return {"role": msg[0], "content": msg[1]}
+
+    def store_quran_answer(self, surah: int, ayah: int, question: str, ansari_answer: str):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO quran_answers (surah, ayah, question, ansari_answer, review_result, final_answer)
+                    VALUES (%s, %s, %s, %s, 'pending', NULL)
+                    """,
+                    (surah, ayah, question, ansari_answer)
+                )
+                conn.commit()
+
+    def get_quran_answer(self, surah: int, ayah: int, question: str) -> str | None:
+        """
+        Retrieve the stored answer for a given surah, ayah, and question.
+
+        Args:
+            surah (int): The surah number.
+            ayah (int): The ayah number.
+            question (str): The question asked.
+
+        Returns:
+            str: The stored answer, or None if not found.
+        """
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    select_cmd = """
+                    SELECT ansari_answer
+                    FROM quran_answers
+                    WHERE surah = %s AND ayah = %s AND question = %s
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1;
+                    """
+                    cur.execute(select_cmd, (surah, ayah, question))
+                    result = cur.fetchone()
+                    
+                    if result:
+                        return result[0]
+                    else:
+                        return None
+        except Exception as e:
+            logger.error(f"Error retrieving Quran answer: {str(e)}")
+            return None
