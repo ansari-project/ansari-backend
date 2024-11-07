@@ -6,6 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main_api import app
+from config import get_settings
+from ansari_db import AnsariDB
 
 client = TestClient(app)
 
@@ -543,3 +545,61 @@ async def test_add_feedback(login_user, create_thread):
     )
     assert response.status_code == 200
     assert response.json() == {"status": "success"}
+
+@pytest.fixture(scope="module")
+def settings():
+    return get_settings()
+
+@pytest.fixture(scope="module")
+def db(settings):
+    return AnsariDB(settings)
+
+@pytest.mark.integration
+@pytest.mark.parametrize("surah,ayah,question", [
+    (1, 1, "What is the meaning of bismillah?"),
+    (2, 255, "What is the significance of Ayat al-Kursi?"),
+    (112, 1, "What does this ayah teach about Allah?")
+])
+def test_answer_ayah_question_integration(settings, db, surah, ayah, question):
+    api_key = settings.QURAN_DOT_COM_API_KEY.get_secret_value()
+
+    # Test successful request
+    start_time = time.time()
+    response = client.post(
+        "/api/v2/ayah",
+        json={
+            "surah": surah,
+            "ayah": ayah,
+            "question": question,
+            "augment_question": False,
+            "apikey": api_key
+        }
+    )
+    end_time = time.time()
+
+    assert response.status_code == 200, f"Failed with status code {response.status_code}"
+    assert "response" in response.json(), "Response doesn't contain 'response' key"
+    
+    answer = response.json()["response"]
+    assert isinstance(answer, str), "Answer is not a string"
+    assert len(answer) > 0, "Answer is empty"
+
+    # Check response time
+    assert end_time - start_time < 60, "Response took too long"
+
+    # Check database storage
+    stored_answer = db.get_quran_answer(surah, ayah, question)
+    assert stored_answer == answer, "Stored answer doesn't match the API response"
+
+    # Test error handling
+    error_response = client.post(
+        "/api/v2/ayah",
+        json={
+            "surah": surah,
+            "ayah": ayah,
+            "question": question,
+            "augment_question": False,
+            "apikey": "wrong_api_key"
+        }
+    )
+    assert error_response.status_code == 401, "Incorrect API key should return 401"
