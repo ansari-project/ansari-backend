@@ -37,6 +37,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           PGPASSWORD: postgres
         ports:
+          # Using non-default Postgres port to avoid conflicts between local DB and local GitHub Actions testing using `act`
           - "5433:5432"
         options: >-
           --health-cmd pg_isready
