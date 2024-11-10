@@ -1,6 +1,7 @@
 from typing import Union
 
 from pydantic import BaseModel
+from pathlib import Path
 
 
 class Prompt(BaseModel):
@@ -16,7 +17,16 @@ class Prompt(BaseModel):
 
 
 class PromptMgr:
-    def __init__(self, hot_reload: bool = True, src_dir: str = "resources/prompts"):
+    def get_resource_path(filename):
+        # Get the directory of the current script
+        script_dir = Path(__file__).resolve()
+        # Construct the path to the resources directory
+        resources_dir = script_dir.parent.parent / 'resources'
+        # Construct the full path to the resource file
+        path = resources_dir / filename
+        return path
+
+    def __init__(self, hot_reload: bool = True, src_dir: str = str(get_resource_path("prompts"))):
         """Creates a prompt manager.
 
         Args:

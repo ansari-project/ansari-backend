@@ -1,4 +1,5 @@
 import json
+import logging
 import requests
 
 
@@ -12,6 +13,8 @@ class SearchVectara:
         params: list[dict],
         required_params: list[str],
     ):
+        logging.info("Initializing SearchVectara")
+        print("!!! API key is: ", vectara_api_key)
         self.api_key = vectara_api_key
         self.corpus_key = vectara_corpus_key
         self.base_url = f"https://api.vectara.io/v2/corpora/{self.corpus_key}/query"

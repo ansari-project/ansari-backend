@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 from jinja2 import Environment, FileSystemLoader
 
-from agents.ansari import Ansari
-from config import get_settings
+from ansari.agents import Ansari
+from ansari.config import get_settings
 
 LOGGER = logging.getLogger(__name__)
 logging_level = get_settings().LOGGING_LEVEL.upper()
@@ -23,7 +23,7 @@ LOGGER.addHandler(console_handler)
 
 @pytest.fixture(scope="module")
 def data():
-    tenv = Environment(loader=FileSystemLoader("resources/templates/"))
+    tenv = Environment(loader=FileSystemLoader("src/ansari/resources/templates/"))
     q_temp = tenv.get_template("ask_question.txt")
     df = pd.read_csv("tests/batik-v1-en.csv")
     cache = {}

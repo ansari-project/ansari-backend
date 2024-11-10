@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Union
 import uuid
 
 import psycopg2
@@ -16,12 +17,12 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from zxcvbn import zxcvbn
 
-from agents.ansari import Ansari
-from agents.ansari_workflow import AnsariWorkflow
-from ansari_db import AnsariDB, MessageLogger
-from config import Settings, get_settings
-from main_whatsapp import router as whatsapp_router
-from presenters.api_presenter import ApiPresenter
+from ansari.agents import Ansari
+from ansari.agents import AnsariWorkflow
+from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.config import Settings, get_settings
+from ansari.app.main_whatsapp import router as whatsapp_router
+from ansari.presenters.api_presenter import ApiPresenter
 
 logger = logging.getLogger(__name__)
 logging_level = get_settings().LOGGING_LEVEL.upper()
@@ -36,7 +37,6 @@ app = FastAPI()
 def main():
   add_app_middleware()
 
-  
 def add_app_middleware():
     app.add_middleware(
         CORSMiddleware,
@@ -46,8 +46,7 @@ def add_app_middleware():
         allow_headers=["*"],
     )
 
-main() 
-
+main()
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
 
@@ -689,7 +688,7 @@ class AyahQuestionRequest(BaseModel):
     surah: int
     ayah: int
     question: str
-    augment_question: bool | None = False
+    augment_question: Union[bool,None] = False
     apikey: str
 
 @app.post("/api/v2/ayah")
@@ -703,6 +702,7 @@ async def answer_ayah_question(
 
     try:
         # Create AnsariWorkflow instance
+        logging.debug("Creating AnsariWorkflow instance for {req.surah}:{req.ayah}")
         ansari_workflow = AnsariWorkflow(settings)
 
         ayah_id = req.surah*1000 + req.ayah
@@ -750,6 +750,6 @@ async def answer_ayah_question(
         db.store_quran_answer(req.surah, req.ayah, req.question, ansari_answer)
 
         return {"response": ansari_answer}
-    except Exception as e:
-        logger.error(f"Error in answer_ayah_question: {str(e)}")
+    except Exception:
+        logger.error("Error in answer_ayah_question", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")

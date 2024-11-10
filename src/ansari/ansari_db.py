@@ -2,7 +2,7 @@ import json
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-
+from typing import Union
 import bcrypt
 import jwt
 import psycopg2
@@ -10,7 +10,7 @@ import psycopg2.pool
 from fastapi import HTTPException, Request
 from jwt import ExpiredSignatureError, InvalidTokenError
 
-from config import Settings, get_settings
+from ansari.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 logging_level = get_settings().LOGGING_LEVEL.upper()
@@ -588,7 +588,7 @@ class AnsariDB:
                 )
                 conn.commit()
 
-    def get_quran_answer(self, surah: int, ayah: int, question: str) -> str | None:
+    def get_quran_answer(self, surah: int, ayah: int, question: str) -> Union[str, None]:
         """
         Retrieve the stored answer for a given surah, ayah, and question.
 
@@ -612,7 +612,6 @@ class AnsariDB:
                     """
                     cur.execute(select_cmd, (surah, ayah, question))
                     result = cur.fetchone()
-                    
                     if result:
                         return result[0]
                     else:

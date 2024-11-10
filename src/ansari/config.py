@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from functools import lru_cache
 from typing import Literal, Optional, Union
 
@@ -32,6 +33,15 @@ class Settings(BaseSettings):
         extra="ignore",
         missing="ignore",
     )
+
+    def get_resource_path(filename):
+        # Get the directory of the current script
+        script_dir = Path(__file__).resolve()
+        # Construct the path to the resources directory
+        resources_dir = script_dir.parent / 'resources'
+        # Construct the full path to the resource file
+        path = resources_dir / filename
+        return path
 
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari"
@@ -82,12 +92,12 @@ class Settings(BaseSettings):
     TAFSIR_FN_NAME: str = Field(default="search_tafsir")
     TAFSIR_FN_DESCRIPTION: str = Field(
         default="""
-        Queries Tafsir Ibn Kathir (the renowned Qur'anic exegesis) for relevant 
-        interpretations and explanations. You call this function when you need to 
-        provide authoritative Qur'anic commentary and understanding based on Ibn 
-        Kathir's work. Regardless of the language used in the original conversation, 
-        you will translate the query into English before searching the tafsir. The 
-        function returns a list of **potentially** relevant matches, which may include 
+        Queries Tafsir Ibn Kathir (the renowned Qur'anic exegesis) for relevant
+        interpretations and explanations. You call this function when you need to
+        provide authoritative Qur'anic commentary and understanding based on Ibn
+        Kathir's work. Regardless of the language used in the original conversation,
+        you will translate the query into English before searching the tafsir. The
+        function returns a list of **potentially** relevant matches, which may include
         multiple passages of interpretation and analysis.
         """
     )
@@ -114,13 +124,15 @@ class Settings(BaseSettings):
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
 
-    template_dir: DirectoryPath = Field(default="resources/templates")
+    template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
 
     MODEL: str = Field(default="gpt-4o")
     MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
+    PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
+
 
     LOGGING_LEVEL: str = Field(default="INFO")
 
