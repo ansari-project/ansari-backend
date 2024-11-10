@@ -1,4 +1,5 @@
 bcrypt
+build
 discord.py
 diskcache
 fastapi
@@ -17,8 +18,10 @@ pyjwt
 pytest-asyncio
 rich
 sendgrid
+setuptools
 tenacity
 tiktoken
 typer
 uvicorn
+wheel
 zxcvbn
