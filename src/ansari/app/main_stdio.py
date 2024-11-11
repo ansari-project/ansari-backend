@@ -1,8 +1,8 @@
 import logging
 
-from agents.ansari import Ansari
-from config import get_settings
-from presenters.stdio_presenter import StdioPresenter
+from ansari.agents import Ansari
+from ansari.config import get_settings
+from ansari.presenters.stdio_presenter import StdioPresenter
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

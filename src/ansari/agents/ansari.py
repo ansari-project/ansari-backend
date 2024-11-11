@@ -2,8 +2,6 @@ import hashlib
 import json
 import logging
 import os
-import re
-import sys
 import time
 import traceback
 from datetime import date, datetime
@@ -12,11 +10,11 @@ from typing import Union
 import litellm
 from langfuse.decorators import langfuse_context, observe
 
-from config import get_settings
-from tools.search_hadith import SearchHadith
-from tools.search_vectara import SearchVectara
-from tools.search_quran import SearchQuran
-from util.prompt_mgr import PromptMgr
+from ansari.config import get_settings
+from ansari.tools.search_hadith import SearchHadith
+from ansari.tools.search_vectara import SearchVectara
+from ansari.tools.search_quran import SearchQuran
+from ansari.util.prompt_mgr import PromptMgr
 
 logger = logging.getLogger(__name__ + ".Ansari")
 logging_level = get_settings().LOGGING_LEVEL.upper()
@@ -49,7 +47,7 @@ class Ansari:
             sm.get_tool_name(): sm,
         }
         self.model = settings.MODEL
-        self.pm = PromptMgr()
+        self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
         self.tools = [
             x.get_tool_description() for x in self.tool_name_to_instance.values()

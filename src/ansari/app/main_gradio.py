@@ -1,6 +1,6 @@
-from agents.ansari import Ansari
-from config import get_settings
-from presenters.gradio_presenter import GradioPresenter
+from ansari.agents import Ansari
+from ansari.config import get_settings
+from ansari.presenters.gradio_presenter import GradioPresenter
 
 if __name__ == "__main__":
     agent = Ansari(get_settings())

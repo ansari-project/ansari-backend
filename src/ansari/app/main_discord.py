@@ -1,5 +1,5 @@
-from agents.ansari import Ansari
-from config import get_settings
+from ansari.agents import Ansari
+from ansari.config import get_settings
 from presenters.discord_presenter import DiscordPresenter
 
 # This work involves 3 agents, with Ansari as primary.

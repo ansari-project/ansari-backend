@@ -6,7 +6,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
+from ansari.config import get_settings
 
 # Initialize logging
 logger = logging.getLogger(__name__)

@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from agents.ansari import Ansari
-from config import get_settings
-from presenters.whatsapp_presenter import WhatsAppPresenter
+from ansari.agents import Ansari
+from ansari.config import get_settings
+from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
 
 # Initialize logging
 logger = logging.getLogger(__name__)

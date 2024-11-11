@@ -6,10 +6,10 @@ from datetime import date
 
 import litellm
 
-from tools.search_hadith import SearchHadith
-from tools.search_vectara import SearchVectara
-from tools.search_quran import SearchQuran
-from util.prompt_mgr import PromptMgr
+from ansari.tools.search_hadith import SearchHadith
+from ansari.tools.search_vectara import SearchVectara
+from ansari.tools.search_quran import SearchQuran
+from ansari.util.prompt_mgr import PromptMgr
 
 logger = logging.getLogger(__name__ + ".AnsariWorkflow")
 

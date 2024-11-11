@@ -5,11 +5,15 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from main_api import app
-from config import get_settings
-from ansari_db import AnsariDB
+from ansari.app.main_api import app
+from ansari.config import get_settings
+from ansari.ansari_db import AnsariDB
 
 client = TestClient(app)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Test data
 valid_email_base = "test@example.com"

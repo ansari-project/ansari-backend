@@ -1,4 +1,5 @@
 bcrypt
+build
 discord.py
 diskcache
 fastapi
@@ -14,10 +15,13 @@ psycopg2-binary
 pydantic_settings
 pyislam
 pyjwt
+pytest-asyncio
 rich
 sendgrid
+setuptools
 tenacity
 tiktoken
 typer
 uvicorn
+wheel
 zxcvbn
