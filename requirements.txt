@@ -9,6 +9,7 @@ jinja2
 langfuse>=2.0.0
 litellm
 openai
+pandas
 psycopg2-binary
 pydantic_settings
 pyjwt
