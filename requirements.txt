@@ -3,8 +3,6 @@ build
 discord.py
 diskcache
 fastapi
-gradio
-gradio_client
 gunicorn
 jinja2
 # should be >= 2 in order for "from langfuse.decorators" to work
@@ -13,7 +11,6 @@ litellm
 openai
 psycopg2-binary
 pydantic_settings
-pyislam
 pyjwt
 pytest-asyncio
 rich
