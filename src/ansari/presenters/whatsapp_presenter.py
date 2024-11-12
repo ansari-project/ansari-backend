@@ -93,8 +93,10 @@ class WhatsAppPresenter:
             )
             return "error"
         elif "statuses" in value:
+            status = value["statuses"]["status"]
+            timestamp = value["statuses"]["timestamp"]
             logger.debug(
-                f"WhatsApp status update received:\n({value["statuses"]["status"]} at {value["statuses"]["timestamp"]}.)"
+                f"WhatsApp status update received:\n({status} at {timestamp}.)"
             )
             return "status update"
         else:
