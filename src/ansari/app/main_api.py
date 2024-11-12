@@ -1,7 +1,7 @@
 import logging
 import os
-from typing import Union
 import uuid
+from typing import Union
 
 import psycopg2
 import psycopg2.extras
@@ -17,16 +17,15 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from zxcvbn import zxcvbn
 
-from ansari.agents import Ansari
-from ansari.agents import AnsariWorkflow
+from ansari.agents import Ansari, AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger
-from ansari.config import Settings, get_settings
+from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
+from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 
-logger = logging.getLogger(__name__)
-logging_level = get_settings().LOGGING_LEVEL.upper()
-logger.setLevel(logging_level)
+logger = get_logger(__name__)
+
 
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
@@ -35,7 +34,8 @@ app = FastAPI()
 
 
 def main():
-  add_app_middleware()
+    add_app_middleware()
+
 
 def add_app_middleware():
     app.add_middleware(
@@ -45,6 +45,7 @@ def add_app_middleware():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
 
 main()
 db = AnsariDB(get_settings())
@@ -58,7 +59,7 @@ cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 # Include the WhatsApp router
 app.include_router(whatsapp_router)
 
-if __name__ == "__main__" and get_settings().LOGGING_LEVEL.upper() == "DEBUG":
+if __name__ == "__main__" and get_settings().DEBUG_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     # Note: if you instead run
     #   uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT
@@ -684,18 +685,20 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     else:
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
+
 class AyahQuestionRequest(BaseModel):
     surah: int
     ayah: int
     question: str
-    augment_question: Union[bool,None] = False
+    augment_question: Union[bool, None] = False
     apikey: str
+
 
 @app.post("/api/v2/ayah")
 async def answer_ayah_question(
     req: AyahQuestionRequest,
     settings: Settings = Depends(get_settings),
-    db: AnsariDB = Depends(lambda: AnsariDB(get_settings()))
+    db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
 ):
     if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -705,7 +708,7 @@ async def answer_ayah_question(
         logging.debug("Creating AnsariWorkflow instance for {req.surah}:{req.ayah}")
         ansari_workflow = AnsariWorkflow(settings)
 
-        ayah_id = req.surah*1000 + req.ayah
+        ayah_id = req.surah * 1000 + req.ayah
 
         # Check if the answer is already stored in the database
         stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
@@ -719,23 +722,11 @@ async def answer_ayah_question(
                 {
                     "query": req.question,
                     "tool_name": "search_tafsir",
-                    "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}"
-                }
+                    "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}",
+                },
             ),
-            (
-                "gen_query",
-                {
-                    "input": req.question,
-                    "target_corpus": "tafsir"
-                }
-            ),
-            (
-                "gen_answer",
-                {
-                    "input": req.question,
-                    "search_results_indices": [0]
-                }
-            )
+            ("gen_query", {"input": req.question, "target_corpus": "tafsir"}),
+            ("gen_answer", {"input": req.question, "search_results_indices": [0]}),
         ]
         if not req.augment_question:
             workflow_steps.pop(1)

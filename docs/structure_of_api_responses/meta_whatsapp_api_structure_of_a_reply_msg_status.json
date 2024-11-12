@@ -24,7 +24,7 @@
                                     }
                                 },
                                 "pricing": {
-                                    "billable": "True (actually sent as a boolean value, so no quotes)",
+                                    "billable": "True/False (actually sent as a boolean value, so no quotes)",
                                     "pricing_model": "CBP",
                                     "category": "service"
                                 }

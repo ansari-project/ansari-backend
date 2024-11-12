@@ -5,15 +5,14 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from ansari.ansari_db import AnsariDB
+from ansari.ansari_logger import get_logger
 from ansari.app.main_api import app
 from ansari.config import get_settings
-from ansari.ansari_db import AnsariDB
+
+logger = get_logger(__name__)
 
 client = TestClient(app)
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 
 # Test data
 valid_email_base = "test@example.com"
@@ -550,20 +549,26 @@ async def test_add_feedback(login_user, create_thread):
     assert response.status_code == 200
     assert response.json() == {"status": "success"}
 
+
 @pytest.fixture(scope="module")
 def settings():
     return get_settings()
+
 
 @pytest.fixture(scope="module")
 def db(settings):
     return AnsariDB(settings)
 
+
 @pytest.mark.integration
-@pytest.mark.parametrize("surah,ayah,question", [
-    (1, 1, "What is the meaning of bismillah?"),
-    (2, 255, "What is the significance of Ayat al-Kursi?"),
-    (112, 1, "What does this ayah teach about Allah?")
-])
+@pytest.mark.parametrize(
+    "surah,ayah,question",
+    [
+        (1, 1, "What is the meaning of bismillah?"),
+        (2, 255, "What is the significance of Ayat al-Kursi?"),
+        (112, 1, "What does this ayah teach about Allah?"),
+    ],
+)
 def test_answer_ayah_question_integration(settings, db, surah, ayah, question):
     api_key = settings.QURAN_DOT_COM_API_KEY.get_secret_value()
 
@@ -576,14 +581,16 @@ def test_answer_ayah_question_integration(settings, db, surah, ayah, question):
             "ayah": ayah,
             "question": question,
             "augment_question": False,
-            "apikey": api_key
-        }
+            "apikey": api_key,
+        },
     )
     end_time = time.time()
 
-    assert response.status_code == 200, f"Failed with status code {response.status_code}"
+    assert (
+        response.status_code == 200
+    ), f"Failed with status code {response.status_code}"
     assert "response" in response.json(), "Response doesn't contain 'response' key"
-    
+
     answer = response.json()["response"]
     assert isinstance(answer, str), "Answer is not a string"
     assert len(answer) > 0, "Answer is empty"
@@ -603,7 +610,7 @@ def test_answer_ayah_question_integration(settings, db, surah, ayah, question):
             "ayah": ayah,
             "question": question,
             "augment_question": False,
-            "apikey": "wrong_api_key"
-        }
+            "apikey": "wrong_api_key",
+        },
     )
     assert error_response.status_code == 401, "Incorrect API key should return 401"

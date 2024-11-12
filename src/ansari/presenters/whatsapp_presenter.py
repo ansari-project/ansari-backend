@@ -1,17 +1,15 @@
 import copy
-import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 
-# Initialize logging
-logger = logging.getLogger(__name__)
-logging_level = get_settings().LOGGING_LEVEL.upper()
-logger.setLevel(logging_level)
+logger = get_logger(__name__)
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -28,7 +26,7 @@ app.add_middleware(
 
 class WhatsAppPresenter:
     def __init__(
-        self, agent, access_token, business_phone_number_id, api_version="v13.0"
+        self, agent, access_token, business_phone_number_id, api_version="v21.0"
     ):
         self.agent = agent
         self.access_token = access_token
@@ -70,7 +68,7 @@ class WhatsAppPresenter:
     async def extract_relevant_whatsapp_message_details(
         self,
         body: Dict[str, Any],
-    ) -> Optional[Tuple[str, str, str]]:
+    ) -> Tuple[str, str, str] | str | None:
         """
         Extracts relevant whatsapp message details from the incoming webhook payload.
 
@@ -88,18 +86,40 @@ class WhatsAppPresenter:
             and (changes := entry[0].get("changes", []))
             and (value := changes[0].get("value", {}))
             and (messages := value.get("messages", []))
-            and messages[0]
+            and (incoming_msg := messages[0])
         ):
-            return None
+            logger.error(
+                f"Invalid received payload from WhatsApp user and/or problem with Meta's API :\n{body}"
+            )
+            return "error"
+        elif "statuses" in value:
+            logger.debug(
+                f"WhatsApp status update received:\n({value["statuses"]["status"]} at {value["statuses"]["timestamp"]}.)"
+            )
+            return "status update"
+        else:
+            logger.info(f"Received payload from WhatsApp user:\n{body}")
 
         # Extract the business phone number ID from the webhook payload
         business_phone_number_id = value["metadata"]["phone_number_id"]
         # Extract the phone number of the WhatsApp sender
-        from_whatsapp_number = messages[0]["from"]
-        # Extract the message text of the WhatsApp sender
-        incoming_msg_body = messages[0]["text"]["body"]
+        from_whatsapp_number = incoming_msg["from"]
+        # Meta API note: Meta sends "errors" key when receiving unsupported message types
+        # (e.g., video notes, gifs sent from giphy, or polls)
+        incoming_msg_type = (
+            incoming_msg["type"]
+            if incoming_msg["type"] in incoming_msg.keys()
+            else "errors"
+        )
+        # Extract the message of the WhatsApp sender (could be text, image, etc.)
+        incoming_msg_body = incoming_msg[incoming_msg_type]
 
-        return business_phone_number_id, from_whatsapp_number, incoming_msg_body
+        return (
+            business_phone_number_id,
+            from_whatsapp_number,
+            incoming_msg_type,
+            incoming_msg_body,
+        )
 
     async def send_whatsapp_message(
         self, from_whatsapp_number: str, msg_body: str

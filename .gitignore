@@ -1,8 +1,10 @@
 .conda/
+.venv/
 .vscode/
+src/ansari_backend.egg-info/*
+diskcache_dir/
 abandoned/
 bin/
-data/
 datasources/
 etc/
 example_projects/

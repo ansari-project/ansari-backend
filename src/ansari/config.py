@@ -1,13 +1,12 @@
 import logging
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Optional, Union
 
-from pydantic import (DirectoryPath, Field, PostgresDsn, SecretStr,
-                      field_validator)
-
+from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Can't use get_logger() here due to circular import
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +37,7 @@ class Settings(BaseSettings):
         # Get the directory of the current script
         script_dir = Path(__file__).resolve()
         # Construct the path to the resources directory
-        resources_dir = script_dir.parent / 'resources'
+        resources_dir = script_dir.parent / "resources"
         # Construct the full path to the resource file
         path = resources_dir / filename
         return path
@@ -56,7 +55,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24 * 90)
 
     ORIGINS: Union[str, list[str]] = Field(
-        default=["https://ansari.chat", "http://ansari.chat"], env="ORIGINS"
+        default=["https://ansari.chat", "http://ansari.chat"]
     )
     API_SERVER_PORT: int = Field(default=8000)
 
@@ -121,6 +120,7 @@ class Settings(BaseSettings):
     WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
     WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
+    WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
 
@@ -133,8 +133,8 @@ class Settings(BaseSettings):
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
 
-
     LOGGING_LEVEL: str = Field(default="INFO")
+    DEBUG_MODE: bool = Field(default=False)
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):
