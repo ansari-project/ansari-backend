@@ -133,6 +133,10 @@ class Settings(BaseSettings):
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
 
+    PYTEST_API_KEY: SecretStr = Field(default="")
+
+    # the two default settings below are used in production, so don't change them from here
+    # and instead, change them from .env when developing/testing/debugging locally
     LOGGING_LEVEL: str = Field(default="INFO")
     DEBUG_MODE: bool = Field(default=False)
 

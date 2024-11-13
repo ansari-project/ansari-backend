@@ -77,7 +77,11 @@ def validate_cors(request: Request, settings: Settings = Depends(get_settings)) 
         logger.info(f"Raw request is {request.headers}")
         origin = request.headers.get("origin", "")
         mobile = request.headers.get("x-mobile-ansari", "")
-        if origin and origin in settings.ORIGINS or mobile == "ANSARI":
+        if (
+            origin
+            and origin in settings.ORIGINS
+            or mobile == get_settings().PYTEST_API_KEY.get_secret_value()
+        ):
             logger.debug("CORS OK")
             return True
         else:
