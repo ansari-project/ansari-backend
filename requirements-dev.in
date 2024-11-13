@@ -1,0 +1,4 @@
+flake8
+PyArabic
+ruff
+textract-py3
