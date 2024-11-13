@@ -1,18 +1,14 @@
-import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from ansari.agents import Ansari
+from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
 
-# Initialize logging
-logger = logging.getLogger(__name__)
-logging_level = get_settings().LOGGING_LEVEL.upper()
-logger.setLevel(logging_level)
-
+logger = get_logger(__name__)
 
 # Create a router in order to make the FastAPI functions here an extension of the main FastAPI app
 router = APIRouter()
@@ -20,11 +16,17 @@ router = APIRouter()
 # Initialize the agent
 ansari = Ansari(get_settings())
 
+chosen_whatsapp_biz_num = (
+    get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
+    if not get_settings().DEBUG_MODE
+    else get_settings().WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
+)
+
 # Initialize the presenter with the agent and credentials
 presenter = WhatsAppPresenter(
     agent=ansari,
     access_token=get_settings().WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER.get_secret_value(),
-    business_phone_number_id=get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value(),
+    business_phone_number_id=chosen_whatsapp_biz_num,
     api_version=get_settings().WHATSAPP_API_VERSION,
 )
 presenter.present()
@@ -78,21 +80,40 @@ async def main_webhook(request: Request) -> None:
 
     # Terminate if incoming webhook message is empty/invalid/msg-status-update(sent,delivered,read)
     result = await presenter.extract_relevant_whatsapp_message_details(data)
-    if not result:
-        logger.debug(
-            f"whatsapp incoming message that will not be considered by the webhook: \n{data}"
-        )
+    if isinstance(result, str):
+        if "error" in result.lower():
+            presenter.send_whatsapp_message(
+                "There's a problem with the server. Kindly send again later..."
+            )
+            return
         return
-    logger.info(data)
 
     # Get relevant info from Meta's API
-    business_phone_number_id, from_whatsapp_number, incoming_msg_body = result
+    (
+        business_phone_number_id,
+        from_whatsapp_number,
+        incoming_msg_type,
+        incoming_msg_body,
+    ) = result
 
-    # # Send acknowledgment message
-    # # (uncomment this and comment any function(s) below it when you want to quickly test that the webhook works)
-    # await presenter.send_whatsapp_message(
-    #     from_whatsapp_number, f"Ack: {incoming_msg_body}"
-    # )
+    if incoming_msg_type != "text":
+        msg_type = (
+            incoming_msg_type + "s"
+            if not incoming_msg_type.endswith("s")
+            else incoming_msg_type
+        )
+        msg_type = msg_type.replace("unsupporteds", "this media type")
+        await presenter.send_whatsapp_message(
+            from_whatsapp_number,
+            f"Sorry, I can't process {msg_type} yet. Please send me a text message.",
+        )
+        return
+
+    # Send acknowledgment message
+    if get_settings().DEBUG_MODE:
+        await presenter.send_whatsapp_message(
+            from_whatsapp_number, f"Ack: {incoming_msg_body}"
+        )
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
     await presenter.process_and_reply_to_whatsapp_sender(

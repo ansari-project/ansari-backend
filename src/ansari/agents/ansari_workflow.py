@@ -6,24 +6,18 @@ from datetime import date
 
 import litellm
 
+from ansari.ansari_logger import get_logger
 from ansari.tools.search_hadith import SearchHadith
-from ansari.tools.search_vectara import SearchVectara
 from ansari.tools.search_quran import SearchQuran
+from ansari.tools.search_vectara import SearchVectara
 from ansari.util.prompt_mgr import PromptMgr
 
-logger = logging.getLogger(__name__ + ".AnsariWorkflow")
-
 if not sys.argv[0].endswith("main_api.py"):
-    logging_mode = logging.DEBUG
+    logging_level = logging.DEBUG
 else:
-    logging_mode = logging.INFO
+    logging_level = logging.INFO
 
-logger.setLevel(logging_mode)
-
-# # Uncomment below when logging above doesn't output to std, and you want to see the logs in the console
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging_mode)
-# logger.addHandler(console_handler)
+logger = get_logger(__name__ + ".AnsariWorkflow", logging_level)
 
 
 class AnsariWorkflow:
@@ -118,7 +112,7 @@ class AnsariWorkflow:
         elif "query_from_prev_output_index" in step_params:
             results = tool.run_as_string(
                 prev_outputs[step_params["query_from_prev_output_index"]],
-                metadata_filter=step_params.get("metadata_filter")
+                metadata_filter=step_params.get("metadata_filter"),
             )
         else:
             raise ValueError(

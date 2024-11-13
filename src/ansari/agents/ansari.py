@@ -1,6 +1,5 @@
 import hashlib
 import json
-import logging
 import os
 import time
 import traceback
@@ -10,20 +9,13 @@ from typing import Union
 import litellm
 from langfuse.decorators import langfuse_context, observe
 
-from ansari.config import get_settings
+from ansari.ansari_logger import get_logger
 from ansari.tools.search_hadith import SearchHadith
-from ansari.tools.search_vectara import SearchVectara
 from ansari.tools.search_quran import SearchQuran
+from ansari.tools.search_vectara import SearchVectara
 from ansari.util.prompt_mgr import PromptMgr
 
-logger = logging.getLogger(__name__ + ".Ansari")
-logging_level = get_settings().LOGGING_LEVEL.upper()
-logger.setLevel(logging_level)
-
-# # Uncomment below when logging above doesn't output to std, and you want to see the logs in the console
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging_mode)
-# logger.addHandler(console_handler)
+logger = get_logger(__name__ + ".Ansari")
 
 
 class Ansari:

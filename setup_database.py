@@ -1,7 +1,11 @@
 import os
+
 import psycopg2
 
-from config import get_settings
+from ansari.ansari_logger import get_logger
+from ansari.config import get_settings
+
+logger = get_logger(__name__)
 
 
 def import_sql_files(directory, db_url):
@@ -20,7 +24,7 @@ def import_sql_files(directory, db_url):
         for filename in sorted_files:
             if filename.endswith(".sql"):
                 file_path = os.path.join(directory, filename)
-                print("Importing:", file_path)
+                logger.info(f"Importing: {file_path}")
 
                 # Read the SQL file
                 with open(file_path, "r") as f:
@@ -29,7 +33,7 @@ def import_sql_files(directory, db_url):
                     # Execute the SQL query
                     cursor.execute(sql_query)
                 except psycopg2.Error as error:
-                    print("Error executing", filename, ":", error)
+                    logger.error(f"Error executing {filename}: {error}")
                     conn.rollback()  # Rollback the transaction in case of error
 
         # Commit changes to the database
@@ -39,7 +43,7 @@ def import_sql_files(directory, db_url):
         cursor.close()
 
     except (Exception, psycopg2.DatabaseError) as error:
-        print("Error:", error)
+        logger.error(f"Error: {error}")
     finally:
         if conn is not None:
             conn.close()
