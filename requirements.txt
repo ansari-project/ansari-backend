@@ -10,6 +10,7 @@ litellm==1.52.5
 openai==1.54.3
 pandas==2.2.3
 psycopg2-binary==2.9.10
+pydantic_settings==2.6.1
 PyJWT==2.9.0
 pytest-asyncio==0.24.0
 sendgrid==6.11.0
