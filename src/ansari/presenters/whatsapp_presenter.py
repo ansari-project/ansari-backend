@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import httpx
 from fastapi import FastAPI
@@ -68,7 +68,7 @@ class WhatsAppPresenter:
     async def extract_relevant_whatsapp_message_details(
         self,
         body: Dict[str, Any],
-    ) -> Tuple[str, str, str] | str | None:
+    ) -> Optional[Union[Tuple[str, str, str], str]]:
         """
         Extracts relevant whatsapp message details from the incoming webhook payload.
 
