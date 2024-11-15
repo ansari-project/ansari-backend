@@ -59,7 +59,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install --system flake8 pytest pytest-asyncio pytest-cov 
+        uv pip install --system ruff pytest pytest-asyncio pytest-cov 
         if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
     - name: Install PostgreSQL client
       run: |
@@ -73,12 +73,10 @@ jobs:
         for sql_file in sql/*.sql; do
           psql -h postgres -p 5432 -U postgres -d postgres -f "$sql_file"
         done
-    - name: Lint with flake8
+    - name: Lint with ruff
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # stop the build if there are lint errors
+        ruff check . --config pyproject.toml --output-format=github
     - name: Test with pytest
       env:
         PGPASSWORD: postgres
