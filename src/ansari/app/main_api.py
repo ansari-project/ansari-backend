@@ -1,7 +1,6 @@
 import logging
 import os
 import uuid
-from typing import Union
 
 import psycopg2
 import psycopg2.extras
@@ -68,7 +67,10 @@ if __name__ == "__main__" and get_settings().DEBUG_MODE:
 
     filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]
     uvicorn.run(
-        f"{filename_without_extension}:app", host="127.0.0.1", port=8000, reload=True
+        f"{filename_without_extension}:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
     )
 
 
@@ -80,8 +82,7 @@ def validate_cors(request: Request, settings: Settings = Depends(get_settings)) 
         if origin and origin in settings.ORIGINS or mobile == "ANSARI":
             logger.debug("CORS OK")
             return True
-        else:
-            raise HTTPException(status_code=502, detail="Not Allowed Origin")
+        raise HTTPException(status_code=502, detail="Not Allowed Origin")
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
 
@@ -100,10 +101,9 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
     Returns 200 on success.
     Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
-
     password_hash = db.hash_password(req.password)
     logger.info(
-        f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}"
+        f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}",
     )
     try:
         # Check if account exists
@@ -113,8 +113,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
         if passwd_quality["score"] < 2:
             raise HTTPException(
                 status_code=400,
-                detail="Password is too weak. Suggestions: "
-                + ",".join(passwd_quality["feedback"]["suggestions"]),
+                detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
         return db.register(req.email, req.first_name, req.last_name, password_hash)
     except psycopg2.Error as e:
@@ -155,14 +154,18 @@ async def login_user(
                 access_token_insert_result = db.save_access_token(user_id, access_token)
                 if access_token_insert_result["status"] != "success":
                     raise HTTPException(
-                        status_code=500, detail="Couldn't save access token"
+                        status_code=500,
+                        detail="Couldn't save access token",
                     )
                 refresh_token_insert_result = db.save_refresh_token(
-                    user_id, refresh_token, access_token_insert_result["token_db_id"]
+                    user_id,
+                    refresh_token,
+                    access_token_insert_result["token_db_id"],
                 )
                 if refresh_token_insert_result["status"] != "success":
                     raise HTTPException(
-                        status_code=500, detail="Couldn't save refresh token"
+                        status_code=500,
+                        detail="Couldn't save refresh token",
                     )
                 return {
                     "status": "success",
@@ -186,8 +189,7 @@ async def refresh_token(
     cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
-    """
-    Refresh both the access token and the refresh token.
+    """Refresh both the access token and the refresh token.
 
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
@@ -197,6 +199,7 @@ async def refresh_token(
             - 403 if CORS validation fails or the token type is invalid.
             - 401 if the refresh token is invalid or has expired.
             - 500 if there is an internal server error during token generation or saving.
+
     """
     if cors_ok:
         old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
@@ -228,11 +231,13 @@ async def refresh_token(
 
                 # Save the new access token to the database
                 access_token_insert_result = db.save_access_token(
-                    token_params["user_id"], new_access_token
+                    token_params["user_id"],
+                    new_access_token,
                 )
                 if access_token_insert_result["status"] != "success":
                     raise HTTPException(
-                        status_code=500, detail="Couldn't save access token"
+                        status_code=500,
+                        detail="Couldn't save access token",
                     )
 
                 # Save the new refresh token to the database
@@ -243,7 +248,8 @@ async def refresh_token(
                 )
                 if refresh_token_insert_result["status"] != "success":
                     raise HTTPException(
-                        status_code=500, detail="Couldn't save refresh token"
+                        status_code=500,
+                        detail="Couldn't save refresh token",
                     )
 
                 # Cache the new tokens with a short expiry (3 seconds)
@@ -415,10 +421,7 @@ def share_thread(
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    """
-    Take a snapshot of a thread at this time and make it shareable.
-
-    """
+    """Take a snapshot of a thread at this time and make it shareable."""
     if cors_ok and token_params:
         logger.info(f"Token_params is {token_params}")
         # TODO(mwk): check that the user_id in the token matches the
@@ -438,10 +441,7 @@ def get_snapshot(
     share_uuid_str: str,
     cors_ok: bool = Depends(validate_cors),
 ):
-    """
-    Take a snapshot of a thread at this time and make it shareable.
-
-    """
+    """Take a snapshot of a thread at this time and make it shareable."""
     # Note that unlike the other endpoints, we don't need to check the token here.
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
@@ -467,8 +467,7 @@ async def get_thread(
             messages = db.get_thread(thread_id, token_params["user_id"])
             if messages:  # return only if the thread exists. else raise 404
                 return messages
-            else:
-                raise HTTPException(status_code=404, detail="Thread not found")
+            raise HTTPException(status_code=404, detail="Thread not found")
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
@@ -606,8 +605,7 @@ async def request_password_reset(
         # So this can't be used to work out who is on our system.
         return {"status": "success"}
 
-    else:
-        raise HTTPException(status_code=403, detail="CORS note permitted.")
+    raise HTTPException(status_code=403, detail="CORS note permitted.")
 
 
 @app.post("/api/v2/update_password")
@@ -625,8 +623,7 @@ async def update_password(
             if passwd_quality["score"] < 2:
                 raise HTTPException(
                     status_code=400,
-                    detail="Password is too weak. Suggestions: "
-                    + ",".join(passwd_quality["feedback"]["suggestions"]),
+                    detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
                 )
             db.update_password(token_params["email"], password_hash)
         except psycopg2.Error as e:
@@ -653,8 +650,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
             if passwd_quality["score"] < 2:
                 raise HTTPException(
                     status_code=400,
-                    detail="Password is too weak. Suggestions: "
-                    + ",".join(passwd_quality["feedback"]["suggestions"]),
+                    detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
                 )
             db.update_password(token_params["user_id"], password_hash)
             return {"status": "success"}
@@ -667,8 +663,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
 
 @app.post("/api/v1/complete")
 async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
-    """
-    Provides a response to a user's input.
+    """Provides a response to a user's input.
     The input is a list of messages, each with with
     a role and a text field. Roles are typically
     'user' or 'assistant.' The client should maintain the
@@ -682,15 +677,14 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
         body = await request.json()
         logger.info(f"Request received > {body}.")
         return presenter.complete(body)
-    else:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    raise HTTPException(status_code=403, detail="CORS not permitted")
 
 
 class AyahQuestionRequest(BaseModel):
     surah: int
     ayah: int
     question: str
-    augment_question: Union[bool, None] = False
+    augment_question: bool | None = False
     apikey: str
 
 

@@ -4,7 +4,6 @@ import os
 import time
 import traceback
 from datetime import date, datetime
-from typing import Union
 
 import litellm
 from langfuse.decorators import langfuse_context, observe
@@ -41,9 +40,7 @@ class Ansari:
         self.model = settings.MODEL
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
-        self.tools = [
-            x.get_tool_description() for x in self.tool_name_to_instance.values()
-        ]
+        self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
         self.message_history = [{"role": "system", "content": self.sys_msg}]
 
     def set_message_logger(self, message_logger):
@@ -73,7 +70,7 @@ class Ansari:
     @observe()
     def replace_message_history(self, message_history, use_tool=True, stream=True):
         self.message_history = [
-            {"role": "system", "content": self.sys_msg}
+            {"role": "system", "content": self.sys_msg},
         ] + message_history
         logger.info(f"Original trace is {self.message_logger.trace_id}")
         logger.info(f"Id 1 is {langfuse_context.get_current_trace_id()}")
@@ -101,25 +98,19 @@ class Ansari:
         self.start_time = datetime.now()
         count = 0
         failures = 0
-        while (
-            self.message_history[-1]["role"] != "assistant"
-            or "tool_call_id" in self.message_history[-1]
-        ):
+        while self.message_history[-1]["role"] != "assistant" or "tool_call_id" in self.message_history[-1]:
             try:
                 logger.info(
                     f"Process attempt #{count+failures+1} of this message history:\n"
                     + "-" * 60
                     + f"\n{self.message_history}\n"
-                    + "-" * 60
+                    + "-" * 60,
                 )
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
-                # Also use tools only if we haven't tried too many times  (failure) and if the last message was not from the tool (success!)
-                use_tool = (
-                    use_tool
-                    and (count < self.settings.MAX_TOOL_TRIES)
-                    and self.message_history[-1]["role"] != "tool"
-                )
+                # Also use tools only if we haven't tried too many times (failure)
+                #  and if the last message was not from the tool (success!)
+                use_tool = use_tool and (count < self.settings.MAX_TOOL_TRIES) and self.message_history[-1]["role"] != "tool"
                 if not use_tool:
                     status_msg = (
                         "Not using tools -- tries exceeded"
@@ -132,7 +123,7 @@ class Ansari:
             except Exception as e:
                 failures += 1
                 logger.warning(
-                    f"Exception occurred in process_message_history: \n{e}\n"
+                    f"Exception occurred in process_message_history: \n{e}\n",
                 )
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
@@ -165,21 +156,15 @@ class Ansari:
             try:
                 params = {
                     **common_params,
-                    **(
-                        {"tools": self.tools, "tool_choice": "auto"} if use_tool else {}
-                    ),
-                    **(
-                        {"response_format": {"type": "json_object"}}
-                        if self.json_format
-                        else {}
-                    ),
+                    **({"tools": self.tools, "tool_choice": "auto"} if use_tool else {}),
+                    **({"response_format": {"type": "json_object"}} if self.json_format else {}),
                 }
                 response = self.get_completion(**params)
 
             except Exception as e:
                 failures += 1
                 logger.warning(
-                    f"Exception occurred in process_one_round function: \n{e}\n"
+                    f"Exception occurred in process_one_round function: \n{e}\n",
                 )
                 logger.warning(traceback.format_exc())
                 logger.warning("Retrying in 5 seconds...")
@@ -211,7 +196,7 @@ class Ansari:
                                 "id": "",
                                 "type": "function",
                                 "function": {"name": "", "arguments": ""},
-                            }
+                            },
                         )
                     tc = tool_calls[tcchunk.index]
 
@@ -225,7 +210,8 @@ class Ansari:
         if response_mode == "words":
             self.message_history.append({"role": "assistant", "content": words})
             langfuse_context.update_current_observation(
-                output=words, metadata={"delta": delta}
+                output=words,
+                metadata={"delta": delta},
             )
             if self.message_logger:
                 self.message_logger.log("assistant", words)
@@ -245,7 +231,7 @@ class Ansari:
                     )
                 except json.JSONDecodeError:
                     logger.warning(
-                        f"Failed to parse tool arguments: {tc['function']['arguments']}"
+                        f"Failed to parse tool arguments: {tc['function']['arguments']}",
                     )
 
         else:
@@ -264,9 +250,7 @@ class Ansari:
             return
 
         query: str = tool_arguments["query"]
-        tool_instance: Union[SearchQuran, SearchHadith] = self.tool_name_to_instance[
-            tool_name
-        ]
+        tool_instance: SearchQuran | SearchHadith = self.tool_name_to_instance[tool_name]
         results = tool_instance.run_as_list(query)
 
         # we have to first add this message before any tool response, as mentioned in this source:
@@ -276,9 +260,9 @@ class Ansari:
                 "role": "assistant",
                 "content": "",
                 "tool_calls": [
-                    {"type": "function", "id": tool_id, "function": tool_definition}
+                    {"type": "function", "id": tool_id, "function": tool_definition},
                 ],
-            }
+            },
         )
 
         if len(results) == 0:
@@ -295,5 +279,5 @@ class Ansari:
         # Now we have to pass the results back in
         results_str = msg_prefix + "\nAnother relevant ayah:\n".join(results)
         self.message_history.append(
-            {"role": "tool", "content": results_str, "tool_call_id": tool_id}
+            {"role": "tool", "content": results_str, "tool_call_id": tool_id},
         )

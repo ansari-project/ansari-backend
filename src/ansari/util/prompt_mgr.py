@@ -1,17 +1,16 @@
-from typing import Union
+from pathlib import Path
 
 from pydantic import BaseModel
-from pathlib import Path
 
 
 class Prompt(BaseModel):
     file_path: str
-    cached: Union[str, None] = None
+    cached: str | None = None
     hot_reload: bool = True
 
     def render(self, **kwargs) -> str:
         if (self.cached is None) or (self.hot_reload):
-            with open(self.file_path, "r") as f:
+            with open(self.file_path) as f:
                 self.cached = f.read()
         return self.cached.format(**kwargs)
 
@@ -21,7 +20,7 @@ class PromptMgr:
         # Get the directory of the current script
         script_dir = Path(__file__).resolve()
         # Construct the path to the resources directory
-        resources_dir = script_dir.parent.parent / 'resources'
+        resources_dir = script_dir.parent.parent / "resources"
         # Construct the full path to the resource file
         path = resources_dir / filename
         return path
@@ -39,5 +38,6 @@ class PromptMgr:
 
     def bind(self, prompt_id: str) -> Prompt:
         return Prompt(
-            file_path=f"{self.src_dir}/{prompt_id}.txt", hot_reload=self.hot_reload
+            file_path=f"{self.src_dir}/{prompt_id}.txt",
+            hot_reload=self.hot_reload,
         )

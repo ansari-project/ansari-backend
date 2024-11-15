@@ -1,5 +1,5 @@
 import json
-import logging
+
 import requests
 
 
@@ -45,7 +45,10 @@ class SearchVectara:
         return self.fn_name
 
     def _build_request_payload(
-        self, query: str, num_results: int = 5, **kwargs
+        self,
+        query: str,
+        num_results: int = 5,
+        **kwargs,
     ) -> dict:
         return {
             "query": query,

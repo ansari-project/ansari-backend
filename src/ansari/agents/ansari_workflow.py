@@ -21,8 +21,7 @@ logger = get_logger(__name__ + ".AnsariWorkflow", logging_level)
 
 
 class AnsariWorkflow:
-    """
-    AnsariWorkflow manages the execution of modular workflow steps for processing user queries.
+    """AnsariWorkflow manages the execution of modular workflow steps for processing user queries.
 
     This class provides a flexible framework for generating queries, performing searches,
     and generating answers based on the results. It supports customizable workflow steps
@@ -50,6 +49,7 @@ class AnsariWorkflow:
             ("gen_answer", {"input": "How is zakat calculated?", "search_results_indices": [0]})
         ]
         results = ansari.execute_workflow(workflow_steps)
+
     """
 
     def __init__(self, settings, message_logger=None, json_format=False):
@@ -81,9 +81,7 @@ class AnsariWorkflow:
         self.model = settings.MODEL
         self.pm = PromptMgr()
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
-        self.tools = [
-            x.get_tool_description() for x in self.tool_name_to_instance.values()
-        ]
+        self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
         self.json_format = json_format
         self.message_logger = message_logger
 
@@ -107,7 +105,8 @@ class AnsariWorkflow:
         tool = self.tool_name_to_instance[step_params["tool_name"]]
         if "query" in step_params:
             results = tool.run_as_string(
-                step_params["query"], metadata_filter=step_params.get("metadata_filter")
+                step_params["query"],
+                metadata_filter=step_params.get("metadata_filter"),
             )
         elif "query_from_prev_output_index" in step_params:
             results = tool.run_as_string(
@@ -116,12 +115,14 @@ class AnsariWorkflow:
             )
         else:
             raise ValueError(
-                "search step must have either query or query_from_prev_output_index"
+                "search step must have either query or query_from_prev_output_index",
             )
         return results
 
     def _execute_gen_query_step(self, step_params, prev_outputs):
-        prompt = f"""Generate 3-5 key terms or phrases for searching the input: '{step_params["input"]}' in the '{step_params["target_corpus"]}' corpus. These search terms should be:
+        prompt = f"""Generate 3-5 key terms or phrases for searching the input: 
+        '{step_params["input"]}' in the '{step_params["target_corpus"]}' corpus. 
+        These search terms should be:
 
         - Relevant words/phrases that appear in or closely match content in '{step_params["target_corpus"]}'
         - Usable for both keyword and semantic search
@@ -145,7 +146,7 @@ class AnsariWorkflow:
     def _execute_gen_answer_step(self, step_params, prev_outputs):
         if step_params.get("search_results_indices"):
             search_results = "\n---\n".join(
-                [prev_outputs[i] for i in step_params["search_results_indices"]]
+                [prev_outputs[i] for i in step_params["search_results_indices"]],
             )
         prompt = f"""Using {search_results}, compose a response that:
             1. Directly answers the query of the user

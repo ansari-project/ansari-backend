@@ -1,7 +1,7 @@
 from pathlib import Path, PurePath
 
-import pyarabic.araby as araby
 import textract
+from pyarabic import araby
 from tqdm.auto import tqdm
 
 from ansari.ansari_logger import get_logger
@@ -22,7 +22,7 @@ input_dir = Path("/path/to/The Kuwaiti Encyclopaedia of Islamic Jurisprudence/wo
 path_components = list(input_dir.parts)
 path_components[-1] = "txt"
 output_dir = PurePath(
-    *path_components
+    *path_components,
 )  # --> "/path/to/The Kuwaiti Encyclopaedia of Islamic Jurisprudence/txt"
 
 # iterate over all files in the directory
@@ -30,6 +30,7 @@ for input_file in tqdm(input_dir.glob("*.doc")):
     if input_file.is_file() and input_file.suffix == ".doc":
         logger.info(f"Processing {input_file.name}...")
         strip_tashkeel_from_doc(
-            input_file, output_dir.joinpath(input_file.with_suffix(".txt").name)
+            input_file,
+            output_dir.joinpath(input_file.with_suffix(".txt").name),
         )
         logger.info(f"Done processing {input_file.name}")

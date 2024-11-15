@@ -2,7 +2,6 @@ import json
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Union
 
 import bcrypt
 import jwt
@@ -42,7 +41,9 @@ class AnsariDB:
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
         self.db_connection_pool = psycopg2.pool.SimpleConnectionPool(
-            minconn=1, maxconn=10, dsn=str(settings.DATABASE_URL)
+            minconn=1,
+            maxconn=10,
+            dsn=str(settings.DATABASE_URL),
         )
 
     @contextmanager
@@ -89,7 +90,8 @@ class AnsariDB:
         except Exception:
             logger.exception("Unexpected error during token decoding")
             raise HTTPException(
-                status_code=401, detail="Could not validate credentials"
+                status_code=401,
+                detail="Could not validate credentials",
             )
 
     def _get_token_from_request(self, request: Request) -> str:
@@ -97,12 +99,14 @@ class AnsariDB:
             auth_header = request.headers.get("Authorization", "")
             if not auth_header.startswith("Bearer "):
                 raise HTTPException(
-                    status_code=401, detail="Invalid authorization header format"
+                    status_code=401,
+                    detail="Invalid authorization header format",
                 )
             return auth_header.split(" ")[1]
         except IndexError:
             raise HTTPException(
-                status_code=401, detail="Authorization header is malformed"
+                status_code=401,
+                detail="Authorization header is malformed",
             )
 
     def _validate_token_in_db(self, user_id: str, token: str, table: str) -> bool:
@@ -135,7 +139,8 @@ class AnsariDB:
         if not self._validate_token_in_db(payload["user_id"], token, db_table):
             logger.warning("Could not find token in database.")
             raise HTTPException(
-                status_code=401, detail="Could not validate credentials"
+                status_code=401,
+                detail="Could not validate credentials",
             )
 
         return payload
@@ -159,7 +164,8 @@ class AnsariDB:
                 with conn.cursor() as cur:
                     insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);"""
                     cur.execute(
-                        insert_cmd, (email, password_hash, first_name, last_name)
+                        insert_cmd,
+                        (email, password_hash, first_name, last_name),
                     )
                     conn.commit()
                     return {"status": "success"}
@@ -183,10 +189,7 @@ class AnsariDB:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    insert_cmd = (
-                        "INSERT INTO access_tokens (user_id, token) "
-                        + "VALUES (%s, %s) RETURNING id;"
-                    )
+                    insert_cmd = "INSERT INTO access_tokens (user_id, token) " + "VALUES (%s, %s) RETURNING id;"
                     cur.execute(insert_cmd, (user_id, token))
                     inserted_id = cur.fetchone()[0]
                     conn.commit()
@@ -203,10 +206,7 @@ class AnsariDB:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    insert_cmd = (
-                        "INSERT INTO refresh_tokens (user_id, token, access_token_id) "
-                        + "VALUES (%s, %s, %s);"
-                    )
+                    insert_cmd = "INSERT INTO refresh_tokens (user_id, token, access_token_id) " + "VALUES (%s, %s, %s);"
                     cur.execute(insert_cmd, (user_id, token, access_token_id))
                     conn.commit()
                     return {"status": "success", "token": token}
@@ -267,9 +267,7 @@ class AnsariDB:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    insert_cmd = (
-                        """INSERT INTO threads (user_id) values (%s) RETURNING id;"""
-                    )
+                    insert_cmd = """INSERT INTO threads (user_id) values (%s) RETURNING id;"""
                     cur.execute(insert_cmd, (user_id,))
                     inserted_id = cur.fetchone()[0]
                     conn.commit()
@@ -286,10 +284,7 @@ class AnsariDB:
                     select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
                     cur.execute(select_cmd, (user_id,))
                     result = cur.fetchall()
-                    return [
-                        {"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]}
-                        for x in result
-                    ]
+                    return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result]
         except Exception as e:
             logger.warning(f"Error is {e}")
             return []
@@ -322,12 +317,14 @@ class AnsariDB:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     insert_cmd = (
-                        # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+                        # TODO (odyash): check if "function" can be renamed to 
+                        # "tool" like the rest of the codebase or not
                         "INSERT INTO messages (thread_id, user_id, role, content, function_name) "
                         + "VALUES (%s, %s, %s, %s, %s);"
                     )
                     cur.execute(
-                        insert_cmd, (thread_id, user_id, role, content, tool_name)
+                        insert_cmd,
+                        (thread_id, user_id, role, content, tool_name),
                     )
                     # Appending a message should update the thread's updated_at field.
                     update_cmd = "UPDATE threads SET updated_at = now() "
@@ -340,8 +337,7 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def get_thread(self, thread_id, user_id):
-        """
-        Get all messages in a thread.
+        """Get all messages in a thread.
         This version is designed to be used by humans. In particular,
         tool messages are not included.
         """
@@ -354,13 +350,12 @@ class AnsariDB:
                     )
                     cur.execute(select_cmd, (thread_id, user_id))
                     result = cur.fetchall()
-                    select_cmd = (
-                        "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
-                    )
+                    select_cmd = "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
                     cur.execute(select_cmd, (thread_id, user_id))
                     if cur.rowcount == 0:
                         raise HTTPException(
-                            status_code=401, detail="Incorrect user_id or thread_id."
+                            status_code=401,
+                            detail="Incorrect user_id or thread_id.",
                         )
                     thread_name = cur.fetchone()[0]
                     retval = {
@@ -369,7 +364,9 @@ class AnsariDB:
                             self.convert_message(x)
                             for x in result
                             if x[1]
-                            != "function"  # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+                            # TODO (odyash): check if "function" can be renamed to "tool"
+                            #  like the rest of the codebase or not
+                            != "function"
                         ],
                     }
                     return retval
@@ -392,13 +389,12 @@ class AnsariDB:
                     )
                     cur.execute(select_cmd, (thread_id, user_id))
                     result = cur.fetchall()
-                    select_cmd = (
-                        """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
-                    )
+                    select_cmd = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
                     cur.execute(select_cmd, (thread_id, user_id))
                     if cur.rowcount == 0:
                         raise HTTPException(
-                            status_code=401, detail="Incorrect user_id or thread_id."
+                            status_code=401,
+                            detail="Incorrect user_id or thread_id.",
                         )
                     thread_name = cur.fetchone()[0]
                     # Now convert into the standard format
@@ -423,9 +419,7 @@ class AnsariDB:
             # Now we create a new thread
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    insert_cmd = (
-                        """INSERT INTO share (content) values (%s) RETURNING id;"""
-                    )
+                    insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
                     thread_as_json = json.dumps(thread)
                     cur.execute(insert_cmd, (thread_as_json,))
                     result = cur.fetchone()[0]
@@ -461,9 +455,7 @@ class AnsariDB:
                     delete_cmd = """DELETE FROM messages WHERE thread_id = %s and user_id = %s;"""
                     cur.execute(delete_cmd, (thread_id, user_id))
                     conn.commit()
-                    delete_cmd = (
-                        """DELETE FROM threads WHERE id = %s AND user_id = %s;"""
-                    )
+                    delete_cmd = """DELETE FROM threads WHERE id = %s AND user_id = %s;"""
                     cur.execute(delete_cmd, (thread_id, user_id))
                     conn.commit()
                     return {"status": "success"}
@@ -472,8 +464,7 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def delete_access_refresh_tokens_pair(self, refresh_token):
-        """
-        Deletes the access and refresh token pair associated with the given refresh token.
+        """Deletes the access and refresh token pair associated with the given refresh token.
 
         Args:
             refresh_token (str): The refresh token to delete.
@@ -482,6 +473,7 @@ class AnsariDB:
             HTTPException:
                 - 401 if the refresh token is incorrect or doesn't exist.
                 - 500 if there is an internal server error during the deletion process.
+
         """
         try:
             with self.get_connection() as conn:
@@ -557,9 +549,7 @@ class AnsariDB:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    update_cmd = (
-                        """UPDATE users SET password_hash = %s WHERE id = %s;"""
-                    )
+                    update_cmd = """UPDATE users SET password_hash = %s WHERE id = %s;"""
                     cur.execute(update_cmd, (new_password_hash, user_id))
                     conn.commit()
                     return {"status": "success"}
@@ -573,11 +563,14 @@ class AnsariDB:
     def convert_message_llm(self, msg):
         if msg[2]:
             return {"role": msg[0], "content": msg[1], "name": msg[2]}
-        else:
-            return {"role": msg[0], "content": msg[1]}
+        return {"role": msg[0], "content": msg[1]}
 
     def store_quran_answer(
-        self, surah: int, ayah: int, question: str, ansari_answer: str
+        self,
+        surah: int,
+        ayah: int,
+        question: str,
+        ansari_answer: str,
     ):
         with self.get_connection() as conn:
             with conn.cursor() as cur:
@@ -591,10 +584,12 @@ class AnsariDB:
                 conn.commit()
 
     def get_quran_answer(
-        self, surah: int, ayah: int, question: str
-    ) -> Union[str, None]:
-        """
-        Retrieve the stored answer for a given surah, ayah, and question.
+        self,
+        surah: int,
+        ayah: int,
+        question: str,
+    ) -> str | None:
+        """Retrieve the stored answer for a given surah, ayah, and question.
 
         Args:
             surah (int): The surah number.
@@ -603,6 +598,7 @@ class AnsariDB:
 
         Returns:
             str: The stored answer, or None if not found.
+
         """
         try:
             with self.get_connection() as conn:
@@ -618,8 +614,7 @@ class AnsariDB:
                     result = cur.fetchone()
                     if result:
                         return result[0]
-                    else:
-                        return None
+                    return None
         except Exception as e:
-            logger.error(f"Error retrieving Quran answer: {str(e)}")
+            logger.error(f"Error retrieving Quran answer: {e!s}")
             return None

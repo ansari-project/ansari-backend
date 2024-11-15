@@ -1,7 +1,7 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    """
-    Field value precedence in Pydantic Settings (highest to lowest priority):
+    """Field value precedence in Pydantic Settings (highest to lowest priority):
 
     1. CLI arguments (if cli_parse_args is enabled).
     2. Arguments passed to the Settings initializer.
@@ -43,7 +42,7 @@ class Settings(BaseSettings):
         return path
 
     DATABASE_URL: PostgresDsn = Field(
-        default="postgresql://postgres:password@localhost:5432/ansari"
+        default="postgresql://postgres:password@localhost:5432/ansari",
     )
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
@@ -54,8 +53,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRY_HOURS: int = Field(default=2)
     REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24 * 90)
 
-    ORIGINS: Union[str, list[str]] = Field(
-        default=["https://ansari.chat", "http://ansari.chat"]
+    ORIGINS: str | list[str] = Field(
+        default=["https://ansari.chat", "http://ansari.chat"],
     )
     API_SERVER_PORT: int = Field(default=8000)
 
@@ -66,27 +65,31 @@ class Settings(BaseSettings):
     VECTARA_API_KEY: SecretStr
 
     MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
-        alias="MAWSUAH_VECTARA_CORPUS_KEY", default="mawsuah_unstructured"
+        alias="MAWSUAH_VECTARA_CORPUS_KEY",
+        default="mawsuah_unstructured",
     )
     MAWSUAH_FN_NAME: str = Field(default="search_mawsuah")
     MAWSUAH_FN_DESCRIPTION: str = Field(
-        default="Search and retrieve relevant rulings from the Islamic jurisprudence (fiqh) encyclopedia based on a specific topic. "
+        default="Search and retrieve relevant rulings "
+        "from the Islamic jurisprudence (fiqh) encyclopedia based on a specific topic. "
         "Returns a list of potentially relevant matches that may span multiple paragraphs. "
-        "The search will be based on the 'query' parameter, which must be provided."
+        "The search will be based on the 'query' parameter, which must be provided.",
     )
     MAWSUAH_TOOL_PARAMS: list = Field(
         default=[
             {
                 "name": "query",
                 "type": "string",
-                "description": "Topic or subject matter to search for within the fiqh encyclopedia. Write the query in Arabic.",
-            }
-        ]
+                "description": "Topic or subject matter to search for "
+                "within the fiqh encyclopedia. Write the query in Arabic.",
+            },
+        ],
     )
     MAWSUAH_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
     TAFSIR_VECTARA_CORPUS_KEY: str = Field(
-        alias="TAFSIR_VECTARA_CORPUS_KEY", default="tafsirs"
+        alias="TAFSIR_VECTARA_CORPUS_KEY",
+        default="tafsirs",
     )
     TAFSIR_FN_NAME: str = Field(default="search_tafsir")
     TAFSIR_FN_DESCRIPTION: str = Field(
@@ -98,31 +101,32 @@ class Settings(BaseSettings):
         you will translate the query into English before searching the tafsir. The
         function returns a list of **potentially** relevant matches, which may include
         multiple passages of interpretation and analysis.
-        """
+        """,
     )
     TAFSIR_TOOL_PARAMS: list = Field(
         default=[
             {
                 "name": "query",
                 "type": "string",
-                "description": "The topic to search for in Tafsir Ibn Kathir. You will translate this query into English.",
-            }
-        ]
+                "description": "The topic to search for in Tafsir Ibn Kathir. "
+                "You will translate this query into English.",
+            },
+        ],
     )
     TAFSIR_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
-    DISCORD_TOKEN: Optional[SecretStr] = Field(default=None)
-    SENDGRID_API_KEY: Optional[SecretStr] = Field(default=None)
+    DISCORD_TOKEN: SecretStr | None = Field(default=None)
+    SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
-    LANGFUSE_PUBLIC_KEY: Optional[SecretStr] = Field(default=None)
-    LANGFUSE_HOST: Optional[str] = Field(default=None)
-    LANGFUSE_SECRET_KEY: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_RECIPIENT_WAID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_API_VERSION: Optional[str] = Field(default="v21.0")
-    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: Optional[SecretStr] = Field(default=None)
-    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: Optional[SecretStr] = Field(default=None)
+    LANGFUSE_PUBLIC_KEY: SecretStr | None = Field(default=None)
+    LANGFUSE_HOST: str | None = Field(default=None)
+    LANGFUSE_SECRET_KEY: SecretStr | None = Field(default=None)
+    WHATSAPP_RECIPIENT_WAID: SecretStr | None = Field(default=None)
+    WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
+    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
+    WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
+    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
+    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
 
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -140,13 +144,13 @@ class Settings(BaseSettings):
     def parse_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.strip('"').split(",")]
-        elif isinstance(v, list):
+        if isinstance(v, list):
             return v
         raise ValueError(
-            f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list."
+            f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list.",
         )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()

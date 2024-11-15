@@ -60,7 +60,8 @@ def test_ansari_agent(data):
     df = df.sample(10)
     # For cost and efficiency reasons, we will only test 10 questions
     df["json_prediction"] = df.apply(
-        lambda row: answer_question(row, q_temp, cache), axis=1
+        lambda row: answer_question(row, q_temp, cache),
+        axis=1,
     )
     df["predicted"] = df.apply(extract_prediction, axis=1)
     df["correct_prediction"] = df.apply(is_correct, axis=1)
@@ -76,6 +77,4 @@ def test_ansari_agent(data):
             logger.info(f"Predicted Answer: {row['predicted']}")
             logger.info("---------------------------------------")
 
-    assert (
-        correct_percentage >= 80
-    ), f"Correct predictions percentage ({correct_percentage:.2f}%) is less than 95%"
+    assert correct_percentage >= 80, f"Correct predictions percentage ({correct_percentage:.2f}%) is less than 95%"

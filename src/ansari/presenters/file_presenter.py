@@ -8,7 +8,7 @@ class FilePresenter:
 
     def present(self, input_file_path, output_file_path):
         # Read lines from input file
-        with open(input_file_path, "r") as input_file:
+        with open(input_file_path) as input_file:
             lines = input_file.readlines()
 
         # Send each line to agent and get result

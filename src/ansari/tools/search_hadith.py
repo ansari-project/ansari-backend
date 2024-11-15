@@ -21,7 +21,7 @@ class SearchHadith:
                         "query": {
                             "type": "string",
                             "description": "Topic or subject matter to search for in Hadith collections",
-                        }
+                        },
                     },
                     "required": ["query"],
                 },
@@ -44,7 +44,7 @@ class SearchHadith:
 
         if response.status_code != 200:
             print(
-                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}",
             )
             response.raise_for_status()
 

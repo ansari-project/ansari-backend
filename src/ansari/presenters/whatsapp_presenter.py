@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
 
 import httpx
 from fastapi import FastAPI
@@ -26,21 +26,27 @@ app.add_middleware(
 
 class WhatsAppPresenter:
     def __init__(
-        self, agent, access_token, business_phone_number_id, api_version="v21.0"
+        self,
+        agent,
+        access_token,
+        business_phone_number_id,
+        api_version="v21.0",
     ):
         self.agent = agent
         self.access_token = access_token
         self.meta_api_url = f"https://graph.facebook.com/{api_version}/{business_phone_number_id}/messages"
 
     async def process_and_reply_to_whatsapp_sender(
-        self, from_whatsapp_number: str, incoming_msg_body: str
+        self,
+        from_whatsapp_number: str,
+        incoming_msg_body: str,
     ) -> None:
-        """
-        Processes the incoming message and sends a response to the WhatsApp sender.
+        """Processes the incoming message and sends a response to the WhatsApp sender.
 
         Args:
             from_whatsapp_number (str): The sender's WhatsApp number.
             incoming_msg_body (str): The incoming message body from the sender.
+
         """
         try:
             agent = copy.deepcopy(self.agent)
@@ -67,10 +73,9 @@ class WhatsAppPresenter:
 
     async def extract_relevant_whatsapp_message_details(
         self,
-        body: Dict[str, Any],
-    ) -> Optional[Union[Tuple[str, str, str], str]]:
-        """
-        Extracts relevant whatsapp message details from the incoming webhook payload.
+        body: dict[str, Any],
+    ) -> tuple[str, str, str] | str | None:
+        """Extracts relevant whatsapp message details from the incoming webhook payload.
 
         Args:
             body (Dict[str, Any]): The JSON body of the incoming request.
@@ -79,6 +84,7 @@ class WhatsAppPresenter:
             Optional[Tuple[str, str, str]]: A tuple containing the business phone number ID,
             the sender's WhatsApp number and the their message (if the extraction is successful).
             Returns None if the extraction fails.
+
         """
         if not (
             body.get("object")
@@ -89,18 +95,17 @@ class WhatsAppPresenter:
             and (incoming_msg := messages[0])
         ):
             logger.error(
-                f"Invalid received payload from WhatsApp user and/or problem with Meta's API :\n{body}"
+                f"Invalid received payload from WhatsApp user and/or problem with Meta's API :\n{body}",
             )
             return "error"
-        elif "statuses" in value:
+        if "statuses" in value:
             status = value["statuses"]["status"]
             timestamp = value["statuses"]["timestamp"]
             logger.debug(
-                f"WhatsApp status update received:\n({status} at {timestamp}.)"
+                f"WhatsApp status update received:\n({status} at {timestamp}.)",
             )
             return "status update"
-        else:
-            logger.info(f"Received payload from WhatsApp user:\n{body}")
+        logger.info(f"Received payload from WhatsApp user:\n{body}")
 
         # Extract the business phone number ID from the webhook payload
         business_phone_number_id = value["metadata"]["phone_number_id"]
@@ -108,11 +113,7 @@ class WhatsAppPresenter:
         from_whatsapp_number = incoming_msg["from"]
         # Meta API note: Meta sends "errors" key when receiving unsupported message types
         # (e.g., video notes, gifs sent from giphy, or polls)
-        incoming_msg_type = (
-            incoming_msg["type"]
-            if incoming_msg["type"] in incoming_msg.keys()
-            else "errors"
-        )
+        incoming_msg_type = incoming_msg["type"] if incoming_msg["type"] in incoming_msg.keys() else "errors"
         # Extract the message of the WhatsApp sender (could be text, image, etc.)
         incoming_msg_body = incoming_msg[incoming_msg_type]
 
@@ -124,14 +125,16 @@ class WhatsAppPresenter:
         )
 
     async def send_whatsapp_message(
-        self, from_whatsapp_number: str, msg_body: str
+        self,
+        from_whatsapp_number: str,
+        msg_body: str,
     ) -> None:
-        """
-        Sends a message to the WhatsApp sender.
+        """Sends a message to the WhatsApp sender.
 
         Args:
             from_whatsapp_number (str): The sender's WhatsApp number.
             msg_body (str): The message body to be sent.
+
         """
         url = self.meta_api_url
         headers = {
@@ -148,10 +151,10 @@ class WhatsAppPresenter:
             response = await client.post(url, headers=headers, json=json_data)
             response.raise_for_status()  # Raise an exception for HTTP errors
             logger.info(
-                f"Ansari responsded to WhatsApp user: {from_whatsapp_number} with:\n{msg_body}"
+                f"Ansari responsded to WhatsApp user: {from_whatsapp_number} with:\n{msg_body}",
             )
             logger.debug(
-                f"So, status code and text of that WhatsApp response:\n{response.status_code}\n{response.text}"
+                f"So, status code and text of that WhatsApp response:\n{response.status_code}\n{response.text}",
             )
 
     def present(self):

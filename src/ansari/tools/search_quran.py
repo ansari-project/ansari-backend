@@ -14,14 +14,15 @@ class SearchQuran:
             "type": "function",
             "function": {
                 "name": "search_quran",
-                "description": "Search and retrieve relevant ayahs based on a specific topic. Returns multiple ayahs when applicable.",
+                "description": "Search and retrieve relevant ayahs based on "
+                "a specific topic. Returns multiple ayahs when applicable.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
                             "description": "Topic or subject matter to search for within the Holy Quran",
-                        }
+                        },
                     },
                     "required": ["query"],
                 },
@@ -43,7 +44,7 @@ class SearchQuran:
 
         if response.status_code != 200:
             print(
-                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}",
             )
             response.raise_for_status()
 
@@ -53,9 +54,7 @@ class SearchQuran:
         ayah_num = ayah["id"]
         ayah_ar = ayah.get("text", "Not retrieved")
         ayah_en = ayah.get("en_text", "Not retrieved")
-        result = (
-            f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n"
-        )
+        result = f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n"
         return result
 
     def run_as_list(self, query: str, num_results: int = 10):

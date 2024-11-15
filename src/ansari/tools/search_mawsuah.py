@@ -31,8 +31,9 @@ class SearchMawsuah:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The topic to search for in the fiqh encyclopedia. You will translate this query into Arabic.",
-                    }
+                        "description": "The topic to search for in the fiqh encyclopedia. "
+                        "You will translate this query into Arabic.",
+                    },
                 },
                 "required": ["query"],
             },
@@ -73,18 +74,18 @@ class SearchMawsuah:
                             "metadataFilter": "",
                             "lexicalInterpolationConfig": {"lambda": 0.1},
                             "dim": [],
-                        }
+                        },
                     ],
                     "summary": [],
-                }
-            ]
+                },
+            ],
         }
 
         response = requests.post(self.base_url, headers=headers, data=json.dumps(data))
 
         if response.status_code != 200:
             print(
-                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}"
+                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}",
             )
             response.raise_for_status()
 

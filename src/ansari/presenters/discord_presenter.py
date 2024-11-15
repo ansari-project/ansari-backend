@@ -21,11 +21,7 @@ class MyClient(discord.Client):
         if (
             isinstance(message.channel, discord.channel.DMChannel)
             or message.content.startswith("<@&1150526640552673324>")
-            or (
-                message.mentions
-                and message.mentions[0]
-                and message.mentions[0].name == "Ansari"
-            )
+            or (message.mentions and message.mentions[0] and message.mentions[0].name == "Ansari")
         ):
             msg = await message.channel.send(f"Thinking, {message.author}...")
             msg_so_far = ""

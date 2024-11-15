@@ -586,9 +586,7 @@ def test_answer_ayah_question_integration(settings, db, surah, ayah, question):
     )
     end_time = time.time()
 
-    assert (
-        response.status_code == 200
-    ), f"Failed with status code {response.status_code}"
+    assert response.status_code == 200, f"Failed with status code {response.status_code}"
     assert "response" in response.json(), "Response doesn't contain 'response' key"
 
     answer = response.json()["response"]

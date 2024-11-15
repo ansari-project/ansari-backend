@@ -37,7 +37,9 @@ class GradioPresenter:
             my_uuid = gr.State(generate_session_id)
 
             chatbot = gr.Chatbot(
-                [["", self.agent.greet()]], elem_id="chatbot", line_breaks=True
+                [["", self.agent.greet()]],
+                elem_id="chatbot",
+                line_breaks=True,
             )
             msg = gr.Textbox(show_label=False, scale=10)
             with gr.Row():
@@ -49,7 +51,11 @@ class GradioPresenter:
                     elem_id="clr",
                 )
                 btn = gr.Button(
-                    value="Send", size="sm", scale=2, variant="primary", elem_id="btn"
+                    value="Send",
+                    size="sm",
+                    scale=2,
+                    variant="primary",
+                    elem_id="btn",
                 )
 
             def user(user_message, history, my_uuid):
