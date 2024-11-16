@@ -31,7 +31,7 @@ def register_user():
     # Register a user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/register",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": email,
             "password": valid_password,
@@ -53,7 +53,7 @@ def register_another_user():
     # Register a user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/register",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": email,
             "password": valid_password,
@@ -71,7 +71,7 @@ def login_user(register_user):
     # Log in the user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/login",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -86,7 +86,7 @@ def login_another_user(register_another_user):
     # Log in the user before each test that requires a valid token
     response = client.post(
         "/api/v2/users/login",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": register_another_user["email"],
             "password": valid_password,
@@ -103,7 +103,7 @@ def create_thread(login_user):
         "/api/v2/threads",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -117,7 +117,7 @@ async def test_register_new_user():
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": email,
             "password": valid_password,
@@ -135,7 +135,7 @@ async def test_register_new_user():
 #     # Test registering a new user with an invalid email
 #     response = client.post(
 #         "/api/v2/users/register",
-#         headers={"x-mobile-ansari": "ANSARI"},
+#         headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
 #         json={
 #             "email": "invalid_email",
 #             "password": valid_password,
@@ -155,7 +155,7 @@ async def test_register_new_user():
 #     email = f"{base}+{uuid.uuid4()}@{domain}"
 #     response = client.post(
 #         "/api/v2/users/register",
-#         headers={"x-mobile-ansari": "ANSARI"},
+#         headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
 #         json={
 #             "email": email,
 #             "password": "",
@@ -172,7 +172,7 @@ async def test_login_valid_credentials(register_user):
     # Test logging in with valid credentials
     response = client.post(
         "/api/v2/users/login",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -188,7 +188,7 @@ async def test_login_invalid_credentials():
     # Test logging in with invalid credentials
     response = client.post(
         "/api/v2/users/login",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": "invalid@example.com",
             "password": "wrongpassword",
@@ -204,7 +204,7 @@ async def test_login_from_several_devices(register_user, login_user):
     time.sleep(1)
     response = client.post(
         "/api/v2/users/login",
-        headers={"x-mobile-ansari": "ANSARI"},
+        headers={"x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value()},
         json={
             "email": register_user["email"],
             "password": valid_password,
@@ -226,7 +226,7 @@ async def test_login_from_several_devices(register_user, login_user):
         "/api/v2/users/logout",
         headers={
             "Authorization": f"Bearer {response.json()['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -241,7 +241,7 @@ async def test_logout(login_user, create_thread):
         "/api/v2/users/logout",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -252,7 +252,7 @@ async def test_logout(login_user, create_thread):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 401
@@ -270,7 +270,7 @@ async def test_refresh_token_request(login_user):
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -283,7 +283,7 @@ async def test_refresh_token_request(login_user):
         "/api/v2/users/logout",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 401
@@ -294,7 +294,7 @@ async def test_refresh_token_request(login_user):
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 401
@@ -304,7 +304,7 @@ async def test_refresh_token_request(login_user):
         "/api/v2/users/logout",
         headers={
             "Authorization": f"Bearer {new_tokens['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -316,7 +316,7 @@ async def test_invalid_refresh_token():
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": "Bearer invalid_refresh_token",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 401
@@ -331,14 +331,14 @@ async def test_concurrent_refresh_requests(login_user):
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     response2 = client.post(
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
 
@@ -362,7 +362,7 @@ async def test_refresh_token_cache_expiry(login_user):
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     time.sleep(3)  # cache expiry is 3 seconds
@@ -370,7 +370,7 @@ async def test_refresh_token_cache_expiry(login_user):
         "/api/v2/users/refresh_token",
         headers={
             "Authorization": f"Bearer {login_user['refresh_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
 
@@ -385,7 +385,7 @@ async def test_create_thread(login_user):
         "/api/v2/threads",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -399,7 +399,7 @@ async def test_delete_thread(login_user, create_thread):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -410,7 +410,7 @@ async def test_delete_thread(login_user, create_thread):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 404
@@ -424,7 +424,7 @@ async def test_share_thread(login_user, create_thread):
         f"/api/v2/share/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     logging.info(f"Response is {response}")
@@ -441,7 +441,7 @@ async def test_share_thread(login_user, create_thread):
         headers={
             # NOTE: We do not need to pass the Authorization header here
             # Accessing a shared thread does not require authentication
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 200
@@ -456,7 +456,7 @@ async def test_thread_access(login_user, create_thread, login_another_user):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_another_user}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     assert response.status_code == 404
@@ -466,7 +466,7 @@ async def test_thread_access(login_user, create_thread, login_another_user):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
     )
     # This should return a 200 OK response
@@ -521,7 +521,7 @@ async def test_add_feedback(login_user, create_thread):
         f"/api/v2/threads/{create_thread}",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
         json=message_data,
     )
@@ -542,7 +542,7 @@ async def test_add_feedback(login_user, create_thread):
         "/api/v2/feedback",
         headers={
             "Authorization": f"Bearer {login_user['access_token']}",
-            "x-mobile-ansari": "ANSARI",
+            "x-mobile-ansari": get_settings().PYTEST_API_KEY.get_secret_value(),
         },
         json=feedback_data,
     )
