@@ -1,21 +1,54 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "setuptools-scm", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ansari-backend"
-version = "0.1.0"
 description = "Ansari is an AI assistant to enhance understanding and practice of Islam."
+keywords = ["ansari", "islam", "quran", "hadith", "muslim", "islamic", "education", "ai", "assistant", "chatbot"]
 authors = [
     { name = "Ansari Project", email = "feedback@ansari.chat" }
 ]
 requires-python = ">=3.8"
+dynamic = ["version", "dependencies", "optional-dependencies"]
+classifiers = [
+    "Development Status :: 4 - Beta", 
+    "Framework :: FastAPI",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: Religion",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Natural Language :: Arabic",
+    "Natural Language :: English",
+    "Natural Language :: Turkish",
+    "Natural Language :: Urdu",
+    "Natural Language :: Bosnian",
+    "Programming Language :: Python :: 3 :: Only"
+]
 
 [project.urls]
 Homepage = "https://github.com/ansari-project/ansari-backend"
 Documentation = "https://github.com/ansari-project/ansari-backend"
 Source = "https://github.com/ansari-project/ansari-backend"
 Tracker = "https://github.com/ansari-project/ansari-backend/issues"
+
+# Regarding why we use "setuptools_scm" for versioning, check this:
+#   source: https://www.moritzkoerber.com/posts/versioning-with-setuptools_scm/
+[tool.setuptools_scm]
+version_file = "src/ansari/_version.py"
+
+# Dynamic configuration
+#   source 1: https://stackoverflow.com/a/73600610/13626137
+#             Where the reason of using "dynamic" is explained in the question itself.
+#   source 2: https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata 
+# Regarding why "in" and "txt" extensions refer to top-level and pinned dependencies respectively, check this:
+#   source: https://stackoverflow.com/a/78393376/13626137
+# Regarding using "in" extension instead of "txt", check this:
+#   source: https://stackoverflow.com/a/74625055/13626137
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 
 [tool.ruff]
 line-length = 127
