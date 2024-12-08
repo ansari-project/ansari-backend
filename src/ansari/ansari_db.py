@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional, Union
@@ -155,12 +156,14 @@ class AnsariDB:
             query = [query]
             params = [params]
             which_fetch = [which_fetch]
-        # else, we assume that params and which_fetch are lists of the same length,
-        # but will still check which_fetch
+        # else, we assume that params and which_fetch are lists of the same length
+        # and do a list-conversion just in case they are strings
         else:
             requested_single_query = False
-            if not isinstance(which_fetch, list):
-                which_fetch = [""] * len(query)
+            if isinstance(params, str):
+                params = [params] * len(query)
+            if isinstance(which_fetch, str):
+                which_fetch = [which_fetch] * len(query)
 
         caller_function_name = inspect.stack()[1].function
         logger.debug(f"Function {caller_function_name}() \nis running queries: \n{query} \nwith params: \n{params}")
@@ -176,7 +179,10 @@ class AnsariDB:
                     elif wf.lower() == "all":
                         result = cur.fetchall()
 
-                    if not q.lower().startswith("select") and commit_after.lower() == "each":
+                    # Remove possible SQL comments at the start of the q variable
+                    q = re.sub(r"^\s*--.*\n", "", q, flags=re.MULTILINE)
+
+                    if not q.strip().lower().startswith("select") and commit_after.lower() == "each":
                         conn.commit()
 
                     results.append(result)
