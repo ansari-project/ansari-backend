@@ -10,8 +10,7 @@ logger = get_logger()
 # Defined in a separate file to avoid circular imports between main_*.py files
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
     try:
-        # TODO (odyash): Return this to request.headers and remove \n\n
-        logger.info(f"Headers of raw request are \n\n{request.__dict__}")
+        logger.info(f"Headers of raw request are: {request.headers}")
         origins = get_settings().ORIGINS
         incoming_origin = [
             request.headers.get("origin", ""),  # If coming from ansari's frontend website
