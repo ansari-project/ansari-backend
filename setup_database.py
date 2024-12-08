@@ -5,7 +5,7 @@ import psycopg2
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 def import_sql_files(directory, db_url):

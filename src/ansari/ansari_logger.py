@@ -1,13 +1,18 @@
-import logging
+import sys
+
+from loguru import logger
+from loguru._logger import Logger
 
 from ansari.config import get_settings
 
 
+# Using loguru for logging, check below resources for reasons/details:
+# https://nikhilakki.in/loguru-logging-in-python-made-fun-and-easy#heading-why-use-loguru-over-the-std-logging-module
+# https://loguru.readthedocs.io/en/stable/resources/migration.html
 def get_logger(
-    caller_file_name: str,
-    logging_level=None,
-    debug_mode=None,
-) -> logging.Logger:
+    logging_level: str = None,
+    debug_mode: bool = None,
+) -> Logger:
     """Creates and returns a logger instance for the specified caller file.
 
     Args:
@@ -18,17 +23,25 @@ def get_logger(
                                     If None, it defaults to the DEBUG_MODE from settings.
 
     Returns:
-        logging.Logger: Configured logger instance.
+        logger: Configured logger instance.
 
     """
-    logger = logging.getLogger(caller_file_name)
     if logging_level is None:
         logging_level = get_settings().LOGGING_LEVEL.upper()
-    logger.setLevel(logging_level)
 
-    if debug_mode is not False and get_settings().DEBUG_MODE:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging_level)
-        logger.addHandler(console_handler)
+    log_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSSS}</green> | "
+        + "<level>{level}</level> | "
+        + "<magenta>{name}:{function}:{line}</magenta> | "
+        + "<level>{message}</level>"
+    )
+
+    logger.remove()
+    logger.add(
+        sys.stdout,
+        level=logging_level,
+        format=log_format,
+        enqueue=True,
+    )
 
     return logger

@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from ansari.agents import Ansari
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
+from ansari.util.fastapi_helpers import validate_cors
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 # Create a router in order to make the FastAPI functions here an extension of the main FastAPI app
 router = APIRouter()
@@ -31,7 +32,7 @@ presenter.present()
 
 
 @router.get("/whatsapp/v1")
-async def verification_webhook(request: Request) -> str | None:
+async def verification_webhook(request: Request, cors_ok: bool = Depends(validate_cors)) -> str | None:
     """Handles the WhatsApp webhook verification request.
 
     Args:
@@ -41,6 +42,9 @@ async def verification_webhook(request: Request) -> str | None:
         Optional[str]: The challenge string if verification is successful, otherwise raises an HTTPException.
 
     """
+    if not cors_ok:
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+
     mode = request.query_params.get("hub.mode")
     verify_token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
@@ -57,7 +61,7 @@ async def verification_webhook(request: Request) -> str | None:
 
 
 @router.post("/whatsapp/v1")
-async def main_webhook(request: Request) -> None:
+async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors)) -> None:
     """Handles the incoming WhatsApp webhook message.
 
     Args:
@@ -67,18 +71,23 @@ async def main_webhook(request: Request) -> None:
         None
 
     """
+    if not cors_ok:
+        raise HTTPException(status_code=403, detail="CORS not permitted")
+
     # Wait for the incoming webhook message to be received as JSON
     data = await request.json()
 
+    # # Logging the origin (host) of the incoming webhook message
+    # logger.debug(f"ORIGIN of the incoming webhook message: {json.dumps(request, indent=4)}")
+
     # Terminate if incoming webhook message is empty/invalid/msg-status-update(sent,delivered,read)
-    result = await presenter.extract_relevant_whatsapp_message_details(data)
-    if isinstance(result, str):
-        if "error" in result.lower():
-            presenter.send_whatsapp_message(
-                "There's a problem with the server. Kindly send again later...",
-            )
-            return
+    try:
+        result = await presenter.extract_relevant_whatsapp_message_details(data)
+    except Exception:
         return
+    else:
+        if isinstance(result, str):
+            return
 
     # Get relevant info from Meta's API
     (
@@ -88,6 +97,7 @@ async def main_webhook(request: Request) -> None:
         incoming_msg_body,
     ) = result
 
+    # TODO (odyash, later): Add support for location type messages
     if incoming_msg_type != "text":
         msg_type = incoming_msg_type + "s" if not incoming_msg_type.endswith("s") else incoming_msg_type
         msg_type = msg_type.replace("unsupporteds", "this media type")
@@ -97,15 +107,17 @@ async def main_webhook(request: Request) -> None:
         )
         return
 
+    incoming_msg_text = incoming_msg_body["body"]
+
     # Send acknowledgment message
     if get_settings().DEBUG_MODE:
         await presenter.send_whatsapp_message(
             from_whatsapp_number,
-            f"Ack: {incoming_msg_body}",
+            f"Ack: {incoming_msg_text}",
         )
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
     await presenter.process_and_reply_to_whatsapp_sender(
         from_whatsapp_number,
-        incoming_msg_body,
+        incoming_msg_text,
     )

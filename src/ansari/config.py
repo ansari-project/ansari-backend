@@ -1,4 +1,3 @@
-import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -6,8 +5,8 @@ from typing import Literal
 from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Can't use get_logger() here due to circular import
-logger = logging.getLogger(__name__)
+# # Can't use get_logger() here due to circular import
+# logger = get_logger()
 
 
 class Settings(BaseSettings):
@@ -53,6 +52,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRY_HOURS: int = Field(default=2)
     REFRESH_TOKEN_EXPIRY_HOURS: int = Field(default=24 * 90)
 
+    # Will later contain ZROK_SHARE_TOKEN and localhost origins
     ORIGINS: str | list[str] = Field(
         default=["https://ansari.chat", "http://ansari.chat"],
     )
@@ -108,8 +108,7 @@ class Settings(BaseSettings):
             {
                 "name": "query",
                 "type": "string",
-                "description": "The topic to search for in Tafsir Ibn Kathir. "
-                "You will translate this query into English.",
+                "description": "The topic to search for in Tafsir Ibn Kathir. " "You will translate this query into English.",
             },
         ],
     )
@@ -127,7 +126,7 @@ class Settings(BaseSettings):
     WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
-
+    ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
 
