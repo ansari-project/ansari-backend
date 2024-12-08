@@ -17,7 +17,8 @@ if not sys.argv[0].endswith("main_api.py"):
 else:
     logging_level = logging.INFO
 
-logger = get_logger(__name__ + ".AnsariWorkflow", logging_level)
+# previous logger name: __name__ + ".AnsariWorkflow"
+logger = get_logger(logging_level)
 
 
 class AnsariWorkflow:

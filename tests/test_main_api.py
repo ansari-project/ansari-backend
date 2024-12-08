@@ -10,7 +10,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_api import app
 from ansari.config import get_settings
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 client = TestClient(app)
 

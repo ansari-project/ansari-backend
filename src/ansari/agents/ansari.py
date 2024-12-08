@@ -14,7 +14,8 @@ from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
 from ansari.util.prompt_mgr import PromptMgr
 
-logger = get_logger(__name__ + ".Ansari")
+# previous logger name: __name__ + ".Ansari"
+logger = get_logger()
 
 
 class Ansari:
