@@ -83,7 +83,8 @@ if __name__ == "__main__" and get_settings().DEBUG_MODE:
     # Check the resources at `.env.example` file for more details
     # Run commands:
     # `zrok enable SECRET_TOKEN_GENERATED_BY_ZROK_FOR_YOUR_DEVICE` (should be run only once)
-    # `zrok reserve public localhost:8000 -n ZROK_SHARE_TOKEN` (should be run only once, if error occurs, contact odyash on GitHub)
+    # `zrok reserve public localhost:8000 -n ZROK_SHARE_TOKEN` (should be run only once)
+    #   (if error occurs, contact odyash on GitHub)
     # `zrok share reserved ZROK_SHARE_TOKEN`
     import uvicorn
 
