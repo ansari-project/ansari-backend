@@ -1,34 +1,48 @@
-import logging
+import copy
+import os
+import sys
+
+from loguru import logger
+from loguru._logger import Logger
 
 from ansari.config import get_settings
 
+# Using loguru for logging, check below resources for reasons/details:
+# https://nikhilakki.in/loguru-logging-in-python-made-fun-and-easy#heading-why-use-loguru-over-the-std-logging-module
+# https://loguru.readthedocs.io/en/stable/resources/migration.html
+# https://loguru.readthedocs.io/en/stable/resources/recipes.html#creating-independent-loggers-with-separate-set-of-handlers
+
 
 def get_logger(
-    caller_file_name: str,
-    logging_level=None,
-    debug_mode=None,
-) -> logging.Logger:
+    logging_level: str = None,
+) -> Logger:
     """Creates and returns a logger instance for the specified caller file.
 
     Args:
         caller_file_name (str): The name of the file requesting the logger.
         logging_level (Optional[str]): The logging level to be set for the logger.
                                     If None, it defaults to the LOGGING_LEVEL from settings.
-        debug_mode (Optional[bool]): If True, adds a console handler to the logger.
-                                    If None, it defaults to the DEBUG_MODE from settings.
 
     Returns:
-        logging.Logger: Configured logger instance.
+        logger: Configured logger instance.
 
     """
-    logger = logging.getLogger(caller_file_name)
     if logging_level is None:
         logging_level = get_settings().LOGGING_LEVEL.upper()
-    logger.setLevel(logging_level)
 
-    if debug_mode is not False and get_settings().DEBUG_MODE:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging_level)
-        logger.addHandler(console_handler)
+    log_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSSS}</green> | "
+        + "<level>{level}</level> | "
+        + "<magenta>{name}:{function}:{line}</magenta> | "
+        + "<level>{message}</level>"
+    )
 
-    return logger
+    logger.remove()
+    cur_logger = copy.deepcopy(logger)
+
+    # In colorize, If None, the choice is automatically made based on the sink being a tty or not.
+    cur_logger.add(
+        sys.stdout, level=logging_level, format=log_format, enqueue=True, colorize=os.getenv("GITHUB_ACTIONS", None)
+    )
+
+    return cur_logger

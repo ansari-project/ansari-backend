@@ -8,7 +8,7 @@ from ansari.agents import Ansari
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 @pytest.fixture(scope="module")

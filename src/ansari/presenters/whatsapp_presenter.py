@@ -2,26 +2,10 @@ import copy
 from typing import Any
 
 import httpx
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from ansari.ansari_logger import get_logger
-from ansari.config import get_settings
 
-logger = get_logger(__name__)
-
-
-# Initialize FastAPI app
-app = FastAPI()
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+logger = get_logger()
 
 
 class WhatsAppPresenter:
@@ -91,21 +75,31 @@ class WhatsAppPresenter:
             and (entry := body.get("entry", []))
             and (changes := entry[0].get("changes", []))
             and (value := changes[0].get("value", {}))
-            and (messages := value.get("messages", []))
-            and (incoming_msg := messages[0])
         ):
+            error_msg = f"Invalid received payload from WhatsApp user and/or problem with Meta's API :\n{body}"
             logger.error(
-                f"Invalid received payload from WhatsApp user and/or problem with Meta's API :\n{body}",
+                error_msg,
             )
-            return "error"
+            raise Exception(error_msg)
+
         if "statuses" in value:
             status = value["statuses"]["status"]
             timestamp = value["statuses"]["timestamp"]
+            # This log isn't important if we don't want to track when an Ansari's replied message is
+            # delivered to or read by the recipient
             logger.debug(
                 f"WhatsApp status update received:\n({status} at {timestamp}.)",
             )
             return "status update"
+        elif "messages" not in value:
+            error_msg = f"Unsupported message type received from WhatsApp user:\n{body}"
+            logger.error(
+                error_msg,
+            )
+            raise Exception(error_msg)
+
         logger.info(f"Received payload from WhatsApp user:\n{body}")
+        incoming_msg = value["messages"][0]
 
         # Extract the business phone number ID from the webhook payload
         business_phone_number_id = value["metadata"]["phone_number_id"]
