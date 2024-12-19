@@ -118,7 +118,7 @@ class AnsariDB:
         params: Union[tuple, list[tuple]],
         which_fetch: Union[Literal["one", "all"], list[Literal["one", "all"]]] = "",
         commit_after: Literal["each", "all"] = "each",
-    ) -> Union[tuple, Optional[list[tuple]], list[Optional[list[tuple]]]]:
+    ) -> list[Optional[any]]:
         """
         Executes one or more SQL queries with the provided parameters and fetch types.
 
@@ -134,32 +134,27 @@ class AnsariDB:
                 or only after all of them are executed.
 
         Returns:
-            Union[Optional[List], List[Optional[List]]]:
-                - If a single query is executed:
-                    - Returns a single result if which_fetch is "one"
-                    - Returns a single list of rows if which_fetch is "all".
-                    - Else, returns None.
-                - If multiple queries are executed:
-                    - Returns a list of results, where each result is:
+            List[Optional[Any]]:
+                - When single or multiple queries are executed:
+                    - Returns a list of results, where each "result" is:
                         - A single result if which_fetch is "one".
-                        - A list of rows if which_fetch is "all".
+                        - A list of results if which_fetch is "all".
                         - Else, returns None.
 
-            Note: the "single result" here could be a tuple if more than 1 column is selected in the query.
+            Note: the word "result" means a row in the DB,
+                which could be a tuple if more than 1 column is selected in the query.
 
         Raises:
             ValueError: If an invalid fetch type is provided.
         """
         # If query is a single string, we assume that params and which_fetch are also non-list values
         if isinstance(query, str):
-            requested_single_query = True
             query = [query]
             params = [params]
             which_fetch = [which_fetch]
         # else, we assume that params and which_fetch are lists of the same length
         # and do a list-conversion just in case they are strings
         else:
-            requested_single_query = False
             if isinstance(params, str):
                 params = [params] * len(query)
             if isinstance(which_fetch, str):
@@ -180,7 +175,7 @@ class AnsariDB:
                         result = cur.fetchall()
 
                     # Remove possible SQL comments at the start of the q variable
-                    q = re.sub(r"^\s*--.*\n", "", q, flags=re.MULTILINE)
+                    q = re.sub(r"^\s*--.*\n|^\s*---.*\n", "", q, flags=re.MULTILINE)
 
                     if not q.strip().lower().startswith("select") and commit_after.lower() == "each":
                         conn.commit()
@@ -190,16 +185,15 @@ class AnsariDB:
                 if commit_after.lower() == "all":
                     conn.commit()
 
-        # If only 1 query was to be executed, return it (or None if it was a non-fetch query)
-        if requested_single_query:
-            return results[0]
-        # Else, multiple queries were executed, so return all results
+        # Return a list when 1 or more queries are executed \
+        # (or a list of a single None if it was a non-fetch query)
         return results
 
     def _validate_token_in_db(self, user_id: str, token: str, table: str) -> bool:
         try:
             select_cmd = f"SELECT user_id FROM {table} WHERE user_id = %s AND token = %s;"
-            result = self._execute_query(select_cmd, (user_id, token), "one")
+            # Note: the "[0]" is added here because `select_cmd` is not a list
+            result = self._execute_query(select_cmd, (user_id, token), "one")[0]
             return result is not None
         except Exception:
             logger.exception("Database error during token validation")
@@ -252,10 +246,10 @@ class AnsariDB:
             logger.warning(f"Error is {e}")
             return {"status": "failure", "error": str(e)}
 
-    def account_exists(self, email: str, phone_num: str = ""):
+    def account_exists(self, email):
         try:
             select_cmd = """SELECT id FROM users WHERE email = %s;"""
-            result = self._execute_query(select_cmd, (email,), "one")
+            result = self._execute_query(select_cmd, (email,), "one")[0]
             return result is not None
         except Exception as e:
             logger.warning(f"Error is {e}")
@@ -264,7 +258,7 @@ class AnsariDB:
     def save_access_token(self, user_id, token):
         try:
             insert_cmd = "INSERT INTO access_tokens (user_id, token) VALUES (%s, %s) RETURNING id;"
-            result = self._execute_query(insert_cmd, (user_id, token), "one")
+            result = self._execute_query(insert_cmd, (user_id, token), "one")[0]
             inserted_id = result[0] if result else None
             return {
                 "status": "success",
@@ -299,7 +293,7 @@ class AnsariDB:
     def retrieve_user_info(self, email):
         try:
             select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
-            result = self._execute_query(select_cmd, (email,), "one")
+            result = self._execute_query(select_cmd, (email,), "one")[0]
             if result:
                 user_id, existing_hash, first_name, last_name = result
                 return user_id, existing_hash, first_name, last_name
@@ -322,7 +316,7 @@ class AnsariDB:
     def create_thread(self, user_id):
         try:
             insert_cmd = """INSERT INTO threads (user_id) values (%s) RETURNING id;"""
-            result = self._execute_query(insert_cmd, (user_id,), "one")
+            result = self._execute_query(insert_cmd, (user_id,), "one")[0]
             inserted_id = result[0] if result else None
             return {"status": "success", "thread_id": inserted_id}
         except Exception as e:
@@ -332,7 +326,7 @@ class AnsariDB:
     def get_all_threads(self, user_id):
         try:
             select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
-            result = self._execute_query(select_cmd, (user_id,), "all")
+            result = self._execute_query(select_cmd, (user_id,), "all")[0]
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result] if result else []
         except Exception as e:
             logger.warning(f"Error is {e}")
@@ -389,6 +383,7 @@ class AnsariDB:
             select_cmd_2 = "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
             params = (thread_id, user_id)
 
+            # Note: we don't add "[0]" here since the first arg. below is a list
             result, thread_name_result = self._execute_query([select_cmd_1, select_cmd_2], [params, params], ["all", "one"])
 
             if not thread_name_result:
@@ -451,7 +446,7 @@ class AnsariDB:
             # Now we create a new thread
             insert_cmd = """INSERT INTO share (content) values (%s) RETURNING id;"""
             thread_as_json = json.dumps(thread)
-            result = self._execute_query(insert_cmd, (thread_as_json,), "one")
+            result = self._execute_query(insert_cmd, (thread_as_json,), "one")[0]
             logger.info(f"Result is {result}")
             return result[0] if result else None
         except Exception as e:
@@ -462,7 +457,7 @@ class AnsariDB:
         """Retrieve a snapshot of a thread."""
         try:
             select_cmd = """SELECT content FROM share WHERE id = %s;"""
-            result = self._execute_query(select_cmd, (share_uuid,), "one")
+            result = self._execute_query(select_cmd, (share_uuid,), "one")[0]
             if result:
                 # Deserialize json string
                 return json.loads(result[0])
@@ -499,7 +494,7 @@ class AnsariDB:
         try:
             # Retrieve the associated access_token_id
             select_cmd = """SELECT access_token_id FROM refresh_tokens WHERE token = %s;"""
-            result = self._execute_query(select_cmd, (refresh_token,), "one")
+            result = self._execute_query(select_cmd, (refresh_token,), "one")[0]
             if result is None:
                 raise HTTPException(
                     status_code=401,
@@ -544,7 +539,7 @@ class AnsariDB:
 
     def get_prefs(self, user_id):
         select_cmd = """SELECT pref_key, pref_value FROM preferences WHERE user_id = %s;"""
-        result = self._execute_query(select_cmd, (user_id,), "all")
+        result = self._execute_query(select_cmd, (user_id,), "all")[0]
         retval = {}
         for x in result:
             retval[x[0]] = x[1]
@@ -605,7 +600,7 @@ class AnsariDB:
             ORDER BY created_at DESC, id DESC
             LIMIT 1;
             """
-            result = self._execute_query(select_cmd, (surah, ayah, question), "one")
+            result = self._execute_query(select_cmd, (surah, ayah, question), "one")[0]
             if result:
                 return result[0]
             return None

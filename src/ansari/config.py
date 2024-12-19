@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# # Can't use get_logger() here due to circular import
+# Can't use get_logger() here due to circular import
 # logger = get_logger()
 
 

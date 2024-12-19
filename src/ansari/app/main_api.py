@@ -694,7 +694,7 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     if not cors_ok:
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
-    logger.info(f"Raw request is {request.headers}")
+    logger.debug(f"Raw request is {request.headers}")
     body = await request.json()
     logger.info(f"Request received > {body}.")
     return presenter.complete(body)
