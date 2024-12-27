@@ -21,7 +21,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.fastapi_helpers import validate_cors
+from ansari.util.general_helpers import validate_cors
 
 logger = get_logger()
 
@@ -410,7 +410,7 @@ def add_message(
                 token_params["user_id"],
                 history["messages"][0]["content"],
             )
-            print(f"Added thread {thread_id}")
+            logger.info(f"Added thread {thread_id}")
 
         langfuse_context.update_current_trace(
             session_id=str(thread_id),

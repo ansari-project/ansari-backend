@@ -1,17 +1,27 @@
 import copy
+from datetime import datetime
 from typing import Any
 
 import httpx
 
+from ansari.agents.ansari import Ansari
+from ansari.ansari_db import AnsariDB, MessageLogger
 from ansari.ansari_logger import get_logger
+from ansari.config import get_settings
+from ansari.util.general_helpers import get_language_from_text
 
 logger = get_logger()
+
+# Initialize the DB and agent
+# TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
+#    instead of duplicating `db` instances? Will this cost more resources?
+db = AnsariDB(get_settings())
 
 
 class WhatsAppPresenter:
     def __init__(
         self,
-        agent,
+        agent: Ansari,
         access_token,
         business_phone_number_id,
         api_version="v21.0",
@@ -20,7 +30,7 @@ class WhatsAppPresenter:
         self.access_token = access_token
         self.meta_api_url = f"https://graph.facebook.com/{api_version}/{business_phone_number_id}/messages"
 
-    async def process_and_reply_to_whatsapp_sender(
+    async def handle_text_message(
         self,
         from_whatsapp_number: str,
         incoming_msg_body: str,
@@ -33,11 +43,33 @@ class WhatsAppPresenter:
 
         """
         try:
-            agent = copy.deepcopy(self.agent)
-            logger.info(f"User said: {incoming_msg_body}")
+            logger.info(f"Whatsapp user said: {incoming_msg_body}")
 
-            # Process the input and get the final response
-            response = [tok for tok in agent.process_input(incoming_msg_body) if tok]
+            # Get user's ID from users_whatsapp table
+            user_id_whatsapp = db.retrieve_user_info_whatsapp(from_whatsapp_number, "id")[0]
+
+            # Get details of thread with latest updated_at column
+            thread_id, last_message_time = db.get_last_message_time_whatsapp(user_id_whatsapp)
+
+            # Create a new thread if 3+ hours have passed since last message
+            if thread_id is None or (datetime.now() - last_message_time).total_seconds() > 3 * 60 * 60:
+                first_few_words = " ".join(incoming_msg_body.split()[:6])
+                thread_id = db.create_thread_whatsapp(user_id_whatsapp, first_few_words)
+
+            # Store incoming message to current thread it's assigned to
+            db.append_message_whatsapp(user_id_whatsapp, thread_id, {"role": "user", "content": incoming_msg_body})
+
+            # Get `message_history` from current thread (including incoming message)
+            message_history = db.get_thread_llm_whatsapp(thread_id, user_id_whatsapp)
+
+            # Setting up `MessageLogger` for Ansari, so it can log (i.e., store) its response to the DB
+            agent = copy.deepcopy(self.agent)
+            agent.set_message_logger(MessageLogger(db, user_id_whatsapp, thread_id, to_whatsapp=True))
+
+            # Get final response from Ansari by sending `message_history`
+            # TODO (odyash, good_first_issue): change `stream` to False (and remove comprehensive loop)
+            #   when `Ansari` is capable of handling it
+            response = [tok for tok in agent.replace_message_history(message_history, stream=True) if tok]
             response = "".join(response)
 
             if response:
@@ -91,7 +123,8 @@ class WhatsAppPresenter:
                 f"WhatsApp status update received:\n({status} at {timestamp}.)",
             )
             return "status update"
-        elif "messages" not in value:
+
+        if "messages" not in value:
             error_msg = f"Unsupported message type received from WhatsApp user:\n{body}"
             logger.error(
                 error_msg,
@@ -117,6 +150,35 @@ class WhatsAppPresenter:
             incoming_msg_type,
             incoming_msg_body,
         )
+
+    async def check_and_register_user(
+        self,
+        from_whatsapp_number: str,
+        incoming_msg_type: str,
+        incoming_msg_body: dict,
+    ) -> None:
+        """
+        Checks if the user's phone number is stored in the users_whatsapp table.
+        If not, registers the user with the preferred language.
+
+        Args:
+            from_whatsapp_number (str): The phone number of the WhatsApp sender.
+            incoming_msg_type (str): The type of the incoming message (e.g., text, location).
+            incoming_msg_body (dict): The body of the incoming message.
+
+        Returns:
+            None
+        """
+        # Check if the user's phone number is stored in users_whatsapp table
+        if not db.account_exists_whatsapp(phone_num=from_whatsapp_number):
+            if incoming_msg_type == "text":
+                incoming_msg_text = incoming_msg_body["body"]
+                user_lang = get_language_from_text(incoming_msg_text)
+            else:
+                # TODO (odyash, good_first_issue): use lightweight library/solution that gives us language from country code
+                # instead of hardcoding "en" in below code
+                user_lang = "en"
+            db.register_whatsapp(from_whatsapp_number, {"preferred_language": user_lang})
 
     async def send_whatsapp_message(
         self,
@@ -150,6 +212,53 @@ class WhatsAppPresenter:
             logger.debug(
                 f"So, status code and text of that WhatsApp response:\n{response.status_code}\n{response.text}",
             )
+
+    async def handle_location_message(
+        self,
+        from_whatsapp_number: str,
+        incoming_msg_body: dict,
+    ) -> None:
+        """
+        Handles an incoming location message by updating the user's location in the database
+        and sending a confirmation message.
+
+        Args:
+            from_whatsapp_number (str): The phone number of the WhatsApp sender.
+            incoming_msg_body (dict): The body of the incoming location message.
+
+        Returns:
+            None
+        """
+        loc = incoming_msg_body
+        db.update_user_whatsapp(from_whatsapp_number, {"loc_lat": loc["latitude"], "loc_long": loc["longitude"]})
+        # TODO (odyash, good_first_issue): update msg below to also say something like:
+        # 'Type "pt"/"prayer times" to get prayer times', then implement that feature
+        await self.send_whatsapp_message(
+            from_whatsapp_number,
+            "Stored your location successfully! This will help us give you accurate prayer times ISA 🙌.",
+        )
+
+    async def handle_unsupported_message(
+        self,
+        from_whatsapp_number: str,
+        incoming_msg_type: str,
+    ) -> None:
+        """
+        Handles an incoming unsupported message by sending an appropriate response.
+
+        Args:
+            from_whatsapp_number (str): The phone number of the WhatsApp sender.
+            incoming_msg_type (str): The type of the incoming message (e.g., image, video).
+
+        Returns:
+            None
+        """
+        msg_type = incoming_msg_type + "s" if not incoming_msg_type.endswith("s") else incoming_msg_type
+        msg_type = msg_type.replace("unsupporteds", "this media type")
+        await self.send_whatsapp_message(
+            from_whatsapp_number,
+            f"Sorry, I can't process {msg_type} yet. Please send me a text message.",
+        )
 
     def present(self):
         pass

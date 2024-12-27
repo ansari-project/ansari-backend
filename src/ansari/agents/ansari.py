@@ -42,6 +42,8 @@ class Ansari:
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
+        # TODO(odyash) later: investigate OpenAI's new nomenclature `developer` instead of `system`;
+        # https://community.openai.com/t/how-is-developer-message-better-than-system-prompt/1062784
         self.message_history = [{"role": "system", "content": self.sys_msg}]
 
     def set_message_logger(self, message_logger):
@@ -70,6 +72,11 @@ class Ansari:
 
     @observe()
     def replace_message_history(self, message_history, use_tool=True, stream=True):
+        """
+        TODO(odyash) later:
+        (good_first_issue)
+        `stream == False` is not implemented yet; so it has to stay `True`
+        """
         self.message_history = [
             {"role": "system", "content": self.sys_msg},
         ] + message_history
@@ -88,6 +95,11 @@ class Ansari:
 
     @observe(capture_input=False, capture_output=False)
     def process_message_history(self, use_tool=True, stream=True):
+        """
+        TODO(odyash) later:
+        (good_first_issue)
+        `stream == False` is not implemented yet; so it has to stay `True`
+        """
         if self.message_logger is not None:
             langfuse_context.update_current_trace(
                 user_id=self.message_logger.user_id,
@@ -139,6 +151,11 @@ class Ansari:
 
     @observe(as_type="generation")
     def process_one_round(self, use_tool=True, stream=True):
+        """
+        TODO(odyash) later:
+        (good_first_issue)
+        `stream == False` is not implemented yet; so it has to stay `True`
+        """
         common_params = {
             "model": self.model,
             "messages": self.message_history,
@@ -215,6 +232,10 @@ class Ansari:
                 metadata={"delta": delta},
             )
             if self.message_logger:
+                # TODO(odyash) soon: relocate .log() logic to be after elif below, and to log dict of last message
+                #   (and change .log()'s implementation accordingly, to be also used for storing into whatsapp)
+                #   (Tip: to indicate this, we'll probably store a for_whatsapp flag in Ansari() to be passed to .log())
+                # TODO(odyash) soon: store "function_name" as well in the message (if possible, and role == tool)
                 self.message_logger.log("assistant", words)
 
         elif response_mode == "tool":
@@ -255,7 +276,7 @@ class Ansari:
         results = tool_instance.run_as_list(query)
 
         # we have to first add this message before any tool response, as mentioned in this source:
-        # https://platform.openai.com/docs/guides/function-calling/step-5-provide-the-function-call-result-back-to-the-model
+        # https://platform.openai.com/docs/guides/function-calling#submitting-function-output
         self.message_history.append(
             {
                 "role": "assistant",
@@ -280,5 +301,10 @@ class Ansari:
         # Now we have to pass the results back in
         results_str = msg_prefix + "\nAnother relevant ayah:\n".join(results)
         self.message_history.append(
-            {"role": "tool", "content": results_str, "tool_call_id": tool_id},
+            {
+                "role": "tool",
+                "content": results_str,
+                "tool_call_id": tool_id,
+                # "name": tool_name, # TODO(odyash) soon: add this to message history if we want to save the tool name in DB
+            },
         )

@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, Request
 from jwt import PyJWTError
+from langdetect import detect
 
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
@@ -24,3 +25,19 @@ def validate_cors(request: Request, settings: Settings = Depends(get_settings)) 
         raise HTTPException(status_code=502, detail="Not Allowed Origin")
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
+
+
+def get_language_from_text(text: str) -> str:
+    """Extracts the language from the given text.
+
+    Args:
+        text (str): The text from which to extract the language.
+
+    Returns:
+        str: The language extracted from the given text in ISO 639-1 format ("en", "ar", etc.).
+
+    """
+    try:
+        return detect(text)
+    except Exception:
+        return "en"

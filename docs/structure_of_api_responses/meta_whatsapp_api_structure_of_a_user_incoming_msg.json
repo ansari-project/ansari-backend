@@ -19,7 +19,7 @@
                                 "wa_id": "<<the whatsapp sender's phone number without non-numeric characters>>"
                             }
                         ],
-                        "messages": [
+                        "messages": [ // Source: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages
                             {
                                 "from": "<<the whatsapp sender's phone number without non-numeric characters>>",
                                 "id": "wamid.<<UNIQUE_NUMERIC_ID_FOR_THIS_SPECIFIC_MSG>>",

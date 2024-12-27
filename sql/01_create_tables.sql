@@ -1,3 +1,6 @@
+-- Side note (tip): If you use a tool like DBeaver, and encounter a scope-related error, 
+-- you can append each table name with `public.` to fix the error, as `public` is the default schema name in PostgreSQL.
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(100) UNIQUE, -- Can be null if it is a guest account

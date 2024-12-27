@@ -5,14 +5,14 @@ from ansari.agents import Ansari
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
-from ansari.util.fastapi_helpers import validate_cors
+from ansari.util.general_helpers import validate_cors
 
 logger = get_logger()
 
 # Create a router in order to make the FastAPI functions here an extension of the main FastAPI app
 router = APIRouter()
 
-# Initialize the agent
+# Initialize the Ansari agent
 ansari = Ansari(get_settings())
 
 chosen_whatsapp_biz_num = (
@@ -97,27 +97,47 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
         incoming_msg_body,
     ) = result
 
-    # TODO (odyash, later): Add support for location type messages
-    if incoming_msg_type != "text":
-        msg_type = incoming_msg_type + "s" if not incoming_msg_type.endswith("s") else incoming_msg_type
-        msg_type = msg_type.replace("unsupporteds", "this media type")
-        await presenter.send_whatsapp_message(
+    #  Check if the user's phone number is stored in users_whatsapp table
+    await presenter.check_and_register_user(
+        from_whatsapp_number,
+        incoming_msg_type,
+        incoming_msg_body,
+    )
+
+    # Check if the incoming message is a location
+    if incoming_msg_type == "location":
+        await presenter.handle_location_message(
             from_whatsapp_number,
-            f"Sorry, I can't process {msg_type} yet. Please send me a text message.",
+            incoming_msg_body,
         )
         return
 
+    # Check if the incoming message is a media type other than text
+    if incoming_msg_type != "text":
+        await presenter.handle_unsupported_message(
+            from_whatsapp_number,
+            incoming_msg_type,
+        )
+        return
+
+    # Rest of the code below is for processing text messages sent by the whatsapp user
     incoming_msg_text = incoming_msg_body["body"]
 
-    # Send acknowledgment message
+    # Send acknowledgment message (only in DEBUG_MODE)
     if get_settings().DEBUG_MODE:
         await presenter.send_whatsapp_message(
             from_whatsapp_number,
             f"Ack: {incoming_msg_text}",
         )
 
+    # Send a typing indicator to the sender
+    # Side note: As of 2024-12-21, Meta's WhatsApp API does not support typing indicators
+    # Source URL results from this query:
+    # https://www.google.com/search?q=typing+indicator+whatsapp+api&sca_esv=25db03e20fe2a1e6&source=lnt&tbs=qdr:y
+    await presenter.send_whatsapp_message(from_whatsapp_number, "...")
+
     # Actual code to process the incoming message using Ansari agent then reply to the sender
-    await presenter.process_and_reply_to_whatsapp_sender(
+    await presenter.handle_text_message(
         from_whatsapp_number,
         incoming_msg_text,
     )
