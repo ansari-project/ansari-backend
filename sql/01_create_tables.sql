@@ -39,7 +39,7 @@ CREATE TABLE messages (
     user_id INTEGER NOT NULL,
     thread_id INTEGER NOT NULL,
     role TEXT NOT NULL, 
-    -- #TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+    -- #TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
     function_name TEXT, 
     content TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

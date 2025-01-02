@@ -8,6 +8,7 @@ from datetime import date, datetime
 import litellm
 from langfuse.decorators import langfuse_context, observe
 
+from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
@@ -19,7 +20,7 @@ logger = get_logger()
 
 
 class Ansari:
-    def __init__(self, settings, message_logger=None, json_format=False):
+    def __init__(self, settings, message_logger: MessageLogger = None, json_format=False):
         self.settings = settings
         self.json_format = json_format
         self.message_logger = message_logger
@@ -73,9 +74,7 @@ class Ansari:
     @observe()
     def replace_message_history(self, message_history, use_tool=True, stream=True):
         """
-        TODO(odyash) later:
-        (good_first_issue)
-        `stream == False` is not implemented yet; so it has to stay `True`
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
         self.message_history = [
             {"role": "system", "content": self.sys_msg},
@@ -96,9 +95,7 @@ class Ansari:
     @observe(capture_input=False, capture_output=False)
     def process_message_history(self, use_tool=True, stream=True):
         """
-        TODO(odyash) later:
-        (good_first_issue)
-        `stream == False` is not implemented yet; so it has to stay `True`
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
         if self.message_logger is not None:
             langfuse_context.update_current_trace(
@@ -152,9 +149,7 @@ class Ansari:
     @observe(as_type="generation")
     def process_one_round(self, use_tool=True, stream=True):
         """
-        TODO(odyash) later:
-        (good_first_issue)
-        `stream == False` is not implemented yet; so it has to stay `True`
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
         common_params = {
             "model": self.model,
@@ -232,10 +227,6 @@ class Ansari:
                 metadata={"delta": delta},
             )
             if self.message_logger:
-                # TODO(odyash) soon: relocate .log() logic to be after elif below, and to log dict of last message
-                #   (and change .log()'s implementation accordingly, to be also used for storing into whatsapp)
-                #   (Tip: to indicate this, we'll probably store a for_whatsapp flag in Ansari() to be passed to .log())
-                # TODO(odyash) soon: store "function_name" as well in the message (if possible, and role == tool)
                 self.message_logger.log("assistant", words)
 
         elif response_mode == "tool":
@@ -305,6 +296,9 @@ class Ansari:
                 "role": "tool",
                 "content": results_str,
                 "tool_call_id": tool_id,
-                # "name": tool_name, # TODO(odyash) soon: add this to message history if we want to save the tool name in DB
             },
         )
+
+        # Note(odyash): If we want to later log the tool response
+        # (like we used to do here: https://github.com/ansari-project/ansari-backend/blob/c2bd176ad08b93ddfec4cf63ecadb84f23870a7f/agents/ansari.py#L255)
+        # Then we should update the DB's `messages/messages_whatsapp` tables to accomodate for `tool_call_id`/`tool_type`

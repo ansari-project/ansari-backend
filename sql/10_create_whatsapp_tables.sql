@@ -2,13 +2,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE users_whatsapp (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER, -- Left here in case we want to get whatsapp context into Ansari's main website (possible #TODO in the far future)
+    user_id INTEGER, -- Left here in case we want to get whatsapp context into Ansari's main website (possible #TODO(odyash) in the far future)
     phone_num VARCHAR(20) UNIQUE NOT NULL,
-    first_name VARCHAR(50), -- Can be null if user didn't specify (#TODO)
-    last_name VARCHAR(50), -- Can be null if user didn't specify (#TODO)
-    preferred_language VARCHAR(10) DEFAULT 'en', -- Could be programmatically deduced using initial message's language, country code, other table fields (#TODO)
-    loc_lat FLOAT, -- Can be null if user didn't specify (#TODO)
-    loc_long FLOAT, -- Can be null if user didn't specify (#TODO)
+    first_name VARCHAR(50), -- Can be null if user didn't specify (#TODO(odyash))
+    last_name VARCHAR(50), -- Can be null if user didn't specify (#TODO(odyash))
+    preferred_language VARCHAR(10) DEFAULT 'en', -- Could be programmatically deduced using initial message's language, country code, other table fields (#TODO(odyash))
+    loc_lat FLOAT, -- Can be null if user didn't specify (#TODO(odyash))
+    loc_long FLOAT, -- Can be null if user didn't specify (#TODO(odyash))
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -35,7 +35,7 @@ CREATE TABLE messages_whatsapp (
     user_id_whatsapp INTEGER NOT NULL,
     thread_id UUID NOT NULL,
     role TEXT NOT NULL, 
-    function_name TEXT, -- #TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+    function_name TEXT, -- #TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
     content TEXT NOT NULL, 
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Not sure if this useful, as we have timestamp

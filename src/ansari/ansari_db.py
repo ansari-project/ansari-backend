@@ -459,7 +459,7 @@ class AnsariDB:
 
     def append_message(self, user_id, thread_id, role, content, tool_name=None):
         try:
-            # TODO (odyash): check if "function" can be renamed to
+            # TODO(odyash): check if "function" can be renamed to
             # "tool" like the rest of the codebase or not
             insert_cmd = (
                 "INSERT INTO messages (thread_id, user_id, role, content, function_name) " + "VALUES (%s, %s, %s, %s, %s);"
@@ -535,7 +535,7 @@ class AnsariDB:
                     detail="Incorrect user_id or thread_id.",
                 )
             thread_name = thread_name_result[0]
-            # TODO (odyash): check if "function" can be renamed to "tool"
+            # TODO(odyash): check if "function" can be renamed to "tool"
             retval = {
                 "thread_name": thread_name,
                 "messages": [self.convert_message(x) for x in result if x[1] != "function"],
@@ -551,7 +551,7 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+            # TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
             select_cmd_1 = (
                 "SELECT role, content, function_name FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
@@ -605,6 +605,33 @@ class AnsariDB:
         except Exception as e:
             logger.warning(f"Error is {e}")
             return []
+
+    def get_last_message_time_whatsapp(self, user_id_whatsapp: int) -> tuple[Optional[str], Optional[datetime]]:
+        """
+        Retrieves the thread ID and the last message time for the latest updated thread of a WhatsApp user.
+
+        Args:
+            user_id_whatsapp (int): The ID of the WhatsApp user.
+
+        Returns:
+            tuple[Optional[str], Optional[datetime]]: A tuple containing the thread ID and the last message time.
+                                                    Returns (None, None) if no threads are found.
+        """
+        try:
+            select_cmd = """
+            SELECT id, updated_at
+            FROM threads_whatsapp
+            WHERE user_id_whatsapp = %s
+            ORDER BY updated_at DESC
+            LIMIT 1;
+            """
+            result = self._execute_query(select_cmd, (user_id_whatsapp,), "one")[0]
+            if result:
+                return result[0], result[1]
+            return None, None
+        except Exception as e:
+            logger.warning(f"Error is {e}")
+            return None, None
 
     def snapshot_thread(self, thread_id, user_id):
         """Snapshot a thread at the current time and make it
