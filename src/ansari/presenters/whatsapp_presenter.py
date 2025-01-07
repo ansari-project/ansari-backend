@@ -193,7 +193,16 @@ class WhatsAppPresenter:
             else:
                 passed_time = (datetime.now() - last_message_time).total_seconds()
 
-            logger.debug(f"Time passed since user ({user_id_whatsapp})'s last whatsapp message: {passed_time / 60:.1f}mins")
+            # Log the time passed since the last message
+            if passed_time < 60:
+                passed_time_log = f"{passed_time:.1f}sec"
+            elif passed_time < 3600:
+                passed_time_log = f"{passed_time / 60:.1f}mins"
+            elif passed_time < 86400:
+                passed_time_log = f"{passed_time / 3600:.1f}hours"
+            else:
+                passed_time_log = f"{passed_time / 86400:.1f}days"
+            logger.debug(f"Time passed since user ({user_id_whatsapp})'s last whatsapp message: {passed_time_log}mins")
 
             # Determine the allowed retention time
             if get_settings().DEBUG_MODE:

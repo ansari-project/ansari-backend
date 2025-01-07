@@ -8,11 +8,35 @@ from ansari.config import Settings, get_settings
 logger = get_logger()
 
 
+def get_extended_origins(settings: Settings = Depends(get_settings)):
+    origins = get_settings().ORIGINS
+
+    # This if condition only runs in local development
+    # Also, if we don't execute the code below, we'll get a "400 Bad Request" error when
+    # trying to access the API from the local frontend
+    if get_settings().DEBUG_MODE:
+        # Change "3000" to the port of your frontend server (3000 is the default there)
+        local_origin = "http://localhost:3000"
+        zrok_origin = get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
+
+        if local_origin not in origins:
+            origins.append(local_origin)
+        if zrok_origin not in origins:
+            origins.append(zrok_origin)
+
+    # Make sure CI/CD of GitHub Actions is allowed
+    if "testserver" not in origins:
+        github_actions_origin = "testserver"
+        origins.append(github_actions_origin)
+
+    return origins
+
+
 # Defined in a separate file to avoid circular imports between main_*.py files
 def validate_cors(request: Request, settings: Settings = Depends(get_settings)) -> bool:
     try:
         # logger.debug(f"Headers of raw request are: {request.headers}")
-        origins = get_settings().ORIGINS
+        origins = get_extended_origins()
         incoming_origin = [
             request.headers.get("origin", ""),  # If coming from ansari's frontend website
             request.headers.get("host", ""),  # If coming from Meta's WhatsApp API
@@ -22,7 +46,8 @@ def validate_cors(request: Request, settings: Settings = Depends(get_settings)) 
         if any(i_o in origins for i_o in incoming_origin) or mobile == "ANSARI":
             logger.debug("CORS OK")
             return True
-        raise HTTPException(status_code=502, detail=f"Incoming origin/host: {incoming_origin} is not in origin list")
+        else:
+            raise HTTPException(status_code=502, detail=f"Incoming origin/host: {incoming_origin} is not in origin list")
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
 

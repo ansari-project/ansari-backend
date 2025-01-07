@@ -22,7 +22,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.general_helpers import validate_cors
+from ansari.util.general_helpers import get_extended_origins, validate_cors
 
 logger = get_logger()
 
@@ -46,17 +46,7 @@ async def http_exception_handler(request, exc: HTTPException):
 
 
 def add_app_middleware():
-    origins = get_settings().ORIGINS
-
-    # This if condition only runs in local development
-    if get_settings().DEBUG_MODE:
-        # Change "3000" to the port of your frontend server (3000 is the default there)
-        local_origin = "http://localhost:3000"
-        zrok_origin = get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
-        # If we don't execute the code below, we'll get a "400 Bad Request" error when
-        # trying to access the API from the local frontend
-        origins.append(local_origin)
-        origins.append(zrok_origin)
+    origins = get_extended_origins()
 
     app.add_middleware(
         CORSMiddleware,
