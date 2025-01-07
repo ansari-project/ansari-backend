@@ -47,11 +47,14 @@ CREATE TABLE messages_whatsapp (
 -- Debugging notes: run below commands to untie dependencies and drop tables 
 -- (if you're still prototyping with the tables' final schema)
 
--- -- Drop foreign key constraints
--- ALTER TABLE users_whatsapp DROP CONSTRAINT users_whatsapp_user_id_fkey;
--- ALTER TABLE messages_whatsapp DROP CONSTRAINT messages_whatsapp_user_id_whatsapp_fkey;
+-- --  Drop foreign key constraints
+--ALTER TABLE users_whatsapp DROP CONSTRAINT users_whatsapp_user_id_fkey;
+--ALTER TABLE messages_whatsapp 
+--	DROP CONSTRAINT messages_whatsapp_user_id_whatsapp_fkey, 
+--	DROP CONSTRAINT messages_whatsapp_thread_id_fkey;
+--ALTER TABLE threads_whatsapp DROP CONSTRAINT threads_whatsapp_user_id_whatsapp_fkey;
 
--- -- Drop the tables
--- DROP TABLE IF EXISTS users_whatsapp;
--- DROP TABLE IF EXISTS messages_whatsapp;
--- DROP TABLE IF EXISTS threads_whatsapp;
+-- --  Drop the tables
+--DROP TABLE IF EXISTS users_whatsapp;
+--DROP TABLE IF EXISTS messages_whatsapp;
+--DROP TABLE IF EXISTS threads_whatsapp;

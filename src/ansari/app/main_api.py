@@ -7,12 +7,13 @@ import psycopg2.extras
 from diskcache import FanoutCache, Lock
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
 
 from ansari.agents import Ansari, AnsariWorkflow
@@ -25,11 +26,23 @@ from ansari.util.general_helpers import validate_cors
 
 logger = get_logger()
 
-
 # Register the UUID type globally
 psycopg2.extras.register_uuid()
 
 app = FastAPI()
+
+
+# Custom exception handler, which aims to log FastAPI-related exceptions before raising them
+# Details: https://fastapi.tiangolo.com/tutorial/handling-errors/#override-request-validation-exceptions
+#   Side note: apparently, there's no need to write another `RequestValidationError`-related function,
+#   contrary to what's mentioned in the above URL.
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    logger.error(f"{exc}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 
 def add_app_middleware():
@@ -39,14 +52,11 @@ def add_app_middleware():
     if get_settings().DEBUG_MODE:
         # Change "3000" to the port of your frontend server (3000 is the default there)
         local_origin = "http://localhost:3000"
+        zrok_origin = get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
+        # If we don't execute the code below, we'll get a "400 Bad Request" error when
+        # trying to access the API from the local frontend
         origins.append(local_origin)
-        zrok_origin = "https://" + get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
         origins.append(zrok_origin)
-        # If we don't do this, we'll get a "400 Bad Request" error when trying to access the API from the local frontend
-        logger.debug(
-            f"Added {local_origin} and zrok's origin to the list of allowed origins for debugging purposes "
-            + "(assuming local frontend's port is 3000)..."
-        )
 
     app.add_middleware(
         CORSMiddleware,
@@ -57,11 +67,7 @@ def add_app_middleware():
     )
 
 
-def main():
-    add_app_middleware()
-
-
-main()
+add_app_middleware()
 
 db = AnsariDB(get_settings())
 ansari = Ansari(get_settings())
@@ -76,16 +82,20 @@ app.include_router(whatsapp_router)
 
 if __name__ == "__main__" and get_settings().DEBUG_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
+    #   I.e., just run:
+    #   `python src/ansari/app/main_api.py`
     # Note 1: if you instead run
-    #   uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT
-    # in the terminal, then this block will be ignored
+    #   `uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT`
+    # in the terminal, then this `if __name__ ...` block will be ignored
+
     # Note 2: you have to use zrok to test whatsapp's webhook locally,
-    # Check the resources at `.env.example` file for more details
-    # Run commands:
-    # `zrok enable SECRET_TOKEN_GENERATED_BY_ZROK_FOR_YOUR_DEVICE` (should be run only once)
-    # `zrok reserve public localhost:8000 -n ZROK_SHARE_TOKEN` (should be run only once)
-    #   (if error occurs, contact odyash on GitHub)
-    # `zrok share reserved ZROK_SHARE_TOKEN`
+    # Check the resources at `.env.example` file for more details, but TL;DR:
+    # Run 3 commands below:
+    # Only run on initial setup (if error occurs, contact odyash on GitHub):
+    #   `zrok enable SECRET_TOKEN_GENERATED_BY_ZROK_FOR_YOUR_DEVICE`
+    #   `zrok reserve public localhost:8000 -n ZROK_SHARE_TOKEN`
+    # Run on initial setup and upon starting a new terminal session:
+    #   `zrok share reserved ZROK_SHARE_TOKEN`
     import uvicorn
 
     filename_without_extension = os.path.splitext(os.path.basename(__file__))[0]

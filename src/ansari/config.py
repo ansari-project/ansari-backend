@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
-    WHATSAPP_CHAT_RETENTION_HOURS: int = Field(default=3)
+    WHATSAPP_CHAT_RETENTION_HOURS: int = Field(default=3)  # This is hardcoded to 0.05 when DEBUG_MODE is True
     ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")

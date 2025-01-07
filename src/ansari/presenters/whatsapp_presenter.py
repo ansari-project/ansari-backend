@@ -1,6 +1,6 @@
 import copy
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -16,9 +16,6 @@ logger = get_logger()
 # TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
 #    instead of duplicating `db` instances? Will this cost more resources?
 db = AnsariDB(get_settings())
-
-# TODO(odyash) now: test the application on 0.05, so that 0.05 * 60 * 60 = 3 minutes :]
-#   Tip: check the `logger.debug`s below to help you out while testing
 
 
 class WhatsAppPresenter:
@@ -48,6 +45,8 @@ class WhatsAppPresenter:
             Returns None if the extraction fails.
 
         """
+        # logger.debug(f"Received payload from WhatsApp user:\n{body}")
+
         if not (
             body.get("object")
             and (entry := body.get("entry", []))
@@ -61,13 +60,13 @@ class WhatsAppPresenter:
             raise Exception(error_msg)
 
         if "statuses" in value:
-            status = value["statuses"]["status"]
-            timestamp = value["statuses"]["timestamp"]
-            # This log isn't important if we don't want to track when an Ansari's replied message is
-            # delivered to or read by the recipient
-            logger.debug(
-                f"WhatsApp status update received:\n({status} at {timestamp}.)",
-            )
+            # status = value["statuses"]["status"]
+            # timestamp = value["statuses"]["timestamp"]
+            # # This log isn't important if we don't want to track when an Ansari's replied message is
+            # # delivered to or read by the recipient
+            # logger.debug(
+            #     f"WhatsApp status update received:\n({status} at {timestamp}.)",
+            # )
             return "status update"
 
         if "messages" not in value:
@@ -77,11 +76,8 @@ class WhatsAppPresenter:
             )
             raise Exception(error_msg)
 
-        logger.info(f"Received payload from WhatsApp user:\n{body}")
         incoming_msg = value["messages"][0]
 
-        # Extract the business phone number ID from the webhook payload
-        business_phone_number_id = value["metadata"]["phone_number_id"]
         # Extract the phone number of the WhatsApp sender
         from_whatsapp_number = incoming_msg["from"]
         # Meta API note: Meta sends "errors" key when receiving unsupported message types
@@ -90,8 +86,9 @@ class WhatsAppPresenter:
         # Extract the message of the WhatsApp sender (could be text, image, etc.)
         incoming_msg_body = incoming_msg[incoming_msg_type]
 
+        logger.info(f"Received a supported whatsapp message from {from_whatsapp_number}: {incoming_msg_body}")
+
         return (
-            business_phone_number_id,
             from_whatsapp_number,
             incoming_msg_type,
             incoming_msg_body,
@@ -116,15 +113,26 @@ class WhatsAppPresenter:
             None
         """
         # Check if the user's phone number is stored in users_whatsapp table
-        if not db.account_exists_whatsapp(phone_num=from_whatsapp_number):
-            if incoming_msg_type == "text":
-                incoming_msg_text = incoming_msg_body["body"]
-                user_lang = get_language_from_text(incoming_msg_text)
-            else:
-                # TODO(odyash, good_first_issue): use lightweight library/solution that gives us language from country code
-                # instead of hardcoding "en" in below code
-                user_lang = "en"
-            db.register_whatsapp(from_whatsapp_number, {"preferred_language": user_lang})
+        if db.account_exists_whatsapp(phone_num=from_whatsapp_number):
+            return True
+
+        # Else, register the user with the detected language
+        if incoming_msg_type == "text":
+            incoming_msg_text = incoming_msg_body["body"]
+            user_lang = get_language_from_text(incoming_msg_text)
+        else:
+            # TODO(odyash, good_first_issue): use lightweight library/solution that gives us language from country code
+            # instead of hardcoding "en" in below code
+            user_lang = "en"
+        status: Literal["success", "failure"] = db.register_whatsapp(from_whatsapp_number, {"preferred_language": user_lang})[
+            "status"
+        ]
+        if status == "success":
+            logger.info(f"Registered new whatsapp user (lang: {user_lang})!: {from_whatsapp_number}")
+            return True
+        else:
+            logger.error(f"Failed to register new whatsapp user: {from_whatsapp_number}")
+            return False
 
     async def send_whatsapp_message(
         self,
@@ -152,12 +160,10 @@ class WhatsAppPresenter:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=json_data)
             response.raise_for_status()  # Raise an exception for HTTP errors
-            logger.info(
-                f"Ansari responsded to WhatsApp user: {from_whatsapp_number} with:\n{msg_body}",
-            )
-            logger.debug(
-                f"So, status code and text of that WhatsApp response:\n{response.status_code}\n{response.text}",
-            )
+            if msg_body != "...":
+                logger.info(
+                    f"Ansari responsded to WhatsApp user: {from_whatsapp_number} with:\n{msg_body}",
+                )
 
     async def handle_text_message(
         self,
@@ -175,18 +181,28 @@ class WhatsAppPresenter:
             logger.info(f"Whatsapp user said: {incoming_txt_msg}")
 
             # Get user's ID from users_whatsapp table
+            # Note we're not checking for user's existence here, as we've already done that in `main_webhook()`
             user_id_whatsapp = db.retrieve_user_info_whatsapp(from_whatsapp_number, "id")[0]
 
             # Get details of thread with latest updated_at column
             thread_id, last_message_time = db.get_last_message_time_whatsapp(user_id_whatsapp)
 
-            # Create a new thread if X hours have passed since last message
-            passed_time = (datetime.now() - last_message_time).total_seconds()
-            logger.debug(f"Time passed since user ({user_id_whatsapp})'s last whatsapp message: {passed_time}")
-            if get_settings().DEBUG_MODE:
-                allowed_time = 0.05 * 60 * 60  # 3 minutes
+            # Calculate the time passed since the last message
+            if last_message_time is None:
+                passed_time = float("inf")
             else:
-                allowed_time = get_settings().WHATSAPP_CHAT_RETENTION_HOURS * 60 * 60
+                passed_time = (datetime.now() - last_message_time).total_seconds()
+
+            logger.debug(f"Time passed since user ({user_id_whatsapp})'s last whatsapp message: {passed_time / 60:.1f}mins")
+
+            # Determine the allowed retention time
+            if get_settings().DEBUG_MODE:
+                reten_hours = 0.05  # so allowed_time == 3 minutes
+            else:
+                reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
+            allowed_time = reten_hours * 60 * 60
+
+            # Create a new thread if X hours have passed since last message
             if thread_id is None or passed_time > allowed_time:
                 first_few_words = " ".join(incoming_txt_msg.split()[:6])
                 thread_id = db.create_thread_whatsapp(user_id_whatsapp, first_few_words)
@@ -203,8 +219,8 @@ class WhatsAppPresenter:
             message_history_for_debugging = [msg for msg in message_history if msg["role"] in {"user", "assistant"}]
             # Note: obviously, this log output won't consider Ansari's response, as it still happens later in the code below
             logger.debug(
-                f"#msgs (user/asisstant only) retrieved for user ({user_id_whatsapp})'s current whatsapp thread: "
-                + len(message_history_for_debugging)
+                f"#msgs (user/assistant only) retrieved for user ({user_id_whatsapp})'s current whatsapp thread: "
+                + str(len(message_history_for_debugging))
             )
 
             # Setting up `MessageLogger` for Ansari, so it can log (i.e., store) its response to the DB
@@ -226,7 +242,8 @@ class WhatsAppPresenter:
                     "Ansari returned an empty response. Please rephrase your question, then try again.",
                 )
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
+            logger.error(f"Error processing message: {e}. Details are in next log.")
+            logger.exception(e)
             await self.send_whatsapp_message(
                 from_whatsapp_number,
                 "An unexpected error occurred while processing your message. Please try again later.",

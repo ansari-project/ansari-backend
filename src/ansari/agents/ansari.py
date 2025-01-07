@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -92,6 +93,28 @@ class Ansari:
             if m:
                 yield m
 
+    def _debug_log_truncated_message_history(self, message_history, count: int, failures: int):
+        """
+        Logs a truncated version of the message history for debugging purposes.
+
+        Args:
+            message_history (list): The message history to be truncated and logged.
+        """
+        trunc_msg_hist = copy.deepcopy(message_history)
+        if (
+            len(trunc_msg_hist) > 1
+            and isinstance(trunc_msg_hist[0], dict)
+            and "role" in trunc_msg_hist[0]
+            and trunc_msg_hist[0]["role"] == "system"
+            and "content" in trunc_msg_hist[0]
+        ):
+            sys_p = trunc_msg_hist[0]["content"]
+            trunc_msg_hist[0]["content"] = sys_p[:15] + "..."
+
+        logger.info(
+            f"Process attempt #{count+failures+1} of this message history:\n" + "-" * 60 + f"\n{trunc_msg_hist}\n" + "-" * 60,
+        )
+
     @observe(capture_input=False, capture_output=False)
     def process_message_history(self, use_tool=True, stream=True):
         """
@@ -110,12 +133,7 @@ class Ansari:
         failures = 0
         while self.message_history[-1]["role"] != "assistant" or "tool_call_id" in self.message_history[-1]:
             try:
-                logger.info(
-                    f"Process attempt #{count+failures+1} of this message history:\n"
-                    + "-" * 60
-                    + f"\n{self.message_history}\n"
-                    + "-" * 60,
-                )
+                self._debug_log_truncated_message_history(self.message_history, count, failures)
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times (failure)

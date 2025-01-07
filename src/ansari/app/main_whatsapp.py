@@ -91,18 +91,24 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
 
     # Get relevant info from Meta's API
     (
-        business_phone_number_id,
         from_whatsapp_number,
         incoming_msg_type,
         incoming_msg_body,
     ) = result
 
-    #  Check if the user's phone number is stored in users_whatsapp table
-    await presenter.check_and_register_user(
+    # Check if the user's phone number is stored in users_whatsapp table and register if not
+    # Returns false if user's not found and thier registration fails
+    user_found: bool = await presenter.check_and_register_user(
         from_whatsapp_number,
         incoming_msg_type,
         incoming_msg_body,
     )
+    if not user_found:
+        await presenter.send_whatsapp_message(
+            from_whatsapp_number,
+            "Sorry, we couldn't register you to our Database. Please try again later.",
+        )
+        return
 
     # Check if the incoming message is a location
     if incoming_msg_type == "location":
@@ -123,17 +129,17 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
     # Rest of the code below is for processing text messages sent by the whatsapp user
     incoming_msg_text = incoming_msg_body["body"]
 
-    # Send acknowledgment message (only in DEBUG_MODE)
-    if get_settings().DEBUG_MODE:
-        await presenter.send_whatsapp_message(
-            from_whatsapp_number,
-            f"Ack: {incoming_msg_text}",
-        )
+    # # Send acknowledgment message (only in DEBUG_MODE)
+    # # and if dev. doesn't need it, comment it out :]
+    # if get_settings().DEBUG_MODE:
+    #     await presenter.send_whatsapp_message(
+    #         from_whatsapp_number,
+    #         f"Ack: {incoming_msg_text}",
+    #     )
 
     # Send a typing indicator to the sender
     # Side note: As of 2024-12-21, Meta's WhatsApp API does not support typing indicators
-    # Source URL results from this query:
-    # https://www.google.com/search?q=typing+indicator+whatsapp+api&sca_esv=25db03e20fe2a1e6&source=lnt&tbs=qdr:y
+    # Source: Search "typing indicator whatsapp api" on Google
     await presenter.send_whatsapp_message(from_whatsapp_number, "...")
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
