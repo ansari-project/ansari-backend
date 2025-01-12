@@ -4,7 +4,7 @@ import logging
 import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Tuple, Union
 
 import bcrypt
 import jwt
@@ -16,7 +16,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 
-logger = get_logger()
+logger = get_logger("DEBUG")
 
 
 class MessageLogger:
@@ -24,15 +24,23 @@ class MessageLogger:
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db, user_id: int, thread_id: int, trace_id: int) -> None:
+    def __init__(self, db: "AnsariDB", user_id: int, thread_id: int, trace_id: int = None, to_whatsapp: bool = False) -> None:
+        if not to_whatsapp and trace_id is None:
+            raise ValueError("trace_id must be provided when not logging to WhatsApp")
         self.user_id = user_id
         self.thread_id = thread_id
         self.trace_id = trace_id
+        self.to_whatsapp = to_whatsapp
         logger.debug(f"DB is {db}")
         self.db = db
 
     def log(self, role, content, tool_name=None):
-        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name)
+        if not self.to_whatsapp:
+            self.db.append_message(self.user_id, self.thread_id, role, content, tool_name)
+        else:
+            self.db.append_message_whatsapp(
+                self.user_id, self.thread_id, {"role": role, "content": content, "function_name": tool_name}
+            )
 
 
 class AnsariDB:
@@ -161,7 +169,7 @@ class AnsariDB:
                 which_fetch = [which_fetch] * len(query)
 
         caller_function_name = inspect.stack()[1].function
-        logger.debug(f"Function {caller_function_name}() \nis running queries: \n{query} \nwith params: \n{params}")
+        logger.debug(f"Running DB function: {caller_function_name}()")
 
         results = []
         with self.get_connection() as conn:
@@ -243,7 +251,39 @@ class AnsariDB:
             self._execute_query(insert_cmd, (email, password_hash, first_name, last_name))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
+            return {"status": "failure", "error": str(e)}
+
+    def register_whatsapp(self, phone_num: str, db_cols_to_vals: dict) -> dict:
+        """
+        Registers a WhatsApp user in the users_whatsapp table.
+
+        Args:
+            phone_num (str): The phone number of the user.
+            db_cols_to_vals (dict): A dictionary where keys are column names of the users_whatsapp table
+                                    and values are the corresponding values to be inserted.
+                                    Column names can be checked from the users_whatsapp DB table.
+
+        Returns:
+            dict: A dictionary with the status of the operation.
+
+        Raises:
+            ValueError: If no fields are provided to insert.
+        """
+        try:
+            # Add phone_num to the dictionary
+            db_cols_to_vals["phone_num"] = phone_num
+
+            # Construct the SQL INSERT statement dynamically based on the provided dictionary
+            columns = ", ".join(db_cols_to_vals.keys())
+            placeholders = ", ".join(["%s"] * len(db_cols_to_vals))
+            insert_cmd = f"INSERT INTO users_whatsapp ({columns}) VALUES ({placeholders});"
+
+            self._execute_query(insert_cmd, tuple(db_cols_to_vals.values()))
+
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def account_exists(self, email):
@@ -252,7 +292,16 @@ class AnsariDB:
             result = self._execute_query(select_cmd, (email,), "one")[0]
             return result is not None
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
+            return False
+
+    def account_exists_whatsapp(self, phone_num):
+        try:
+            select_cmd = """SELECT id FROM users_whatsapp WHERE phone_num = %s;"""
+            result = self._execute_query(select_cmd, (phone_num,), "one")[0]
+            return result is not None
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
             return False
 
     def save_access_token(self, user_id, token):
@@ -266,7 +315,7 @@ class AnsariDB:
                 "token_db_id": inserted_id,
             }
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def save_refresh_token(self, user_id, token, access_token_id):
@@ -275,7 +324,7 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, token, access_token_id))
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def save_reset_token(self, user_id, token):
@@ -287,7 +336,7 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, token, token))
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def retrieve_user_info(self, email):
@@ -299,8 +348,44 @@ class AnsariDB:
                 return user_id, existing_hash, first_name, last_name
             return None, None, None, None
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return None, None, None, None
+
+    def retrieve_user_info_whatsapp(self, phone_num: str, db_cols: Union[list, str]) -> Optional[Tuple]:
+        """
+        Retrieves user information from the users_whatsapp table.
+
+        Args:
+            phone_num (str): The phone number of the user.
+            db_cols (Union[list, str]): A (list of) column name(s) to be retrieved from the users_whatsapp table.
+                        Column names can be checked from the users_whatsapp DB table.
+
+        Returns:
+            Optional[Union[Tuple, Any]]: A tuple containing the requested fields if
+                        multiple columns are requested (i.e., len(db_cols) >= 2),
+                        or a single value if only one column is requested,
+                        or None if no user is found.
+
+        Raises:
+            ValueError: If 'phone_num' is not included in db_cols.
+            Exception: If an error occurs during the database query.
+        """
+        if isinstance(db_cols, str):
+            db_cols = [db_cols]
+
+        if not db_cols:
+            raise ValueError("At least one field must be provided to retrieve.")
+
+        try:
+            # Construct the SELECT statement based on the provided list of columns
+            select_cmd = f"SELECT {', '.join(db_cols)} FROM users_whatsapp WHERE phone_num = %s;"
+            result = self._execute_query(select_cmd, (phone_num,), "one")[0]
+            if result:
+                return result
+            return None
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
+            return None
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
@@ -310,7 +395,7 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, thread_id, message_id, feedback_class, comment))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def create_thread(self, user_id):
@@ -320,8 +405,31 @@ class AnsariDB:
             inserted_id = result[0] if result else None
             return {"status": "success", "thread_id": inserted_id}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
+
+    def create_thread_whatsapp(self, user_id_whatsapp: int, thread_name: str) -> str:
+        """
+        Creates a new thread for a given WhatsApp user ID.
+
+        Args:
+            user_id_whatsapp (int): The ID of the WhatsApp user.
+            thread_name (str): The name of the thread.
+
+        Returns:
+            str: The UUID of the newly created thread.
+        """
+        try:
+            insert_cmd = """
+            INSERT INTO threads_whatsapp (user_id_whatsapp, name) 
+            VALUES (%s, %s) 
+            RETURNING id;
+            """
+            result = self._execute_query(insert_cmd, (user_id_whatsapp, thread_name), "one")[0]
+            return result[0] if result else None
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
+            return None
 
     def get_all_threads(self, user_id):
         try:
@@ -329,7 +437,7 @@ class AnsariDB:
             result = self._execute_query(select_cmd, (user_id,), "all")[0]
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result] if result else []
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return []
 
     def set_thread_name(self, thread_id, user_id, thread_name):
@@ -348,12 +456,12 @@ class AnsariDB:
             )
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def append_message(self, user_id, thread_id, role, content, tool_name=None):
         try:
-            # TODO (odyash): check if "function" can be renamed to
+            # TODO(odyash): check if "function" can be renamed to
             # "tool" like the rest of the codebase or not
             insert_cmd = (
                 "INSERT INTO messages (thread_id, user_id, role, content, function_name) " + "VALUES (%s, %s, %s, %s, %s);"
@@ -368,7 +476,44 @@ class AnsariDB:
 
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
+            return {"status": "failure", "error": str(e)}
+
+    def append_message_whatsapp(self, user_id_whatsapp: int, thread_id: int, db_cols_to_vals: dict) -> dict:
+        """
+        Appends a message to the messages_whatsapp table.
+
+        Args:
+            user_id_whatsapp (int): The ID of the WhatsApp user.
+            thread_id (int): The ID of the thread.
+            db_cols_to_vals (dict): A dictionary where keys are column names of the `messages_whatsapp` DB table
+                                    and values are the corresponding values to be inserted.
+
+        Returns:
+            dict: A dictionary with the status of the operation.
+
+        Raises:
+            ValueError: If no fields are provided to insert.
+        """
+        try:
+            # Add user_id_whatsapp to the dictionary
+            db_cols_to_vals["user_id_whatsapp"] = user_id_whatsapp
+
+            # Construct the SQL INSERT statement dynamically based on the provided dictionary
+            columns = ", ".join(db_cols_to_vals.keys())
+            placeholders = ", ".join(["%s"] * len(db_cols_to_vals))
+            insert_cmd = f"INSERT INTO messages_whatsapp (thread_id, {columns}) VALUES (%s, {placeholders});"
+            params_1 = (thread_id, *db_cols_to_vals.values())
+
+            # Appending a message should update the thread's updated_at field.
+            update_cmd = "UPDATE threads_whatsapp SET updated_at = now() WHERE id = %s AND user_id_whatsapp = %s;"
+            params_2 = (thread_id, user_id_whatsapp)
+
+            self._execute_query([insert_cmd, update_cmd], [params_1, params_2], commit_after="all")
+
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def get_thread(self, thread_id, user_id):
@@ -392,14 +537,14 @@ class AnsariDB:
                     detail="Incorrect user_id or thread_id.",
                 )
             thread_name = thread_name_result[0]
-            # TODO (odyash): check if "function" can be renamed to "tool"
+            # TODO(odyash): check if "function" can be renamed to "tool"
             retval = {
                 "thread_name": thread_name,
                 "messages": [self.convert_message(x) for x in result if x[1] != "function"],
             }
             return retval
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {}
 
     def get_thread_llm(self, thread_id, user_id):
@@ -408,7 +553,7 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            # TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+            # TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
             select_cmd_1 = (
                 "SELECT role, content, function_name FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
@@ -431,8 +576,64 @@ class AnsariDB:
             }
             return retval
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {}
+
+    def get_thread_llm_whatsapp(self, thread_id: str, user_id_whatsapp: int) -> list[dict]:
+        """
+        Retrieves the message history for a given WhatsApp thread.
+        This is designed for feeding to an LLM, since it includes tool return values.
+
+        Args:
+            thread_id (str): The UUID of the thread.
+            user_id_whatsapp (int): The ID of the WhatsApp user.
+
+        Returns:
+            list[dict]: A list of dictionaries representing the message history.
+        """
+        try:
+            select_cmd = """
+            SELECT role, content, function_name 
+            FROM messages_whatsapp 
+            WHERE thread_id = %s AND user_id_whatsapp = %s
+            ORDER BY timestamp;
+            """
+            result = self._execute_query(select_cmd, (thread_id, user_id_whatsapp), "all")[0]
+            return (
+                [{"role": x[0], "content": x[1], "name": x[2]} if x[2] else {"role": x[0], "content": x[1]} for x in result]
+                if result
+                else []
+            )
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
+            return []
+
+    def get_last_message_time_whatsapp(self, user_id_whatsapp: int) -> tuple[Optional[str], Optional[datetime]]:
+        """
+        Retrieves the thread ID and the last message time for the latest updated thread of a WhatsApp user.
+
+        Args:
+            user_id_whatsapp (int): The ID of the WhatsApp user.
+
+        Returns:
+            tuple[Optional[str], Optional[datetime]]: A tuple containing the thread ID and the last message time.
+                                                    Returns (None, None) if no threads are found.
+        """
+        try:
+            select_cmd = """
+            SELECT id, updated_at
+            FROM threads_whatsapp
+            WHERE user_id_whatsapp = %s
+            ORDER BY updated_at DESC
+            LIMIT 1;
+            """
+            result = self._execute_query(select_cmd, (user_id_whatsapp,), "one")[0]
+            if result:
+                return result[0], result[1]
+            return None, None
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
+            return None, None
 
     def snapshot_thread(self, thread_id, user_id):
         """Snapshot a thread at the current time and make it
@@ -450,7 +651,7 @@ class AnsariDB:
             logger.info(f"Result is {result}")
             return result[0] if result else None
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def get_snapshot(self, share_uuid):
@@ -463,7 +664,7 @@ class AnsariDB:
                 return json.loads(result[0])
             return {}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {}
 
     def delete_thread(self, thread_id, user_id):
@@ -476,7 +677,7 @@ class AnsariDB:
             self._execute_query([delete_cmd_1, delete_cmd_2], [params, params])
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def delete_access_refresh_tokens_pair(self, refresh_token):
@@ -516,7 +717,7 @@ class AnsariDB:
             self._execute_query(delete_cmd, (user_id, token))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def logout(self, user_id, token):
@@ -526,7 +727,7 @@ class AnsariDB:
                 self._execute_query(delete_cmd, (user_id, token))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
@@ -551,7 +752,39 @@ class AnsariDB:
             self._execute_query(update_cmd, (new_password_hash, user_id))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Error is {e}")
+            logger.warning(f"Warning (possbile error): {e}")
+            return {"status": "failure", "error": str(e)}
+
+    def update_user_whatsapp(self, phone_num: str, db_cols_to_vals: dict) -> dict:
+        """
+        Updates user information in the users_whatsapp table.
+
+        Args:
+            phone_num (str): The phone number of the user to identify the record to update.
+            db_cols_to_vals (dict): A dictionary where keys are column names of the users_whatsapp table
+                                    and values are the corresponding values to be updated.
+                                    Column names can be checked from the users_whatsapp DB table.
+
+        Returns:
+            dict: A dictionary with the status of the operation.
+
+        Raises:
+            ValueError: If no fields are provided to update.
+        """
+        try:
+            # Construct the SQL UPDATE statement dynamically based on the provided dictionary
+            fields = list(db_cols_to_vals.keys())
+            if not fields:
+                raise ValueError("At least one field must be provided to update.")
+            set_clause = ", ".join([f"{key} = %s" for key in fields])
+            update_cmd = f"UPDATE users_whatsapp SET {set_clause} WHERE phone_num = %s;"
+
+            # Execute the query with the values and the original phone_num
+            self._execute_query(update_cmd, (*db_cols_to_vals.values(), phone_num))
+
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Warning (possbile error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def convert_message(self, msg):

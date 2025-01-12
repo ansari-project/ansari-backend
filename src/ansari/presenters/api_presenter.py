@@ -3,11 +3,13 @@ import copy
 from fastapi.responses import StreamingResponse
 from langfuse.decorators import observe
 
+from ansari.agents import Ansari
+
 
 class ApiPresenter:
     def __init__(self, app, agent):
         self.app = app
-        self.agent = agent
+        self.agent: Ansari = agent
 
     @observe()
     def complete(self, messages, message_logger=None):

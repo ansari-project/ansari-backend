@@ -1,3 +1,6 @@
+-- Side note (tip): If you use a tool like DBeaver, and encounter a scope-related error, 
+-- you can append each table name with `public.` to fix the error, as `public` is the default schema name in PostgreSQL.
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(100) UNIQUE, -- Can be null if it is a guest account
@@ -36,7 +39,7 @@ CREATE TABLE messages (
     user_id INTEGER NOT NULL,
     thread_id INTEGER NOT NULL,
     role TEXT NOT NULL, 
-    -- #TODO (odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+    -- #TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
     function_name TEXT, 
     content TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ from datetime import date, datetime
 import litellm
 from langfuse.decorators import langfuse_context, observe
 
+from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
@@ -19,7 +21,7 @@ logger = get_logger()
 
 
 class Ansari:
-    def __init__(self, settings, message_logger=None, json_format=False):
+    def __init__(self, settings, message_logger: MessageLogger = None, json_format=False):
         self.settings = settings
         self.json_format = json_format
         self.message_logger = message_logger
@@ -42,6 +44,8 @@ class Ansari:
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
+        # TODO(odyash) later: investigate OpenAI's new nomenclature `developer` instead of `system`;
+        # https://community.openai.com/t/how-is-developer-message-better-than-system-prompt/1062784
         self.message_history = [{"role": "system", "content": self.sys_msg}]
 
     def set_message_logger(self, message_logger):
@@ -70,6 +74,9 @@ class Ansari:
 
     @observe()
     def replace_message_history(self, message_history, use_tool=True, stream=True):
+        """
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
+        """
         self.message_history = [
             {"role": "system", "content": self.sys_msg},
         ] + message_history
@@ -86,8 +93,33 @@ class Ansari:
             if m:
                 yield m
 
+    def _debug_log_truncated_message_history(self, message_history, count: int, failures: int):
+        """
+        Logs a truncated version of the message history for debugging purposes.
+
+        Args:
+            message_history (list): The message history to be truncated and logged.
+        """
+        trunc_msg_hist = copy.deepcopy(message_history)
+        if (
+            len(trunc_msg_hist) > 1
+            and isinstance(trunc_msg_hist[0], dict)
+            and "role" in trunc_msg_hist[0]
+            and trunc_msg_hist[0]["role"] == "system"
+            and "content" in trunc_msg_hist[0]
+        ):
+            sys_p = trunc_msg_hist[0]["content"]
+            trunc_msg_hist[0]["content"] = sys_p[:15] + "..."
+
+        logger.info(
+            f"Process attempt #{count+failures+1} of this message history:\n" + "-" * 60 + f"\n{trunc_msg_hist}\n" + "-" * 60,
+        )
+
     @observe(capture_input=False, capture_output=False)
     def process_message_history(self, use_tool=True, stream=True):
+        """
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
+        """
         if self.message_logger is not None:
             langfuse_context.update_current_trace(
                 user_id=self.message_logger.user_id,
@@ -101,12 +133,7 @@ class Ansari:
         failures = 0
         while self.message_history[-1]["role"] != "assistant" or "tool_call_id" in self.message_history[-1]:
             try:
-                logger.info(
-                    f"Process attempt #{count+failures+1} of this message history:\n"
-                    + "-" * 60
-                    + f"\n{self.message_history}\n"
-                    + "-" * 60,
-                )
+                self._debug_log_truncated_message_history(self.message_history, count, failures)
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times (failure)
@@ -139,6 +166,9 @@ class Ansari:
 
     @observe(as_type="generation")
     def process_one_round(self, use_tool=True, stream=True):
+        """
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
+        """
         common_params = {
             "model": self.model,
             "messages": self.message_history,
@@ -255,7 +285,7 @@ class Ansari:
         results = tool_instance.run_as_list(query)
 
         # we have to first add this message before any tool response, as mentioned in this source:
-        # https://platform.openai.com/docs/guides/function-calling/step-5-provide-the-function-call-result-back-to-the-model
+        # https://platform.openai.com/docs/guides/function-calling#submitting-function-output
         self.message_history.append(
             {
                 "role": "assistant",
@@ -280,5 +310,13 @@ class Ansari:
         # Now we have to pass the results back in
         results_str = msg_prefix + "\nAnother relevant ayah:\n".join(results)
         self.message_history.append(
-            {"role": "tool", "content": results_str, "tool_call_id": tool_id},
+            {
+                "role": "tool",
+                "content": results_str,
+                "tool_call_id": tool_id,
+            },
         )
+
+        # Note(odyash): If we want to later log the tool response
+        # (like we used to do here: https://github.com/ansari-project/ansari-backend/blob/c2bd176ad08b93ddfec4cf63ecadb84f23870a7f/agents/ansari.py#L255)
+        # Then we should update the DB's `messages/messages_whatsapp` tables to accomodate for `tool_call_id`/`tool_type`

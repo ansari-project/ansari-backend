@@ -126,6 +126,7 @@ class Settings(BaseSettings):
     WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
+    WHATSAPP_CHAT_RETENTION_HOURS: int = Field(default=3)  # This is hardcoded to 0.05 when DEBUG_MODE is True
     ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -142,12 +143,14 @@ class Settings(BaseSettings):
     @field_validator("ORIGINS")
     def parse_origins(cls, v):
         if isinstance(v, str):
-            return [origin.strip() for origin in v.strip('"').split(",")]
-        if isinstance(v, list):
-            return v
-        raise ValueError(
-            f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list.",
-        )
+            origins = [origin.strip() for origin in v.strip('"').split(",")]
+        elif isinstance(v, list):
+            origins = v
+        else:
+            raise ValueError(
+                f"Invalid ORIGINS format: {v}. Expected a comma-separated string or a list.",
+            )
+        return origins
 
 
 @lru_cache
