@@ -1,1 +1,1 @@
-web: gunicorn -w 2 -k uvicorn.workers.UvicornWorker ansari.app.main_api:app
+web: PYTHONPATH=$PYTHONPATH:src gunicorn -w 2 -k uvicorn.workers.UvicornWorker --pythonpath src ansari.app.main_api:app
