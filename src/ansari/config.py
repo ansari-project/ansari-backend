@@ -135,6 +135,7 @@ class Settings(BaseSettings):
     MAX_TOOL_TRIES: int = Field(default=3)
     MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
+    AYAH_SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_ayah")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
 
     LOGGING_LEVEL: str = Field(default="INFO")
