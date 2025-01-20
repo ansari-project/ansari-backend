@@ -14,38 +14,53 @@ logging.basicConfig(
 def main(
     input_file: str,
     output_file: str,
-    ayah_mode: Optional[bool] = typer.Option(
+    ayah_mode: bool = typer.Option(
         False,
         "--ayah-mode",
         "-a",
-        help="Process input as ayah questions (CSV format: surah,ayah,question)",
+        help="Process input as ayah questions (CSV format: surah:ayah,question)",
     ),
-    use_query_generation: Optional[bool] = typer.Option(
-        False,
+    use_query_generation: bool = typer.Option(
+        True,
         "--use-query-generation",
         "-q",
         help="Use query generation step in ayah mode",
     ),
-    answer_column: Optional[str] = typer.Option(
+    answer_column: str = typer.Option(
         "answer",
         "--answer-column",
         "-c",
         help="Name of the column to store answers in the output CSV (ayah mode only)",
     ),
+    system_message: Optional[str] = typer.Option(
+        None,
+        "--system-message",
+        "-s",
+        help="Path to system message file. If not provided, uses default.",
+    ),
 ):
     """
-    Process questions and generate answers.
+    Process input file and generate answers
     
-    In regular mode, each line of the input file is treated as a question.
-    
-    In ayah mode (--ayah-mode):
-    - Input: CSV file with columns for surah, ayah, and question
-    - Output: CSV file with the same columns plus an additional column for answers
+    Args:
+        input_file: Path to input file
+        output_file: Path to output file
+        ayah_mode: Whether to process in ayah mode
+        use_query_generation: Whether to use query generation
+        answer_column: Name of column to store answers
+        system_message: The name of the system message file. If not provided, uses default.
     """
     settings = get_settings()
     
+    if system_message:
+        settings.AYAH_SYSTEM_PROMPT_FILE_NAME = system_message
+
     if ayah_mode:
-        presenter = AyahFilePresenter(settings, use_query_generation, answer_column)
+        presenter = AyahFilePresenter(
+            settings=settings,
+            use_query_generation=use_query_generation,
+            answer_column=answer_column
+        )
     else:
         ansari = Ansari(settings)
         presenter = FilePresenter(ansari)
