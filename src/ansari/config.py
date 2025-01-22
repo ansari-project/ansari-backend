@@ -108,7 +108,7 @@ class Settings(BaseSettings):
             {
                 "name": "query",
                 "type": "string",
-                "description": "The topic to search for in Tafsir Ibn Kathir. " "You will translate this query into English.",
+                "description": "The topic to search for in Tafsir Ibn Kathir. You will translate this query into English.",
             },
         ],
     )

@@ -112,7 +112,10 @@ class Ansari:
             trunc_msg_hist[0]["content"] = sys_p[:15] + "..."
 
         logger.info(
-            f"Process attempt #{count+failures+1} of this message history:\n" + "-" * 60 + f"\n{trunc_msg_hist}\n" + "-" * 60,
+            f"Process attempt #{count + failures + 1} of this message history:\n"
+            + "-" * 60
+            + f"\n{trunc_msg_hist}\n"
+            + "-" * 60,
         )
 
     @observe(capture_input=False, capture_output=False)

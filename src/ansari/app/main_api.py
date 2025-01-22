@@ -725,10 +725,7 @@ async def answer_ayah_question(
     try:
         # Create AnsariWorkflow instance with ayah-specific system prompt
         logging.debug(f"Creating Ansari Workflow instance for {req.surah}:{req.ayah}")
-        ansari_workflow = AnsariWorkflow(
-            settings,
-            system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME
-        )
+        ansari_workflow = AnsariWorkflow(settings, system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME)
 
         ayah_id = req.surah * 1000 + req.ayah
 
@@ -751,7 +748,7 @@ async def answer_ayah_question(
             ("gen_query", {"input": req.question, "target_corpus": "tafsir"}),
             ("gen_answer", {"input": req.question, "search_results_indices": [0]}),
         ]
-        # If augment_question is False, skip the query generation step to use 
+        # If augment_question is False, skip the query generation step to use
         # the original question directly
         if not req.augment_question:
             workflow_steps.pop(1)

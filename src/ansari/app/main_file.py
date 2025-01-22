@@ -9,7 +9,8 @@ from ansari.presenters.ayah_file_presenter import AyahFilePresenter
 
 logging.basicConfig(
     level=logging.DEBUG,
-   )
+)
+
 
 def main(
     input_file: str,
@@ -36,12 +37,18 @@ def main(
         None,
         "--system-message",
         "-s",
-        help="Path to system message file. If not provided, uses default.",
+        help="The name of the system message file. If not provided, uses default.",
+    ),
+    model: str = typer.Option(
+        "gpt-4",
+        "--model",
+        "-m",
+        help="The LLM model to use (e.g., gpt-4, gpt-3.5-turbo)",
     ),
 ):
     """
     Process input file and generate answers
-    
+
     Args:
         input_file: Path to input file
         output_file: Path to output file
@@ -49,23 +56,26 @@ def main(
         use_query_generation: Whether to use query generation
         answer_column: Name of column to store answers
         system_message: The name of the system message file. If not provided, uses default.
+        model: The LLM model to use for generating answers
     """
     settings = get_settings()
-    
+
     if system_message:
         settings.AYAH_SYSTEM_PROMPT_FILE_NAME = system_message
 
+    # Set the model in settings
+    settings.MODEL = model
+
     if ayah_mode:
         presenter = AyahFilePresenter(
-            settings=settings,
-            use_query_generation=use_query_generation,
-            answer_column=answer_column
+            settings=settings, use_query_generation=use_query_generation, answer_column=answer_column
         )
     else:
         ansari = Ansari(settings)
         presenter = FilePresenter(ansari)
-    
+
     presenter.present(input_file, output_file)
+
 
 if __name__ == "__main__":
     typer.run(main)
