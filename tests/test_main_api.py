@@ -501,7 +501,13 @@ async def test_cors():
     email = f"{base}+{uuid.uuid4()}@{domain}"
     response = client.post(
         "/api/v2/users/register",
-        headers={"origin": disallowed_origin},
+        headers={
+            "origin": disallowed_origin,
+            # Testserver bypasses CORS check
+            # Hence we need to explicitly set host
+            # to not-testserver
+            "host": "not-testserver",
+        },
         json={
             "email": email,
             "password": valid_password,
