@@ -53,7 +53,7 @@ class AnsariWorkflow:
 
     """
 
-    def __init__(self, settings, message_logger=None, json_format=False):
+    def __init__(self, settings, message_logger=None, json_format=False, system_prompt_file=None):
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
@@ -81,7 +81,8 @@ class AnsariWorkflow:
         }
         self.model = settings.MODEL
         self.pm = PromptMgr()
-        self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
+        prompt_file = system_prompt_file or settings.SYSTEM_PROMPT_FILE_NAME
+        self.sys_msg = self.pm.bind(prompt_file).render()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
         self.json_format = json_format
         self.message_logger = message_logger
@@ -149,16 +150,22 @@ class AnsariWorkflow:
             search_results = "\n---\n".join(
                 [prev_outputs[i] for i in step_params["search_results_indices"]],
             )
-        prompt = f"""Using {search_results}, compose a response that:
+        prompt = f""" Consider the following question: '{step_params["input"]}'
+        
+            Using the excerpts from tafsirs below, compose a response that:
             1. Directly answers the query of the user
             2. Matches user's language/tone
-            3. Adheres to your system instructions as Ansari."""
+            3. Adheres to your system instructions as Ansari.
+
+            {search_results}
+            
+            Reminder: the key question is: '{step_params["input"]}'. 
+            """
         model_response = litellm.completion(
             model=self.model,
             messages=[
                 {"role": "system", "content": self.sys_msg},
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": step_params["input"]},
+                {"role": "user", "content": prompt},
             ],
             stream=False,
             timeout=30.0,

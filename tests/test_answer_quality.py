@@ -21,11 +21,11 @@ def data():
 
 
 def answer_question(question, q_temp, cache):
-    logger.info(f'Answering question: {question["question"]}')
+    logger.info(f"Answering question: {question['question']}")
     options = [o.strip() for o in question["options"].split(",")]
     prompt = q_temp.render(question=question["question"], options=options)
     if prompt in cache.keys():
-        logger.info(f'Found {question["question"]} in cache')
+        logger.info(f"Found {question['question']} in cache")
         return cache[prompt]
     ansari = Ansari(get_settings())
     result = "".join(filter(lambda x: x is not None, ansari.process_input(prompt)))

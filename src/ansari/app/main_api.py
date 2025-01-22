@@ -705,6 +705,7 @@ class AyahQuestionRequest(BaseModel):
     ayah: int
     question: str
     augment_question: bool | None = False
+    use_cache: bool | None = True
     apikey: str
 
 
@@ -722,16 +723,17 @@ async def answer_ayah_question(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        # Create AnsariWorkflow instance
-        logging.debug("Creating AnsariWorkflow instance for {req.surah}:{req.ayah}")
-        ansari_workflow = AnsariWorkflow(settings)
+        # Create AnsariWorkflow instance with ayah-specific system prompt
+        logging.debug(f"Creating Ansari Workflow instance for {req.surah}:{req.ayah}")
+        ansari_workflow = AnsariWorkflow(settings, system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME)
 
         ayah_id = req.surah * 1000 + req.ayah
 
         # Check if the answer is already stored in the database
-        stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
-        if stored_answer:
-            return {"response": stored_answer}
+        if req.use_cache:
+            stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
+            if stored_answer:
+                return {"response": stored_answer}
 
         # Define the workflow steps
         workflow_steps = [
@@ -746,6 +748,8 @@ async def answer_ayah_question(
             ("gen_query", {"input": req.question, "target_corpus": "tafsir"}),
             ("gen_answer", {"input": req.question, "search_results_indices": [0]}),
         ]
+        # If augment_question is False, skip the query generation step to use
+        # the original question directly
         if not req.augment_question:
             workflow_steps.pop(1)
 
