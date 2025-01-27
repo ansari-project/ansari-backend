@@ -151,6 +151,8 @@ class AnsariWorkflow:
                 [prev_outputs[i] for i in step_params["search_results_indices"]],
             )
         prompt = f""" Consider the following question: '{step_params["input"]}'
+        With specific reference to the ayah being discussed: **{step_params["ayah_being_asked_about"]}**
+        And for relevant context, the adjacent ayat are: **{step_params["surrounding_ayat"]}**
         
             Using the excerpts from tafsirs below, compose a response that:
             1. Directly answers the query of the user
