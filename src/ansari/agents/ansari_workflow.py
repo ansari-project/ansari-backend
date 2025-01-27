@@ -80,7 +80,7 @@ class AnsariWorkflow:
             st.get_tool_name(): st,
         }
         self.model = settings.MODEL
-        self.pm = PromptMgr()
+        self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         prompt_file = system_prompt_file or settings.SYSTEM_PROMPT_FILE_NAME
         self.sys_msg = self.pm.bind(prompt_file).render()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
