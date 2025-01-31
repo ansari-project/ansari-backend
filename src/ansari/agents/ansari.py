@@ -237,7 +237,8 @@ class Ansari:
                     tool_args = tc["function"]["arguments"]
                     tool_id = tc["id"]
 
-                    tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
+                    # tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
+                    self.process_tool_call(tool_name, tool_args, tool_id)
 
                 except json.JSONDecodeError:
                     logger.error(f"Failed to process tool call: {tool_args}")
@@ -252,8 +253,9 @@ class Ansari:
             #       vvv which is assumed in the commented code below vvv
 
             # Log the assistant's response to the user's current thread in the DB
-            # if succ and self.message_logger is not None:
-            #     self.message_logger.log("assistant", tool_output_str, tool_name, internal_msg, tool_msg)
+            if succ and self.message_logger is not None:
+                # self.message_logger.log("assistant", tool_output_str, tool_name, internal_msg, tool_msg)
+                pass
 
         else:
             raise Exception("Invalid response mode: " + response_mode)
@@ -311,4 +313,4 @@ class Ansari:
         }
         self.message_history.append(msg_generated_from_tool)
 
-        return msg_generated_from_tool["content"], internal_msg, msg_generated_from_tool
+        # return msg_generated_from_tool["content"], internal_msg, msg_generated_from_tool
