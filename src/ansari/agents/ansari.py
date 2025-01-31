@@ -1,16 +1,14 @@
 import copy
-import hashlib
 import json
-import os
 import time
 import traceback
-from datetime import date, datetime
+from datetime import datetime
 
 import litellm
-from langfuse.decorators import langfuse_context, observe
 
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
+from ansari.config import Settings
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
@@ -21,7 +19,7 @@ logger = get_logger()
 
 
 class Ansari:
-    def __init__(self, settings, message_logger: MessageLogger = None, json_format=False):
+    def __init__(self, settings: Settings, message_logger: MessageLogger = None, json_format=False):
         self.settings = settings
         self.json_format = json_format
         self.message_logger = message_logger
@@ -48,52 +46,40 @@ class Ansari:
         # https://community.openai.com/t/how-is-developer-message-better-than-system-prompt/1062784
         self.message_history = [{"role": "system", "content": self.sys_msg}]
 
-    def set_message_logger(self, message_logger):
+    def set_message_logger(self, message_logger: MessageLogger):
         self.message_logger = message_logger
-
-    # The trace id is a hash of the first user input and the time.
-    def compute_trace_id(self):
-        today = date.today()
-        hashstring = str(today) + self.message_history[1]["content"]
-        result = hashlib.md5(hashstring.encode())
-        return "chash_" + result.hexdigest()
 
     def greet(self):
         self.greeting = self.pm.bind("greeting")
         return self.greeting.render()
 
-    def process_input(self, user_input):
+    def process_input(self, user_input: str):
+        # Append user's message to the message history
         self.message_history.append({"role": "user", "content": user_input})
+
+        # NOTE: Won't log user's message here, as it has already been logged in `main_api.py`'s `add_message()`
+        # if self.message_logger is not None:
+        #     self.message_logger.log("user", user_input)
+
+        # Process the message history, which will internally return/yield Ansari's response
         return self.process_message_history()
 
-    def log(self):
-        if not os.environ.get("LANGFUSE_SECRET_KEY"):
-            return
-        trace_id = self.compute_trace_id()
-        logger.info(f"trace id is {trace_id}")
-
-    @observe()
-    def replace_message_history(self, message_history, use_tool=True, stream=True):
+    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
         TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
+        # Create a new message history, prefix it with Ansari's system message,
+        #   then append to it the given message history
         self.message_history = [
             {"role": "system", "content": self.sys_msg},
         ] + message_history
-        logger.info(f"Original trace is {self.message_logger.trace_id}")
-        logger.info(f"Id 1 is {langfuse_context.get_current_trace_id()}")
-        # langfuse_context._set_root_trace_id(self.message_logger.trace_id)
-        logger.info(f"Id 2 is {langfuse_context.get_current_trace_id()}")
-        langfuse_context.update_current_observation(
-            user_id=self.message_logger.user_id,
-            session_id=str(self.message_logger.thread_id),
-            tags=["debug", "replace_message_history"],
-        )
+
+        # Return/Yield Ansari's response to the user
         for m in self.process_message_history(use_tool, stream=stream):
             if m:
                 yield m
 
-    def _debug_log_truncated_message_history(self, message_history, count: int, failures: int):
+    def _log_truncated_message_history(self, message_history, count: int, failures: int):
         """
         Logs a truncated version of the message history for debugging purposes.
 
@@ -118,25 +104,17 @@ class Ansari:
             + "-" * 60,
         )
 
-    @observe(capture_input=False, capture_output=False)
     def process_message_history(self, use_tool=True, stream=True):
         """
         TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
-        if self.message_logger is not None:
-            langfuse_context.update_current_trace(
-                user_id=self.message_logger.user_id,
-                session_id=str(self.message_logger.thread_id),
-                tags=["debug", "replace_message_history"],
-                input=self.message_history,
-            )
         # Keep processing the user input until we get something from the assistant
         self.start_time = datetime.now()
         count = 0
         failures = 0
         while self.message_history[-1]["role"] != "assistant" or "tool_call_id" in self.message_history[-1]:
             try:
-                self._debug_log_truncated_message_history(self.message_history, count, failures)
+                self._log_truncated_message_history(self.message_history, count, failures)
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times (failure)
@@ -162,12 +140,10 @@ class Ansari:
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures") from e
-        self.log()
 
     def get_completion(self, **kwargs):
         return litellm.completion(**kwargs)
 
-    @observe(as_type="generation")
     def process_one_round(self, use_tool=True, stream=True):
         """
         TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
@@ -243,61 +219,77 @@ class Ansari:
 
         if response_mode == "words":
             self.message_history.append({"role": "assistant", "content": words})
-            langfuse_context.update_current_observation(
-                output=words,
-                metadata={"delta": delta},
-            )
-            if self.message_logger:
+
+            # Log the assistant's response to the user's current thread in the DB
+            if self.message_logger is not None:
                 self.message_logger.log("assistant", words)
 
+        # Run the "function" corresponding to each tool call, and internally store its result(s) in the message history
+        # NOTE 1: see `self.tool_name_to_instance` to understand possible "functions" which can get called
+        # NOTE 2: even though there's a for loop below,
+        #   it's usually just one tool call per user query,
+        #   where Ansari determines that this "user query" requires a tool call
         elif response_mode == "tool":
+            succ = True
             for tc in tool_calls:
                 try:
-                    tool_arguments = json.loads(tc["function"]["arguments"])
-                    self.process_tool_call(
-                        tc["function"]["name"],
-                        tool_arguments,
-                        tc["id"],
-                        tool_definition={
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"],
-                        },
-                    )
+                    tool_name = tc["function"]["name"]
+                    tool_args = tc["function"]["arguments"]
+                    tool_id = tc["id"]
+
+                    tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
+
                 except json.JSONDecodeError:
-                    logger.warning(
-                        f"Failed to parse tool arguments: {tc['function']['arguments']}",
-                    )
+                    logger.error(f"Failed to process tool call: {tool_args}")
+                    succ = False
+
+            # Note(odyash): If we want to later log the tool response
+            # (like we used to do here: https://github.com/ansari-project/ansari-backend/blob/c2bd176ad08b93ddfec4cf63ecadb84f23870a7f/agents/ansari.py#L255)
+            # Then we should update DB's `messages` / `messages_whatsapp` tables accordingly
+            #   This can be done in many ways, two suggested ways are:
+            #   OP 1: Accomodate for `tool_call_id`/`tool_type`
+            #   OP 2: Store these 2 columns: "internal_msg" and "tool_msg",
+            #       vvv which is assumed in the commented code below vvv
+
+            # Log the assistant's response to the user's current thread in the DB
+            # if succ and self.message_logger is not None:
+            #     self.message_logger.log("assistant", tool_output_str, tool_name, internal_msg, tool_msg)
 
         else:
             raise Exception("Invalid response mode: " + response_mode)
 
-    @observe()
     def process_tool_call(
         self,
         tool_name: str,
-        tool_arguments: dict[str],
+        tool_args: str,
         tool_id: str,
-        tool_definition: dict[str, str],
     ):
         if tool_name not in self.tool_name_to_instance.keys():
             logger.warning(f"Unknown tool name: {tool_name}")
             return
+        try:
+            query: str = json.loads(tool_args)["query"]
+        except json.JSONDecodeError:
+            raise json.JSONDecodeError
 
-        query: str = tool_arguments["query"]
         tool_instance: SearchQuran | SearchHadith = self.tool_name_to_instance[tool_name]
         results = tool_instance.run_as_list(query)
 
+        tool_definition = {
+            "name": tool_name,
+            "arguments": tool_args,
+        }
+
         # we have to first add this message before any tool response, as mentioned in this source:
         # https://platform.openai.com/docs/guides/function-calling#submitting-function-output
-        self.message_history.append(
-            {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {"type": "function", "id": tool_id, "function": tool_definition},
-                ],
-            },
-        )
+        internal_msg = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"type": "function", "id": tool_id, "function": tool_definition},
+            ],
+        }
+        self.message_history.append(internal_msg)
 
         if len(results) == 0:
             # corner case where the api returns no results
@@ -312,14 +304,11 @@ class Ansari:
 
         # Now we have to pass the results back in
         results_str = msg_prefix + "\nAnother relevant ayah:\n".join(results)
-        self.message_history.append(
-            {
-                "role": "tool",
-                "content": results_str,
-                "tool_call_id": tool_id,
-            },
-        )
+        msg_generated_from_tool = {
+            "role": "tool",
+            "content": results_str,
+            "tool_call_id": tool_id,
+        }
+        self.message_history.append(msg_generated_from_tool)
 
-        # Note(odyash): If we want to later log the tool response
-        # (like we used to do here: https://github.com/ansari-project/ansari-backend/blob/c2bd176ad08b93ddfec4cf63ecadb84f23870a7f/agents/ansari.py#L255)
-        # Then we should update the DB's `messages/messages_whatsapp` tables to accomodate for `tool_call_id`/`tool_type`
+        return msg_generated_from_tool["content"], internal_msg, msg_generated_from_tool

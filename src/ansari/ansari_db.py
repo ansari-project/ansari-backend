@@ -24,12 +24,9 @@ class MessageLogger:
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", user_id: int, thread_id: int, trace_id: int = None, to_whatsapp: bool = False) -> None:
-        if not to_whatsapp and trace_id is None:
-            raise ValueError("trace_id must be provided when not logging to WhatsApp")
+    def __init__(self, db: "AnsariDB", user_id: int, thread_id: int, to_whatsapp: bool = False) -> None:
         self.user_id = user_id
         self.thread_id = thread_id
-        self.trace_id = trace_id
         self.to_whatsapp = to_whatsapp
         logger.debug(f"DB is {db}")
         self.db = db

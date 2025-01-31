@@ -1,11 +1,9 @@
-import hashlib
 import logging
-import os
 import sys
-from datetime import date
 
 import litellm
 
+from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
@@ -53,7 +51,7 @@ class AnsariWorkflow:
 
     """
 
-    def __init__(self, settings, message_logger=None, json_format=False, system_prompt_file=None):
+    def __init__(self, settings, message_logger: MessageLogger = None, json_format=False, system_prompt_file=None):
         self.settings = settings
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
@@ -87,21 +85,8 @@ class AnsariWorkflow:
         self.json_format = json_format
         self.message_logger = message_logger
 
-    def set_message_logger(self, message_logger):
+    def set_message_logger(self, message_logger: MessageLogger):
         self.message_logger = message_logger
-
-    # The trace id is a hash of the first user input and the time.
-    def compute_trace_id(self):
-        today = date.today()
-        hashstring = str(today) + self.message_history[1]["content"]
-        result = hashlib.md5(hashstring.encode())
-        return "chash_" + result.hexdigest()
-
-    def log(self):
-        if not os.environ.get("LANGFUSE_SECRET_KEY"):
-            return
-        trace_id = self.compute_trace_id()
-        logger.info(f"trace id is {trace_id}")
 
     def _execute_search_step(self, step_params, prev_outputs):
         tool = self.tool_name_to_instance[step_params["tool_name"]]

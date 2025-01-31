@@ -220,7 +220,7 @@ class WhatsAppPresenter:
                     + "as the allowed retention time has passed."
                 )
 
-            # Store incoming message to current thread it's assigned to
+            # Log the incoming user message to current thread it's assigned to in the DB
             db.append_message_whatsapp(user_id_whatsapp, thread_id, {"role": "user", "content": incoming_txt_msg})
 
             # Get `message_history` from current thread (including incoming message)
@@ -236,12 +236,14 @@ class WhatsAppPresenter:
             agent = copy.deepcopy(self.agent)
             agent.set_message_logger(MessageLogger(db, user_id_whatsapp, thread_id, to_whatsapp=True))
 
-            # Get final response from Ansari by sending `message_history`
+            # Send the thread's history to the Ansari agent, then get its response (which is internally logged to DB)
             # TODO(odyash, good_first_issue): change `stream` to False (and remove comprehensive loop)
             #   when `Ansari` is capable of handling it
             response = [tok for tok in agent.replace_message_history(message_history, stream=True) if tok]
             response = "".join(response)
 
+            # Return the response back to the WhatsApp user if it's not empty
+            #   Else, send an error message to the user
             if response:
                 await self.send_whatsapp_message(from_whatsapp_number, response)
             else:

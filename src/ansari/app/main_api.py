@@ -9,7 +9,6 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
-from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -384,7 +383,6 @@ class AddMessageRequest(BaseModel):
 
 
 @app.post("/api/v2/threads/{thread_id}")
-@observe(capture_output=False)
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
@@ -401,9 +399,13 @@ def add_message(
     logger.info(f"Token_params is {token_params}")
 
     try:
+        # Log the user's message in the DB
         db.append_message(token_params["user_id"], thread_id, req.role, req.content)
-        # Now actually use Ansari.
+
+        # Get the thread history (which is a list of past user/Asnari messages)
         history = db.get_thread_llm(thread_id, token_params["user_id"])
+
+        # Create a new thread for the current user if not already created
         if history["thread_name"] is None and len(history["messages"]) > 1:
             db.set_thread_name(
                 thread_id,
@@ -412,21 +414,14 @@ def add_message(
             )
             logger.info(f"Added thread {thread_id}")
 
-        langfuse_context.update_current_trace(
-            session_id=str(thread_id),
-            user_id=token_params["user_id"],
-            tags=["debug"],
-            metadata={
-                "db_host": settings.DATABASE_URL.hosts()[0]["host"],
-            },
-        )
+        # Send the thread's history to the Ansari agent
+        # and return the response (which is internally logged to DB)
         return presenter.complete(
             history,
             message_logger=MessageLogger(
                 db,
                 token_params["user_id"],
                 thread_id,
-                langfuse_context.get_current_trace_id(),
             ),
         )
     except psycopg2.Error as e:

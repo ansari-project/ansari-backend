@@ -70,9 +70,8 @@ You need at a minimum:
 
 ### Optional environment variables
 
-There are two optional environment variables. 
+Optional environment variable(s): 
 
-- `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY`: Langfuse is a system for logging LLM interactions. It needs two keys: the secret key and the public key. If the secret key is not defined data will not be logged to langfuse. 
 - `SENDGRID_API_KEY`: Sendgrid is the system we use for sending password reset emails. If it's not set it will print the e-mails that were sent
 
 ### Initialize your database

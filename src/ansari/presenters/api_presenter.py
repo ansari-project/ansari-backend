@@ -1,18 +1,17 @@
 import copy
 
 from fastapi.responses import StreamingResponse
-from langfuse.decorators import observe
 
 from ansari.agents import Ansari
+from ansari.ansari_db import MessageLogger
 
 
 class ApiPresenter:
-    def __init__(self, app, agent):
+    def __init__(self, app, agent: Ansari):
         self.app = app
-        self.agent: Ansari = agent
+        self.agent = agent
 
-    @observe()
-    def complete(self, messages, message_logger=None):
+    def complete(self, messages: dict, message_logger: MessageLogger = None):
         print("Complete called.")
         agent = copy.deepcopy(self.agent)
         agent.set_message_logger(message_logger)
