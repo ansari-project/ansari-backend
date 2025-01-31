@@ -247,8 +247,9 @@ class AnsariDB:
 
     def register(self, email, first_name, last_name, password_hash):
         try:
+            normalized_email = email.strip().lower()
             insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);"""
-            self._execute_query(insert_cmd, (email, password_hash, first_name, last_name))
+            self._execute_query(insert_cmd, (normalized_email, password_hash, first_name, last_name))
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possbile error): {e}")
@@ -288,8 +289,9 @@ class AnsariDB:
 
     def account_exists(self, email):
         try:
+            normalized_email = email.strip().lower()
             select_cmd = """SELECT id FROM users WHERE email = %s;"""
-            result = self._execute_query(select_cmd, (email,), "one")[0]
+            result = self._execute_query(select_cmd, (normalized_email,), "one")[0]
             return result is not None
         except Exception as e:
             logger.warning(f"Warning (possbile error): {e}")
@@ -341,8 +343,9 @@ class AnsariDB:
 
     def retrieve_user_info(self, email):
         try:
+            normalized_email = email.strip().lower()
             select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
-            result = self._execute_query(select_cmd, (email,), "one")[0]
+            result = self._execute_query(select_cmd, (normalized_email,), "one")[0]
             if result:
                 user_id, existing_hash, first_name, last_name = result
                 return user_id, existing_hash, first_name, last_name
