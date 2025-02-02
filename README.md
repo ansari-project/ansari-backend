@@ -1,4 +1,4 @@
-# Ansari
+# Ansari - Overview
 
 _Try Ansari now at [ansari.chat](https://ansari.chat)!_  
 
@@ -7,6 +7,34 @@ Ansari is an **experimental open source project** that explores the application 
 It is not always correct and can get things wrong.  The list below includes some of the issues we’ve seen in working with Ansari. 
 
 It uses carefully crafted prompts and several sources accessed through retrieval augmented generation. 
+
+***TOC***
+
+---
+
+- [Ansari - Overview](#ansari---overview)
+- [How can you help?](#how-can-you-help)
+- [What can Ansari do?](#what-can-ansari-do)
+- [What is logged with Ansari?](#what-is-logged-with-ansari)
+- [Getting the Ansari Backend running on your local machine](#getting-the-ansari-backend-running-on-your-local-machine)
+  - [Set up postgres on your machine](#set-up-postgres-on-your-machine)
+  - [Make sure you have Python 3 installed](#make-sure-you-have-python-3-installed)
+  - [Download the repository](#download-the-repository)
+  - [Create a python virtual environment and activate it.](#create-a-python-virtual-environment-and-activate-it)
+  - [Install dependencies](#install-dependencies)
+  - [Set the appropriate environment variables](#set-the-appropriate-environment-variables)
+    - [Required environment variables](#required-environment-variables)
+    - [Optional environment variables](#optional-environment-variables)
+    - [Initialize your database](#initialize-your-database)
+  - [Time to run!](#time-to-run)
+    - [Running as a backend service](#running-as-a-backend-service)
+    - [Running on the command line](#running-on-the-command-line)
+- [The Roadmap](#the-roadmap)
+- [Acknowledgements](#acknowledgements)
+
+---
+
+<br>
 
 # How can you help? 
 

@@ -57,10 +57,6 @@ class Ansari:
         # Append user's message to the message history
         self.message_history.append({"role": "user", "content": user_input})
 
-        # NOTE: Won't log user's message here, as it has already been logged in `main_api.py`'s `add_message()`
-        # if self.message_logger is not None:
-        #     self.message_logger.log("user", user_input)
-
         # Process the message history, which will internally return/yield Ansari's response
         return self.process_message_history()
 
@@ -108,6 +104,13 @@ class Ansari:
         """
         TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         """
+        # Log the user's message to DB before letting Ansari process it (along with the rest of the history)
+        # NOTE 1: We log the user's message here, to have all message-related logs in one method
+        # NOTE 2: the "==" below should always be True, as this method is only called when we want to process a user's input
+        last_msg = self.message_history[-1]
+        if self.message_logger is not None and last_msg["role"] == "user":
+            self.message_logger.log("user", last_msg["content"])
+
         # Keep processing the user input until we get something from the assistant
         self.start_time = datetime.now()
         count = 0
@@ -237,25 +240,19 @@ class Ansari:
                     tool_args = tc["function"]["arguments"]
                     tool_id = tc["id"]
 
-                    # tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
-                    self.process_tool_call(tool_name, tool_args, tool_id)
+                    tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
 
                 except json.JSONDecodeError:
                     logger.error(f"Failed to process tool call: {tool_args}")
                     succ = False
 
-            # Note(odyash): If we want to later log the tool response
-            # (like we used to do here: https://github.com/ansari-project/ansari-backend/blob/c2bd176ad08b93ddfec4cf63ecadb84f23870a7f/agents/ansari.py#L255)
-            # Then we should update DB's `messages` / `messages_whatsapp` tables accordingly
-            #   This can be done in many ways, two suggested ways are:
-            #   OP 1: Accomodate for `tool_call_id`/`tool_type`
-            #   OP 2: Store these 2 columns: "internal_msg" and "tool_msg",
-            #       vvv which is assumed in the commented code below vvv
-
-            # Log the assistant's response to the user's current thread in the DB
+            # Log the tool's response to the user's current thread in the DB
             if succ and self.message_logger is not None:
-                # self.message_logger.log("assistant", tool_output_str, tool_name, internal_msg, tool_msg)
-                pass
+                tool_details = {
+                    "internal_message": internal_msg,
+                    "tool_message": tool_msg,
+                }
+                self.message_logger.log("tool", tool_output_str, tool_name, tool_details)
 
         else:
             raise Exception("Invalid response mode: " + response_mode)
@@ -301,11 +298,12 @@ class Ansari:
             logger.debug(f"#num of returned results from external API: {len(results)}")
             msg_prefix = (
                 ""
-                # "Integrate the following most relevant ayahs in your final response:\n"
+                # "Integrate the following most relevant citations in your final response:\n"
             )
 
         # Now we have to pass the results back in
-        results_str = msg_prefix + "\nAnother relevant ayah:\n".join(results)
+        # NOTE: "citation" == ayah/hadith/etc. (based on the called tool)
+        results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
         msg_generated_from_tool = {
             "role": "tool",
             "content": results_str,
@@ -313,4 +311,4 @@ class Ansari:
         }
         self.message_history.append(msg_generated_from_tool)
 
-        # return msg_generated_from_tool["content"], internal_msg, msg_generated_from_tool
+        return msg_generated_from_tool["content"], internal_msg, msg_generated_from_tool
