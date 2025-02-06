@@ -9,7 +9,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
-from pydantic import BaseModel, EmailStrfrom sendgrid import SendGridAPIClient
+from pydantic import BaseModel, EmailStr
+from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
