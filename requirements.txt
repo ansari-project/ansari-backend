@@ -24,3 +24,5 @@ typer
 uvicorn
 wheel
 zxcvbn
+email-validator
+anthropic
