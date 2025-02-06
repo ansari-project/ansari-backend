@@ -9,7 +9,6 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
-from langfuse.decorators import langfuse_context, observe
 from pydantic import BaseModel, EmailStr
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -74,13 +73,13 @@ if __name__ == "__main__" and get_settings().DEBUG_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     #   I.e., just run:
     #   `python src/ansari/app/main_api.py`
-    # Note 1: if you instead run
+    # NOTE 1: if you instead run
     #   `uvicorn main_api:app --host YOUR_HOST --port YOUR_PORT`
     # in the terminal, then this `if __name__ ...` block will be ignored
 
-    # Note 2: you have to use zrok to test whatsapp's webhook locally,
+    # NOTE 2: you have to use zrok to test whatsapp's webhook locally,
     # Check the resources at `.env.example` file for more details, but TL;DR:
-    # Run 3 commands below:
+    # Run the commands below:
     # Only run on initial setup (if error occurs, contact odyash on GitHub):
     #   `zrok enable SECRET_TOKEN_GENERATED_BY_ZROK_FOR_YOUR_DEVICE`
     #   `zrok reserve public localhost:8000 -n ZROK_SHARE_TOKEN`
@@ -323,7 +322,6 @@ async def add_feedback(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # Now create a thread and return the thread_id
     try:
         db.add_feedback(
             token_params["user_id"],
@@ -348,10 +346,9 @@ async def create_thread(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # Now create a thread and return the thread_id
     try:
         thread_id = db.create_thread(token_params["user_id"])
-        print(f"Created thread {thread_id}")
+        logger.debug(f"Created thread {thread_id}")
         return thread_id
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -369,7 +366,6 @@ async def get_all_threads(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # Now create a thread and return the thread_id
     try:
         threads = db.get_all_threads(token_params["user_id"])
         return threads
@@ -384,7 +380,6 @@ class AddMessageRequest(BaseModel):
 
 
 @app.post("/api/v2/threads/{thread_id}")
-@observe(capture_output=False)
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
@@ -401,32 +396,37 @@ def add_message(
     logger.info(f"Token_params is {token_params}")
 
     try:
-        db.append_message(token_params["user_id"], thread_id, req.role, req.content)
-        # Now actually use Ansari.
+        # Get the thread history (excluding incoming user's message, as it will be logged later)
         history = db.get_thread_llm(thread_id, token_params["user_id"])
-        if history["thread_name"] is None and len(history["messages"]) > 1:
+
+        # Create a new thread for the current user if not already created (i.e., history is empty)
+        # NOTE: the name of this thread is set to the first message
+        #   that the user sends in this new thread
+        if history["thread_name"] is None:
             db.set_thread_name(
                 thread_id,
                 token_params["user_id"],
-                history["messages"][0]["content"],
+                req.content,
             )
             logger.info(f"Added thread {thread_id}")
 
-        langfuse_context.update_current_trace(
-            session_id=str(thread_id),
-            user_id=token_params["user_id"],
-            tags=["debug"],
-            metadata={
-                "db_host": settings.DATABASE_URL.hosts()[0]["host"],
-            },
-        )
+        # Append the user's message to the history retrieved from the DB
+        # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
+        #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
+        user_msg = db.convert_message_llm(["user", req.content])[0]
+        history["messages"].append(user_msg)
+
+        # Send the thread's history to the Ansari agent which will
+        #   log (i.e., append) the message history's last user message to DB,
+        #   process the history,
+        #   log (i.e., append) Ansari's output to DB,
+        #   then return this output to the user.
         return presenter.complete(
             history,
             message_logger=MessageLogger(
                 db,
                 token_params["user_id"],
                 thread_id,
-                langfuse_context.get_current_trace_id(),
             ),
         )
     except psycopg2.Error as e:
@@ -555,7 +555,6 @@ async def set_pref(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # Now create a thread and return the thread_id
     try:
         db.set_pref(token_params["user_id"], req.key, req.value)
     except psycopg2.Error as e:
@@ -572,7 +571,6 @@ async def get_prefs(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # Now create a thread and return the thread_id
     try:
         prefs = db.get_prefs(token_params["user_id"])
         return prefs

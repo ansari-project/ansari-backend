@@ -1,6 +1,6 @@
 CREATE TABLE reviewers ( 
-   id SERIAL PRIMARY KEY, 
-   name VARCHAR(255) NOT NULL 
+  id SERIAL PRIMARY KEY, 
+  name VARCHAR(255) NOT NULL 
 );
 
 CREATE TABLE quran_answers (

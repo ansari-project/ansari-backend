@@ -6,8 +6,6 @@ fastapi
 gunicorn
 jinja2
 langdetect
-# should be >= 2 in order for "from langfuse.decorators" to work
-langfuse>=2.0.0
 litellm>=1.59.6,<1.59.9
 loguru
 openai

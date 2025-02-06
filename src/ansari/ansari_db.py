@@ -4,7 +4,7 @@ import logging
 import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional, Tuple, Union
+from typing import Iterable, Literal, Optional, Tuple, Union
 
 import bcrypt
 import jwt
@@ -24,22 +24,21 @@ class MessageLogger:
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", user_id: int, thread_id: int, trace_id: int = None, to_whatsapp: bool = False) -> None:
-        if not to_whatsapp and trace_id is None:
-            raise ValueError("trace_id must be provided when not logging to WhatsApp")
+    def __init__(self, db: "AnsariDB", user_id: int, thread_id: int, to_whatsapp: bool = False) -> None:
         self.user_id = user_id
         self.thread_id = thread_id
-        self.trace_id = trace_id
         self.to_whatsapp = to_whatsapp
         logger.debug(f"DB is {db}")
         self.db = db
 
-    def log(self, role, content, tool_name=None):
+    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict[str, dict] = None) -> None:
         if not self.to_whatsapp:
-            self.db.append_message(self.user_id, self.thread_id, role, content, tool_name)
+            self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details)
         else:
             self.db.append_message_whatsapp(
-                self.user_id, self.thread_id, {"role": role, "content": content, "function_name": tool_name}
+                self.user_id,
+                self.thread_id,
+                {"role": role, "content": content, "tool_name": tool_name, "tool_details": tool_details},
             )
 
 
@@ -462,14 +461,17 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def append_message(self, user_id, thread_id, role, content, tool_name=None):
+    def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None):
         try:
-            # TODO(odyash): check if "function" can be renamed to
-            # "tool" like the rest of the codebase or not
             insert_cmd = (
-                "INSERT INTO messages (thread_id, user_id, role, content, function_name) " + "VALUES (%s, %s, %s, %s, %s);"
+                "INSERT INTO messages (thread_id, user_id, role, content, tool_name, tool_details) "
+                + "VALUES (%s, %s, %s, %s, %s, %s);"
             )
-            params_1 = (thread_id, user_id, role, content, tool_name)
+
+            if tool_details:
+                tool_details = json.dumps(tool_details)
+
+            params_1 = (thread_id, user_id, role, content, tool_name, tool_details)
 
             # Appending a message should update the thread's updated_at field.
             update_cmd = "UPDATE threads SET updated_at = now() WHERE id = %s AND user_id = %s;"
@@ -506,6 +508,10 @@ class AnsariDB:
             columns = ", ".join(db_cols_to_vals.keys())
             placeholders = ", ".join(["%s"] * len(db_cols_to_vals))
             insert_cmd = f"INSERT INTO messages_whatsapp (thread_id, {columns}) VALUES (%s, {placeholders});"
+
+            if "tool_details" in db_cols_to_vals and db_cols_to_vals["tool_details"]:
+                db_cols_to_vals["tool_details"] = json.dumps(db_cols_to_vals["tool_details"])
+
             params_1 = (thread_id, *db_cols_to_vals.values())
 
             # Appending a message should update the thread's updated_at field.
@@ -540,10 +546,9 @@ class AnsariDB:
                     detail="Incorrect user_id or thread_id.",
                 )
             thread_name = thread_name_result[0]
-            # TODO(odyash): check if "function" can be renamed to "tool"
             retval = {
                 "thread_name": thread_name,
-                "messages": [self.convert_message(x) for x in result if x[1] != "function"],
+                "messages": [self.convert_message(x) for x in result if x[1] != "tool"],
             }
             return retval
         except Exception as e:
@@ -556,9 +561,8 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            # TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
             select_cmd_1 = (
-                "SELECT role, content, function_name FROM messages "
+                "SELECT role, content, tool_details FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
             select_cmd_2 = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
@@ -571,13 +575,21 @@ class AnsariDB:
                     status_code=401,
                     detail="Incorrect user_id or thread_id.",
                 )
+
+            # Now convert the messages to be in the format that the LLM expects
             thread_name = thread_name_result[0]
-            # Now convert into the standard format
-            retval = {
+            msgs = []
+            for db_row in result:
+                msgs.extend(self.convert_message_llm(db_row))
+
+            # Wrap the messages in a history object bundled with its thread name
+            history = {
                 "thread_name": thread_name,
-                "messages": [self.convert_message_llm(x) for x in result],
+                "messages": msgs,
             }
-            return retval
+
+            return history
+
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return {}
@@ -596,8 +608,8 @@ class AnsariDB:
         """
         try:
             select_cmd = """
-            SELECT role, content, function_name
-            FROM messages_whatsapp
+            SELECT role, content, tool_name 
+            FROM messages_what
             WHERE thread_id = %s AND user_id_whatsapp = %s
             ORDER BY timestamp;
             """
@@ -790,13 +802,17 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def convert_message(self, msg):
+    def convert_message(self, msg: Iterable[str]) -> dict:
         return {"id": msg[0], "role": msg[1], "content": msg[2]}
 
-    def convert_message_llm(self, msg):
-        if msg[2]:
-            return {"role": msg[0], "content": msg[1], "name": msg[2]}
-        return {"role": msg[0], "content": msg[1]}
+    def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
+        if len(msg) >= 3 and msg[2]:
+            tool_details = msg[2]
+            internal_msg = tool_details["internal_message"]
+            tool_msg = tool_details["tool_message"]
+            return [internal_msg, tool_msg]
+
+        return [{"role": msg[0], "content": msg[1]}]
 
     def store_quran_answer(
         self,

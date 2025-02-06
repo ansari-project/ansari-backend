@@ -35,7 +35,7 @@ CREATE TABLE messages_whatsapp (
     user_id_whatsapp INTEGER NOT NULL,
     thread_id UUID NOT NULL,
     role TEXT NOT NULL, 
-    function_name TEXT, -- #TODO(odyash): check if "function" can be renamed to "tool" like the rest of the codebase or not
+    function_name TEXT,
     content TEXT NOT NULL, 
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Not sure if this useful, as we have timestamp
