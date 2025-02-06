@@ -246,11 +246,12 @@ class AnsariDB:
 
     def register(self, email, first_name, last_name, password_hash):
         try:
+            normalized_email = email.strip().lower()
             insert_cmd = """INSERT INTO users (email, password_hash, first_name, last_name) values (%s, %s, %s, %s);"""
-            self._execute_query(insert_cmd, (email, password_hash, first_name, last_name))
+            self._execute_query(insert_cmd, (normalized_email, password_hash, first_name, last_name))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def register_whatsapp(self, phone_num: str, db_cols_to_vals: dict) -> dict:
@@ -282,16 +283,17 @@ class AnsariDB:
 
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def account_exists(self, email):
         try:
+            normalized_email = email.strip().lower()
             select_cmd = """SELECT id FROM users WHERE email = %s;"""
-            result = self._execute_query(select_cmd, (email,), "one")[0]
+            result = self._execute_query(select_cmd, (normalized_email,), "one")[0]
             return result is not None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return False
 
     def account_exists_whatsapp(self, phone_num):
@@ -300,7 +302,7 @@ class AnsariDB:
             result = self._execute_query(select_cmd, (phone_num,), "one")[0]
             return result is not None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return False
 
     def save_access_token(self, user_id, token):
@@ -314,7 +316,7 @@ class AnsariDB:
                 "token_db_id": inserted_id,
             }
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def save_refresh_token(self, user_id, token, access_token_id):
@@ -323,7 +325,7 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, token, access_token_id))
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def save_reset_token(self, user_id, token):
@@ -335,19 +337,20 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, token, token))
             return {"status": "success", "token": token}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def retrieve_user_info(self, email):
         try:
+            normalized_email = email.strip().lower()
             select_cmd = "SELECT id, password_hash, first_name, last_name FROM users WHERE email = %s;"
-            result = self._execute_query(select_cmd, (email,), "one")[0]
+            result = self._execute_query(select_cmd, (normalized_email,), "one")[0]
             if result:
                 user_id, existing_hash, first_name, last_name = result
                 return user_id, existing_hash, first_name, last_name
             return None, None, None, None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return None, None, None, None
 
     def retrieve_user_info_whatsapp(self, phone_num: str, db_cols: Union[list, str]) -> Optional[Tuple]:
@@ -383,7 +386,7 @@ class AnsariDB:
                 return result
             return None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return None
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
@@ -394,7 +397,7 @@ class AnsariDB:
             self._execute_query(insert_cmd, (user_id, thread_id, message_id, feedback_class, comment))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def create_thread(self, user_id):
@@ -404,7 +407,7 @@ class AnsariDB:
             inserted_id = result[0] if result else None
             return {"status": "success", "thread_id": inserted_id}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def create_thread_whatsapp(self, user_id_whatsapp: int, thread_name: str) -> str:
@@ -420,14 +423,14 @@ class AnsariDB:
         """
         try:
             insert_cmd = """
-            INSERT INTO threads_whatsapp (user_id_whatsapp, name) 
-            VALUES (%s, %s) 
+            INSERT INTO threads_whatsapp (user_id_whatsapp, name)
+            VALUES (%s, %s)
             RETURNING id;
             """
             result = self._execute_query(insert_cmd, (user_id_whatsapp, thread_name), "one")[0]
             return result[0] if result else None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return None
 
     def get_all_threads(self, user_id):
@@ -436,7 +439,7 @@ class AnsariDB:
             result = self._execute_query(select_cmd, (user_id,), "all")[0]
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result] if result else []
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return []
 
     def set_thread_name(self, thread_id, user_id, thread_name):
@@ -455,7 +458,7 @@ class AnsariDB:
             )
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None):
@@ -478,7 +481,7 @@ class AnsariDB:
 
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def append_message_whatsapp(self, user_id_whatsapp: int, thread_id: int, db_cols_to_vals: dict) -> dict:
@@ -519,7 +522,7 @@ class AnsariDB:
 
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def get_thread(self, thread_id, user_id):
@@ -549,7 +552,7 @@ class AnsariDB:
             }
             return retval
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {}
 
     def get_thread_llm(self, thread_id, user_id):
@@ -588,7 +591,7 @@ class AnsariDB:
             return history
 
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {}
 
     def get_thread_llm_whatsapp(self, thread_id: str, user_id_whatsapp: int) -> list[dict]:
@@ -606,7 +609,7 @@ class AnsariDB:
         try:
             select_cmd = """
             SELECT role, content, tool_name 
-            FROM messages_whatsapp 
+            FROM messages_what
             WHERE thread_id = %s AND user_id_whatsapp = %s
             ORDER BY timestamp;
             """
@@ -617,7 +620,7 @@ class AnsariDB:
                 else []
             )
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return []
 
     def get_last_message_time_whatsapp(self, user_id_whatsapp: int) -> tuple[Optional[str], Optional[datetime]]:
@@ -644,7 +647,7 @@ class AnsariDB:
                 return result[0], result[1]
             return None, None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return None, None
 
     def snapshot_thread(self, thread_id, user_id):
@@ -663,7 +666,7 @@ class AnsariDB:
             logger.info(f"Result is {result}")
             return result[0] if result else None
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def get_snapshot(self, share_uuid):
@@ -676,7 +679,7 @@ class AnsariDB:
                 return json.loads(result[0])
             return {}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {}
 
     def delete_thread(self, thread_id, user_id):
@@ -689,7 +692,7 @@ class AnsariDB:
             self._execute_query([delete_cmd_1, delete_cmd_2], [params, params])
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def delete_access_refresh_tokens_pair(self, refresh_token):
@@ -729,7 +732,7 @@ class AnsariDB:
             self._execute_query(delete_cmd, (user_id, token))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def logout(self, user_id, token):
@@ -739,7 +742,7 @@ class AnsariDB:
                 self._execute_query(delete_cmd, (user_id, token))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
@@ -764,7 +767,7 @@ class AnsariDB:
             self._execute_query(update_cmd, (new_password_hash, user_id))
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def update_user_whatsapp(self, phone_num: str, db_cols_to_vals: dict) -> dict:
@@ -796,7 +799,7 @@ class AnsariDB:
 
             return {"status": "success"}
         except Exception as e:
-            logger.warning(f"Warning (possbile error): {e}")
+            logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def convert_message(self, msg: Iterable[str]) -> dict:

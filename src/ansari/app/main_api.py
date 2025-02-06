@@ -9,8 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
-from pydantic import BaseModel
-from sendgrid import SendGridAPIClient
+from pydantic import BaseModel, EmailStrfrom sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
@@ -98,7 +97,7 @@ if __name__ == "__main__" and get_settings().DEBUG_MODE:
 
 
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     first_name: str
     last_name: str
@@ -135,7 +134,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -580,7 +579,7 @@ async def get_prefs(
 
 
 class ResetPasswordRequest(BaseModel):
-    email: str
+    email: EmailStr
 
 
 @app.post("/api/v2/request_password_reset")
