@@ -36,7 +36,7 @@ class Ansari:
         self.tool_name_to_instance = {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
-            sm.get_tool_name(): sm,
+            #sm.get_tool_name(): sm,
         }
         self.model = settings.MODEL
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
