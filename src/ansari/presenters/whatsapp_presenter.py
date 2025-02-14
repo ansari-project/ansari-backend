@@ -1,6 +1,7 @@
 # Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp interactions
 
 import copy
+import re
 from datetime import datetime
 from typing import Any, Literal, Optional
 
@@ -10,7 +11,7 @@ from ansari.agents.ansari import Ansari
 from ansari.ansari_db import AnsariDB, MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
-from ansari.util.general_helpers import get_language_from_text
+from ansari.util.general_helpers import get_language_direction_from_text, get_language_from_text
 
 logger = get_logger()
 
@@ -160,6 +161,7 @@ class WhatsAppPresenter:
         }
 
         async with httpx.AsyncClient() as client:
+            logger.debug(f"SENDING REQUEST TO: {url}")
             response = await client.post(url, headers=headers, json=json_data)
             response.raise_for_status()  # Raise an exception for HTTP errors
             if msg_body != "...":
@@ -192,6 +194,55 @@ class WhatsAppPresenter:
             reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
         allowed_time = reten_hours * 60 * 60
         return allowed_time
+
+    def _get_whatsapp_markdown(self, msg: str) -> str:
+        """Convert conventional markdown syntax to WhatsApp's markdown syntax"""
+
+        msg_direction = get_language_direction_from_text(msg)
+
+        # Replace text surrounded with single "*" with "_"
+        #   (as WhatsApp doesn't support italic text with "*"; it uses "_" instead)
+        # Regex details:
+        # (?<![\*_])  # Negative lookbehind: Ensures that the '*' is not preceded by '*' or '_'
+        # \*          # Matches a literal '*'
+        # ([^\*_]+?)  # Non-greedy match: Captures one or more characters that are not '*' or '_'
+        #   "Captures" mean it can be obtained via \1 in the replacement string
+        # \*          # Matches a literal '*'
+        # (?![\*_])   # Negative lookahead: Ensures that the '*' is not followed by '*' or '_'
+        pattern = re.compile(r"(?<![\*_])\*([^\*_]+?)\*(?![\*_])")
+        msg = pattern.sub(r"_\1_", msg)
+
+        # Replace "**" (markdown bold) with "*" (whatsapp bold)
+        msg = msg.replace("**", "*")
+
+        # Match headers (#*) (that doesn't have a space before it (i.e., in the middle of a text))
+        #   where there's text directly after them
+        # NOTE: the `\**_*` part is to neglect any */_ in the returned group (.*?)
+        pattern = re.compile(r"(?! )#+ \**_*(.*?)\**_*\n(?!\n)")
+
+        # Replace them with bold (*) and italic (_) markdown syntax
+        #   and add extra newline (to leave space between header and content)
+        msg = pattern.sub(r"*_\1_*\n\n", msg)
+
+        # Match headers (#*) (that doesn't have a space before it (i.e., in the middle of a text))
+        #   where there's another newline directly after them
+        # NOTE: the `\**_*` part is to neglect any */_ in the returned group (.*?)
+        pattern = re.compile(r"(?! )#+ \**_*(.*?)\**_*\n\n")
+
+        # Replace them with bold (*) and italic (_) markdown syntax
+        msg = pattern.sub(r"*_\1_*\n\n", msg)
+
+        # As nested text always appears in left side, even if text is RTL, which could be confusing to the reader,
+        #   we decided to manipulate the nesting symbols (i.e., \d+\. , * , - , etc) so that they appear in right side
+        # NOTE: added "ltr" for consistency of formatting across different languages
+        if msg_direction in ["ltr", "rtl"]:
+            # Replace lines that start with (possibly indented) "- " or "* " with "-- "
+            msg = re.sub(r"(\s*)[\*-] ", r"\1-- ", msg)
+
+            # Replace the dot numbered lists (1. , etc.) with a dash (e.g., 1 - )
+            msg = re.sub(r"(\s*)(\d+)(\.) ", r"\1\2 - ", msg, flags=re.MULTILINE)
+
+        return msg
 
     async def handle_text_message(
         self,
@@ -261,6 +312,10 @@ class WhatsAppPresenter:
             response = [tok for tok in agent.replace_message_history(msg_history, stream=True) if tok]
             response = "".join(response)
 
+            # Convert conventional markdown syntax to WhatsApp's markdown syntax
+            logger.debug(f"Response before markdown conversion: \n\n{response}")
+            response = self._get_whatsapp_markdown(response)
+
             # Return the response back to the WhatsApp user if it's not empty
             #   Else, send an error message to the user
             if response:
@@ -301,7 +356,7 @@ class WhatsAppPresenter:
         # 'Type "pt"/"prayer times" to get prayer times', then implement that feature
         await self.send_whatsapp_message(
             user_whatsapp_number,
-            "Stored your location successfully! This will help us give you accurate prayer times ISA 🙌.",
+            "Stored your location successfully!",  # This will help us give you accurate prayer times ISA 🙌.
         )
 
     async def handle_unsupported_message(
