@@ -33,7 +33,7 @@ class Ansari:
         self.message_logger = message_logger
         sq = SearchQuran(settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchVectara(
+        sm = SearchVectara(  # noqa: F841
             settings.VECTARA_API_KEY.get_secret_value(),
             settings.MAWSUAH_VECTARA_CORPUS_KEY,
             settings.MAWSUAH_FN_NAME,
