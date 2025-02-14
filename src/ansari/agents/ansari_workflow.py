@@ -1,3 +1,11 @@
+# This file aims to redefine Ansari (for v3.0) by applying a modular workflow to process user queries.
+#   Therefore, the usage of tools isn't determined via LLM's inference anymore (as in `ansari.py`).
+#   Instead, the workflow's steps could be defined to include tool usage for processing user queries.
+#   These "workflow's steps" are defined via API endpoints in `main_api.py`
+#   NOTE: IMO, a good way to navigate this file is to start from the `execute_workflow` method,
+#           as it's main_api.py's entry point to AnsariWorkflow.
+#           I.e., recursively see which methods it calls, and then go to those methods.
+
 import logging
 import sys
 

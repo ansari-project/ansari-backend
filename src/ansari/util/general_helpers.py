@@ -1,3 +1,6 @@
+# This file aims to provide general (miscellaneous) utility functions that can be used across the codebase.
+
+
 from fastapi import Depends, HTTPException, Request
 from jwt import PyJWTError
 from langdetect import detect

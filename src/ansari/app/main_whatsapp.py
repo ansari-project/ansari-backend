@@ -1,3 +1,15 @@
+# This file aims to extend `main_api.py` with FastAPI endpoints which handle incoming WhatsApp webhook messages.
+# Steps:
+#    1. Import necessary modules and configure logging.
+#    2. Create a FastAPI router to extend the main FastAPI app found in `main_api.py`.
+#       (Therefore, this file can only be tested by running `main_api.py`.)
+#    3. Initialize the Ansari agent with settings.
+#    4. Initialize the WhatsAppPresenter with the agent and credentials.
+#       Tricky NOTE: Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp messages,
+#                    so the actual "presenting" here is technically the values returned by FastAPI's endpoints.
+#    5. Define a GET endpoint to handle WhatsApp webhook verification.
+#    6. Define a POST endpoint to handle incoming WhatsApp messages.
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -14,7 +26,6 @@ router = APIRouter()
 
 # Initialize the Ansari agent
 ansari = Ansari(get_settings())
-
 chosen_whatsapp_biz_num = (
     get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
     if not get_settings().DEBUG_MODE

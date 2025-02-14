@@ -1,3 +1,8 @@
+# This file aims to provide a loguru logger instance for the caller file (e.g., main_api.py, etc.).
+# NOTE: Using loguru for logging (for simpler syntax); check below resources for reasons/details:
+#   https://nikhilakki.in/loguru-logging-in-python-made-fun-and-easy#heading-why-use-loguru-over-the-std-logging-module
+#   https://loguru.readthedocs.io/en/stable/resources/migration.html
+
 import copy
 import os
 import sys
@@ -6,11 +11,6 @@ from loguru import logger
 from loguru._logger import Logger
 
 from ansari.config import get_settings
-
-# Using loguru for logging, check below resources for reasons/details:
-# https://nikhilakki.in/loguru-logging-in-python-made-fun-and-easy#heading-why-use-loguru-over-the-std-logging-module
-# https://loguru.readthedocs.io/en/stable/resources/migration.html
-# https://loguru.readthedocs.io/en/stable/resources/recipes.html#creating-independent-loggers-with-separate-set-of-handlers
 
 
 def get_logger(

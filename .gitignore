@@ -1,15 +1,16 @@
 .conda/
 .venv/
 .vscode/
-src/ansari_backend.egg-info/*
-diskcache_dir/
 abandoned/
 bin/
 datasources/
+diskcache_dir/
+docs/recordings/00_chapters.txt
 etc/
 example_projects/
 lib/
 share/
+src/ansari_backend.egg-info/*
 
 .env
 .history

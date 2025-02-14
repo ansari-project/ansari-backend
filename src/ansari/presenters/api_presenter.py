@@ -1,3 +1,5 @@
+# Unlike other files, the presenter's role here is just to provide functions related to the LLM
+
 import copy
 
 from fastapi.responses import StreamingResponse

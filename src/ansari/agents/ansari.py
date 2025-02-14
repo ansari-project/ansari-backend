@@ -1,3 +1,11 @@
+# This file aims to define the Ansari class
+#   NOTE 1: "Ansari" is basically an LLM equipped with tools (functions) to search the Quran, Hadith, and other sources;
+#           Based on the user's query, the LLM determines whether to use a tool or not, and then generates a response.
+#   NOTE 2: IMO, a good way to navigate this file is to start from the `replace_message_history` method,
+#           as it's main_api.py's entry point to Ansari.
+#           I.e., recursively see which methods it calls, and then go to those methods.
+
+
 import copy
 import json
 import time
@@ -36,7 +44,7 @@ class Ansari:
         self.tool_name_to_instance = {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
-            #sm.get_tool_name(): sm,
+            # sm.get_tool_name(): sm,
         }
         self.model = settings.MODEL
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
@@ -62,7 +70,8 @@ class Ansari:
 
     def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
-        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
+        Replaces the current message history (stored in Ansari) with the given message history,
+        and then processes it to generate a response from Ansari.
         """
         # Create a new message history, prefix it with Ansari's system message,
         #   then append to it the given message history
@@ -71,6 +80,7 @@ class Ansari:
         ] + message_history
 
         # Return/Yield Ansari's response to the user
+        # TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
         for m in self.process_message_history(use_tool, stream=stream):
             if m:
                 yield m

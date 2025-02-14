@@ -1,3 +1,6 @@
+# This file aims to provide prompt-related functions that can be used across the codebase.
+# Specifically, it load prompts (from resources/) and manage them for Ansari agent.
+
 from pathlib import Path
 
 from pydantic import BaseModel

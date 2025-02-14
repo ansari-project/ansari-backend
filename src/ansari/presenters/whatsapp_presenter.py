@@ -1,3 +1,5 @@
+# Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp interactions
+
 import copy
 from datetime import datetime
 from typing import Any, Literal, Optional

@@ -1,3 +1,5 @@
+# TODO NOW: ask vscode copilot question when pulling MessageRecorder
+
 import inspect
 import json
 import logging
@@ -609,7 +611,7 @@ class AnsariDB:
         try:
             select_cmd = """
             SELECT role, content, tool_name 
-            FROM messages_what
+            FROM messages_whatsapp
             WHERE thread_id = %s AND user_id_whatsapp = %s
             ORDER BY timestamp;
             """

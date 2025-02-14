@@ -5,6 +5,9 @@ import psycopg2
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 
+# NOTE: This file could only be used (by you, locally) to create missing tables
+# in your local database (check `get_settings().DATABASE_URL` for the address)
+
 logger = get_logger()
 
 

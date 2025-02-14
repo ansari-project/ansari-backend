@@ -14,6 +14,8 @@ logger = get_logger()
 @pytest.fixture(scope="module")
 def data():
     tenv = Environment(loader=FileSystemLoader("src/ansari/resources/templates/"))
+    # NOTE (optional): the content inside the `ask_question.txt` is written in the Jinja2 template language
+    #   Refer to this for details: https://www.packetcoders.io/an-introduction-to-jinja2-for-network-automation/
     q_temp = tenv.get_template("ask_question.txt")
     df = pd.read_csv("tests/batik-v1-en.csv")
     cache = {}

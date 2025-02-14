@@ -1,3 +1,22 @@
+# This file aims to provide a REST API server for the frontend repo found at:
+#   https://github.com/ansari-project/ansari-frontend
+# Steps:
+#    1. Import necessary modules and configure logging.
+#    2. Initialize FastAPI application and configure middleware.
+#    3. Define custom exception handlers for logging and handling HTTP exceptions.
+#    4. Initialize database connection and Ansari agent with settings.
+#    5. Initialize ApiPresenter
+#       Tricky NOTE: Unlike other files, the presenter's role here is just to provide functions related to the LLM,
+#                    so the actual "presenting" here is technically the values returned by FastAPI's endpoints.
+#    6. Configure caching with FanoutCache.
+#    7. Include additional routers, such as the WhatsApp router.
+#    8. Handle CORS validation and token validation using FastAPI dependencies.
+#    9. Define FastAPI's various API endpoints (user registration, etc.).
+#    10. `if __name__ == "__main__"` -> Start the Uvicorn server which runs the FastAPI application.
+# NOTE: IMO, a good way to navigate this file is to use VSCode's outline view to get a glance at the available endpoints.
+#       TIP 1: https://www.youtube.com/watch?v=WWTsnKwfVJs
+#       TIP 2: If you can't find it: `Ctrl+Shift+P` -> type "outline" and select `Explorer: Focus on Outline View`
+
 import logging
 import os
 import uuid
@@ -26,6 +45,10 @@ from ansari.util.general_helpers import get_extended_origins, validate_cors
 logger = get_logger()
 
 # Register the UUID type globally
+# Details: Read the SO question then the answer referenced below:
+#   https://stackoverflow.com/a/59268003/13626137
+# More details (optional):
+#   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
 psycopg2.extras.register_uuid()
 
 app = FastAPI()
@@ -45,6 +68,8 @@ async def http_exception_handler(request, exc: HTTPException):
 
 
 def add_app_middleware():
+    # Get the origins from `.env` as well as extra origins
+    #   based on current environment (e.g., local dev, CI/CD, etc.)
     origins = get_extended_origins()
 
     app.add_middleware(
@@ -104,6 +129,17 @@ class RegisterRequest(BaseModel):
     last_name: str
 
 
+# NOTE 1: Check `docs/structure_of_api_responses/*_request_received_*.json` to visualize the structure of the requests
+# NOTE 2 (optional): read about FastAPI's dependency injection here:
+#   https://fastapi.tiangolo.com/tutorial/dependencies/
+#   or this tutorial (clearer):
+#   https://www.youtube.com/watch?v=Kq7ezzVInCA&list=PLqAmigZvYxIL9dnYeZEhMoHcoP4zop8-p&index=22
+#   TL;DR: To explain `Depends`, it's as if the function `register_user` is saying this:
+#       * "I need to to first implicitly pass the `Request` object to `validate_cors` function,"
+#       * "then run `validate_cors` function,"
+#       * "then get the return value of `validate_cors` (`cors_ok`),"
+#       * "because the logic of my code is based on this returned value"
+#   TL;DR of TL;DR: "I *depend* on running `validate_cors` first to proceed with my logic"
 @app.post("/api/v2/users/register")
 async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_cors)):
     """Register a new user.
@@ -122,7 +158,12 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
         # Check if account exists
         if db.account_exists(req.email):
             raise HTTPException(status_code=403, detail="Account already exists")
+
+        # zxcvbn is a password strength checker (named after last row of keys in a keyboard :])
+        # NOTE (optional): Check this for details of its returned value:
+        #   https://github.com/dwolfhub/zxcvbn-python?tab=readme-ov-file#usage
         passwd_quality = zxcvbn(req.password)
+
         if passwd_quality["score"] < 2:
             raise HTTPException(
                 status_code=400,
@@ -161,6 +202,7 @@ async def login_user(
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
     # Generate a token and return it
+    # NOTE: the explanation/types of tokens are in the docstring of `db.generate_token()`
     try:
         access_token = db.generate_token(
             user_id,
@@ -172,12 +214,14 @@ async def login_user(
             token_type="refresh",
             expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
         )
+
         access_token_insert_result = db.save_access_token(user_id, access_token)
         if access_token_insert_result["status"] != "success":
             raise HTTPException(
                 status_code=500,
                 detail="Couldn't save access token",
             )
+        # NOTE: this "token_db_id" means  the internal auto-generated ID of the access token
         refresh_token_insert_result = db.save_refresh_token(
             user_id,
             refresh_token,
@@ -188,6 +232,7 @@ async def login_user(
                 status_code=500,
                 detail="Couldn't save refresh token",
             )
+
         return {
             "status": "success",
             "access_token": access_token,
@@ -207,6 +252,20 @@ async def refresh_token(
     settings: Settings = Depends(get_settings),
 ):
     """Refresh both the access token and the refresh token.
+
+    Details: the function performs the following steps:
+    1. Validates CORS settings.
+    2. Extracts the old refresh token from the request headers.
+    3. Decodes the old refresh token to extract token parameters.
+    4. Uses a locking mechanism to prevent race conditions.
+    5. Checks if the new tokens are already cached.
+    6. Validates the old refresh token and deletes the old token pair from the database.
+    7. Generates new access and refresh tokens.
+    8. Saves the new tokens to the database.
+    9. Caches the new tokens with a short expiry.
+    10. Handles database errors and raises appropriate HTTP exceptions.
+
+    TODO(anyone): Explain the theory behind locking/caching, and why steps 4-9 are necessary.
 
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
