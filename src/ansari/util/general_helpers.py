@@ -1,5 +1,7 @@
 # This file aims to provide general (miscellaneous) utility functions that can be used across the codebase.
 
+import unicodedata as ud
+from typing import Literal
 
 from fastapi import Depends, HTTPException, Request
 from jwt import PyJWTError
@@ -108,3 +110,48 @@ def get_language_from_text(text: str) -> str:
         return "en"
 
     return detected_lang
+
+
+def get_language_direction_from_text(text: str) -> Literal["ltr", "rtl"]:
+    """Extracts the language direction from the given text.
+
+    Args:
+        text (str): The text from which to extract the language direction.
+
+    Returns:
+        str: The language direction extracted from the given text in "ltr" or "rtl" format.
+
+    Notes:
+        Determining the direction of a string is complex. But if you are looking at simple approximations,
+        you can look at the bidirectional property values in the string.
+
+        Now, there are two methods to determine the overall direction of a line:
+        * First strong: matching the first strong character encountered when iterating through the text.
+        * Direction strong: look at how many characters in the string are strong LTR and strong RTL, and selecting their max.
+
+        This function uses the first method, which is simpler and faster, and is actually how whatsapp renders text. Source:
+        * https://stackoverflow.com/a/75739782/13626137
+
+    """
+
+    try:
+        # Determine the bidirectional property of each character in the text
+        bidi_properties = [ud.bidirectional(char) for char in text]
+
+        # Map bidirectional properties to "ltr", "rtl", or "-"
+        directions = []
+        for prop in bidi_properties:
+            if prop == "L":
+                directions.append("ltr")
+            elif prop in ["AL", "R"]:
+                directions.append("rtl")
+            else:
+                directions.append("-")
+
+        # Return the first strong direction encountered
+        for direction in directions:
+            if direction in ["ltr", "rtl"]:
+                return direction
+    except Exception as e:
+        logger.warning(f'Failure detecting language direction (so will return "ltr" instead) Details: {e}')
+        return "ltr"
