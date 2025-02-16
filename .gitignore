@@ -5,7 +5,7 @@ abandoned/
 bin/
 datasources/
 diskcache_dir/
-docs/recordings/00_chapters.txt
+docs/recordings/*
 etc/
 example_projects/
 lib/

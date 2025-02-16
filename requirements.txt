@@ -1,26 +1,48 @@
+# Password hashing
 bcrypt
+# Build tools
 build
+# Discord bot integration
 discord.py
+# Caching library
 diskcache
+# Email validation
 email-validator
+# Web framework
 fastapi
+# WSGI HTTP server
 gunicorn
+# Templating engine to dynamically generate content (check ask_question.txt)
 jinja2
+# Language detection
 langdetect
+# Standardization of various LLM providers' APIs to a common format (OpenAI API)
 litellm>=1.59.6,<1.59.9
+# Logging library
 loguru
+# OpenAI API client (Not needed if using litellm ... I think)
 openai
+# Data manipulation into table-like structures
 pandas
+# PostgreSQL database adapter
 psycopg2-binary
+# Settings management
 pydantic_settings
+# JSON Web Tokens
 pyjwt
+# Async testing framework
 pytest-asyncio
-rich
+# Email sending service
 sendgrid
+# Package management
 setuptools
+# Retry library (due to transient issues, such as network requests or database connections.) (Not needed ... I think)
 tenacity
-tiktoken
+# Command-line interface
 typer
+# ASGI server
 uvicorn
+# Wheel packaging
 wheel
+# Password strength estimation
 zxcvbn

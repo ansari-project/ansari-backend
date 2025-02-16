@@ -4,6 +4,7 @@
 name: Ansari CICD
 
 on:
+  # Trigger the workflow on push or pull request events to the "api-v2" and "main" branches.
   push:
     branches: [ "api-v2", "main" ]
   pull_request:
@@ -17,6 +18,7 @@ jobs:
 
     runs-on: ubuntu-latest
     env:
+      # Set up environment variables and secrets required for the workflow.
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       KALEMAT_API_KEY: ${{ secrets.KALEMAT_API_KEY }}
       VECTARA_API_KEY: ${{ secrets.VECTARA_API_KEY }}
@@ -31,6 +33,7 @@ jobs:
       WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ secrets.WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK }}
       PYTHONPATH: src
 
+    # Use a Python 3.10 container and set up a PostgreSQL service for the database.
     container: python:3.10
     services:
       postgres:
@@ -49,22 +52,29 @@ jobs:
 
     steps:
 
+    # Check out the repository code.
     - name: Check out repository code
       uses: actions/checkout@v4
     
+    # Install the `uv` tool.
     - name: Install uv
       run: |
         pip install uv
         # TODO(abdullah): create a venv using uv
 
+    # Install Python dependencies, including `ruff`, `pytest`, `pytest-asyncio`, and `pytest-cov`.
     - name: Install dependencies
       run: |
         uv pip install --system ruff pytest pytest-asyncio pytest-cov 
         if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
+
+    # Install the PostgreSQL client.
     - name: Install PostgreSQL client
       run: |
         apt-get update
         apt-get install --yes --no-install-recommends postgresql-client
+
+    # Create database tables by running SQL scripts.
     - name: Create tables
       env:
         PGPASSWORD: postgres
@@ -73,10 +83,14 @@ jobs:
         for sql_file in sql/*.sql; do
           psql -h postgres -p 5432 -U postgres -d postgres -f "$sql_file"
         done
+
+    # Lint the code using `ruff` and stop the build if there are lint errors.
     - name: Lint with ruff
       run: |
         # stop the build if there are lint errors
         ruff check . --config pyproject.toml --output-format=github
+
+    # Run tests using `pytest` and generate a coverage report.
     - name: Test with pytest
       env:
         PGPASSWORD: postgres
@@ -84,4 +98,4 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
         SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
       run: |
-        pytest --capture=tee-sys --cov=. 
+        pytest --capture=tee-sys --cov=.
