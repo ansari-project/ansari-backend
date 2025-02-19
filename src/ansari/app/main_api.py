@@ -342,6 +342,44 @@ async def refresh_token(
             raise HTTPException(status_code=500, detail="Database error")
 
 
+@app.get("/api/v2/users/me")
+async def get_user_details(
+    cors_ok: bool = Depends(validate_cors),
+    token_params: dict = Depends(db.validate_token),
+):
+    if not (cors_ok and token_params):
+        raise HTTPException(status_code=403, detail="Invalid credentials")
+
+    try:
+        user_id = token_params["user_id"]
+        user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
+        return {
+            "user_id": user_id,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+        }
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500)
+
+
+@app.delete("/api/v2/users/me")
+async def delete_user(
+    cors_ok: bool = Depends(validate_cors),
+    token_params: dict = Depends(db.validate_token),
+):
+    if not (cors_ok and token_params):
+        raise HTTPException(status_code=403, detail="Invalid credentials")
+
+    try:
+        db.delete_user(token_params["user_id"])
+        return {"status": "success"}
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500)
+
+
 @app.post("/api/v2/users/logout")
 async def logout_user(
     request: Request,
