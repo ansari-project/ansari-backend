@@ -757,6 +757,29 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
+    def delete_user(self, user_id):
+        try:
+            for db_table in [
+                "preferences",
+                "feedback",
+                "messages",
+                "threads",
+                "users_whatsapp",
+                "refresh_tokens",
+                "access_tokens",
+                "reset_tokens",
+            ]:
+                delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s;"""
+                self._execute_query(delete_cmd, (user_id,))
+
+            delete_cmd = "DELETE FROM users WHERE id = %s;"
+            self._execute_query(delete_cmd, (user_id,))
+
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Warning (possible error): {e}")
+            return {"status": "failure", "error": str(e)}
+
     def logout(self, user_id, token):
         try:
             for db_table in ["access_tokens", "refresh_tokens"]:
