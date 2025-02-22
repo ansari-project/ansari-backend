@@ -37,8 +37,8 @@ class SearchVectara:
                         for param in self.params
                     },
                     "required": self.required_params,
-                },
-            },
+                }
+            }
         }
 
     def get_tool_name(self):

@@ -14,8 +14,7 @@ class SearchQuran:
             "type": "function",
             "function": {
                 "name": "search_quran",
-                "description": "Search and retrieve relevant ayahs based on "
-                "a specific topic. Returns multiple ayahs when applicable.",
+                "description": "Search and retrieve relevant ayahs based on a specific topic. Returns multiple ayahs when applicable.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -25,8 +24,8 @@ class SearchQuran:
                         },
                     },
                     "required": ["query"],
-                },
-            },
+                }
+            }
         }
 
     def get_tool_name(self):
@@ -54,7 +53,7 @@ class SearchQuran:
         ayah_num = ayah["id"]
         ayah_ar = ayah.get("text", "Not retrieved")
         ayah_en = ayah.get("en_text", "Not retrieved")
-        result = f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n"
+        result = f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n"
         return result
 
     def run_as_list(self, query: str, num_results: int = 10):
@@ -63,6 +62,5 @@ class SearchQuran:
         return [self.pp_ayah(r) for r in results]
 
     def run_as_string(self, query: str, num_results: int = 10):
-        results = self.run(query, num_results)
-        rstring = "\n".join([self.pp_ayah(r) for r in results])
-        return rstring
+        results = self.run_as_list(query, num_results)
+        return "\n".join(results)
