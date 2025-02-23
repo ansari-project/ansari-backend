@@ -59,12 +59,68 @@ class SearchHadith:
         result = f"{src}\n{en}\n{grade}"
         return result
 
+    def format_as_list(self, results):
+        """Format raw API results as a list of strings."""
+        return [self.pp_hadith(r) for r in results]
+
+    def format_as_tool_result(self, results):
+        """Format raw API results as a tool result dictionary."""
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "text": result.get("en_text", ""),
+                "grade": result.get("grade_en", "").strip(),
+                "source_book": result.get("source_book", ""),
+                "chapter_number": result.get("chapter_number", ""),
+                "hadith_number": result.get("hadith_number", ""),
+                "id": result.get("id", ""),
+                "reference": f"{result.get('source_book', '')} {result.get('chapter_number', '')}:{result.get('hadith_number', '')}"
+            })
+        
+        return {
+            "results": formatted_results,
+            "tool_name": self.get_tool_name()
+        }
+
+    def format_as_reference_list(self, results):
+        """Format raw API results as a list of reference documents for Claude."""
+        documents = []
+        for result in results:
+            source_book = result.get("source_book", "")
+            chapter = result.get("chapter_number", "")
+            hadith = result.get("hadith_number", "")
+            text = result.get("en_text", "")
+            grade = result.get("grade_en", "").strip()
+            
+            # Create citation title
+            title = f"{source_book} - Chapter {chapter}, Hadith {hadith}"
+            
+            # Combine text and grade
+            content = f"Text: {text}"
+            if grade:
+                content += f"\nGrade: {grade}"
+            
+            documents.append({
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": content
+                },
+                "title": title,
+                "context": "Retrieved from Hadith collection",
+                "citations": {"enabled": True}
+            })
+            
+        return documents
+
     def run_as_list(self, query: str, num_results: int = 3):
         print(f'Searching hadith for "{query}"')
         results = self.run(query, num_results)
-        return [self.pp_hadith(r) for r in results]
+        tool_result = self.format_as_tool_result(results)
+        return [self.pp_hadith(r) for r in tool_result["results"]]
 
     def run_as_string(self, query: str, num_results: int = 3):
         results = self.run(query, num_results)
-        rstring = "\n".join([self.pp_hadith(r) for r in results])
-        return rstring
+        tool_result = self.format_as_tool_result(results)
+        return "\n".join([self.pp_hadith(r) for r in tool_result["results"]])

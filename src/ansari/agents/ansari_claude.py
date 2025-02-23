@@ -96,13 +96,22 @@ class AnsariClaude(Ansari):
             raise
 
         tool_instance = self.tool_name_to_instance[tool_name]
-        results = tool_instance.run_as_list(query)
         
-        if len(results) == 0:
+        # Get raw results
+        results = tool_instance.run(query)
+        
+        # Format results in different ways
+        tool_result = tool_instance.format_as_tool_result(results)
+        reference_list = tool_instance.format_as_reference_list(results)
+        
+        if not reference_list:
             return ["No results found"]
             
-        logger.info(f"Got {len(results)} results from API")
-        return results
+        logger.info(f"Got {len(reference_list)} results from {tool_name}")
+        
+        # Add reference list to tool result
+       
+        return (tool_result, reference_list)
 
     def process_one_round(self, use_tool=True, stream=True) -> Generator[str, None, None]:
         """Process one round of conversation.
@@ -150,7 +159,7 @@ class AnsariClaude(Ansari):
         while not response:
             try:
                 response = self.client.messages.create(**params)
-                logger.info("Got response from Claude API")
+                logger.debug("Got response from Claude API")
                 logger.debug(f"Raw response: {response}")
             except Exception as e:
                 failures += 1
@@ -239,11 +248,13 @@ class AnsariClaude(Ansari):
                         # Add citations list at the end if there were any citations
                         if self.citations:
                             citations_text = "\n\n**Citations**:\n"
+                            logger.debug(f"Full Citations: {self.citations}")
                             for i, citation in enumerate(self.citations, 1):
                                 text = getattr(citation, 'cited_text', '')
-                                citations_text += f"[{i}] {text}\n"
+                                title = getattr(citation, 'document_title', '')
+                                citations_text += f"[{i}] {title}:\n {text}\n"
                             full_response += citations_text
-                            yield citations_text
+                            yield citations_text 
                             
                         # Add the assistant's message to history
                         if full_response:
@@ -271,35 +282,23 @@ class AnsariClaude(Ansari):
                                     })
                                     
                                     # Process the tool call
-                                    result = self.process_tool_call(tc["name"], tc["args"], tc["id"])
+                                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
                                     
-                                    # Add tool result as user message
+                                    # Add tool result and reference list in the same message
                                     self.message_history.append({
                                         "role": "user",
                                         "content": [
                                             {
                                                 "type": "tool_result",
                                                 "tool_use_id": tc["id"],
-                                                "content": [{"type": "text", "text": r} for r in (result if isinstance(result, list) else [result])]
+                                                "content": tool_result
                                             }
-                                        ] + [
-                                            {
-                                                "type": "document",
-                                                "source": {
-                                                    "type": "text",
-                                                    "media_type": "text/plain",
-                                                    "data": r
-                                                },
-                                                "title": f"Tool Result {i+1}: {tc['name']}",
-                                                "context": f"Result from tool call {tc['id']}",
-                                                "citations": {"enabled": True}
-                                            } for i, r in enumerate(result if isinstance(result, list) else [result])
-                                        ]
+                                        ] + reference_list  # Reference list already contains properly formatted documents
                                     })
                                     
                                     if self.message_logger:
                                         self.message_logger.log(self.message_history[-1])  # Tool result
-                                        
+                                    
                                 except Exception as e:
                                     logger.error(f"Error processing tool call: {str(e)}")
                                     # Add error as tool result
@@ -360,12 +359,11 @@ class AnsariClaude(Ansari):
         count = 0
         failures = 0
         while self.message_history[-1]["role"] != "assistant":
-            logger.debug("!!! Process message loop")
             try:
-                logger.info("Current message history:\n" + "-" * 60)
+                logger.debug("Current message history:\n" + "-" * 60)
                 for i, msg in enumerate(self.message_history):
-                    logger.info(f"Message {i}:\n{json.dumps(msg, indent=2)}")
-                logger.info("-" * 60)
+                    logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
+                logger.debug("-" * 60)
                 # This is pretty complicated so leaving a comment.
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times (failure)
@@ -385,9 +383,3 @@ class AnsariClaude(Ansari):
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Too many failures, aborting")
                     raise Exception("Too many failures") from e
-
-        logger.debug("!!! Exiting process_message_history");
-        logger.debug(f"Final message history:\n" + "-" * 60)
-        for i, msg in enumerate(self.message_history):
-            logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
-        logger.debug("-" * 60)

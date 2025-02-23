@@ -100,25 +100,97 @@ class SearchVectara:
             raise requests.exceptions.HTTPError(error_msg)
         return response.json()
 
-    def pp_response(self, response: dict) -> list:
-        """Extract text from response"""
+    def format_as_list(self, response: dict) -> list:
+        """Format raw API results as a list of strings."""
         if not response.get("search_results"):
             return []
 
-        results = [r["text"] for r in response["search_results"]]
-        return results
+        return [r["text"] for r in response["search_results"]]
 
-    def run_as_list(self, query: str, num_results: int = 5, **kwargs) -> list:
+    def format_as_tool_result(self, response: dict) -> dict:
+        """Format raw API results as a tool result dictionary."""
+        if not response.get("search_results"):
+            return {
+                "results": [],
+                "tool_name": self.get_tool_name()
+            }
+
+        formatted_results = []
+        for result in response["search_results"]:
+            metadata = {}
+            for m in result.get("metadata", []):
+                metadata[m["name"]] = m["value"]
+            
+            formatted_results.append({
+                "text": result.get("text", ""),
+                "score": result.get("score", 0),
+                "metadata": metadata,
+                "reference": f"{metadata.get('source', '')} {metadata.get('volume', '')}:{metadata.get('page', '')}"
+            })
+        
+        return {
+            "results": formatted_results,
+            "tool_name": self.get_tool_name()
+        }
+
+    def format_as_reference_list(self, response: dict) -> list:
+        """Format raw API results as a list of reference documents for Claude."""
+        if not response.get("search_results"):
+            return []
+
+        documents = []
+        for result in response["search_results"]:
+            # Extract metadata
+            metadata = {}
+            for m in result.get("metadata", []):
+                metadata[m["name"]] = m["value"]
+            
+            # Create citation title from metadata
+            source = metadata.get("source", "")
+            volume = metadata.get("volume", "")
+            page = metadata.get("page", "")
+            
+            title_parts = []
+            if source:
+                title_parts.append(source)
+            if volume:
+                title_parts.append(f"Volume {volume}")
+            if page:
+                title_parts.append(f"Page {page}")
+            
+            title = " - ".join(title_parts) if title_parts else "Unknown Source"
+            
+            # Get the text content
+            text = result.get("text", "")
+            
+            documents.append({
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": text
+                },
+                "title": title,
+                "context": "Retrieved from Islamic literature",
+                "citations": {"enabled": True}
+            })
+            
+        return documents
+
+    def run_as_list(self, query: str, num_results: int = 10, **kwargs) -> list:
         """Return results as a list of strings"""
         response = self.run(query, num_results, **kwargs)
-        return self.pp_response(response)
+        tool_result = self.format_as_tool_result(response)
+        return [r["text"] for r in tool_result["results"]]
 
-    def run_as_json(self, query: str, num_results: int = 5, **kwargs) -> dict:
+    def run_as_json(self, query: str, num_results: int = 10, **kwargs) -> dict:
         """Return results wrapped in a JSON object"""
         response = self.run(query, num_results, **kwargs)
-        return {"matches": self.pp_response(response)}
+        tool_result = self.format_as_tool_result(response)
+        return {"matches": [r["text"] for r in tool_result["results"]]}
 
-    def run_as_string(self, query: str, num_results: int = 5, **kwargs) -> str:
+    def run_as_string(self, query: str, num_results: int = 10, **kwargs) -> str:
         """Return results as a newline-separated string"""
-        results = self.run_as_list(query, num_results, **kwargs)
-        return "\n".join(results)
+        response = self.run(query, num_results, **kwargs)
+        tool_result = self.format_as_tool_result(response)
+        return "\n".join([r["text"] for r in tool_result["results"]])
