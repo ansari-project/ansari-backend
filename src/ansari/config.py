@@ -120,10 +120,9 @@ class Settings(BaseSettings):
     WHATSAPP_RECIPIENT_WAID: SecretStr | None = Field(default=None)
     WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
-    WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
-    WHATSAPP_CHAT_RETENTION_HOURS: int = Field(default=3)  # This is hardcoded to 0.05 when DEBUG_MODE is True
+    WHATSAPP_CHAT_RETENTION_HOURS: float = Field(default=3)
     ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
@@ -136,7 +135,7 @@ class Settings(BaseSettings):
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
 
     LOGGING_LEVEL: str = Field(default="INFO")
-    DEBUG_MODE: bool = Field(default=False)
+    TESTING_LOCALLY: bool = Field(default=False)
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

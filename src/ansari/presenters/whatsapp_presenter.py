@@ -188,10 +188,7 @@ class WhatsAppPresenter:
         return passed_time, passed_time_logging
 
     def _get_retention_time_in_seconds(self) -> int:
-        if get_settings().DEBUG_MODE:
-            reten_hours = 0.05  # so allowed_time == 3 minutes
-        else:
-            reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
+        reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
         allowed_time = reten_hours * 60 * 60
         return allowed_time
 

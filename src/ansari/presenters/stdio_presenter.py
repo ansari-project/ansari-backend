@@ -1,8 +1,10 @@
 import sys
 
+from ansari.agents.ansari import Ansari
+
 
 class StdioPresenter:
-    def __init__(self, agent):
+    def __init__(self, agent: Ansari):
         self.agent = agent
 
     def present(self):
