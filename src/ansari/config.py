@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
     AYAH_SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_ayah")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
-
+    AGENT: str = Field(default="AnsariClaude")
     LOGGING_LEVEL: str = Field(default="INFO")
     DEBUG_MODE: bool = Field(default=False)
 

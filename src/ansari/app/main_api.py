@@ -34,7 +34,7 @@ from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
 
-from ansari.agents import Ansari, AnsariWorkflow
+from ansari.agents import Ansari, AnsariClaude
 from ansari.ansari_db import AnsariDB, MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
@@ -74,7 +74,7 @@ def add_app_middleware():
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -82,9 +82,17 @@ def add_app_middleware():
 
 
 add_app_middleware()
-
 db = AnsariDB(get_settings())
-ansari = Ansari(get_settings())
+
+agent_type = get_settings().AGENT
+
+if agent_type == "Ansari":
+    ansari = Ansari(get_settings())
+elif agent_type == "AnsariClaude":
+    ansari = AnsariClaude(get_settings())
+else:
+    raise ValueError(f"Unknown agent type: {agent_type}. Must be one of: Ansari, AnsariClaude")
+
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()
