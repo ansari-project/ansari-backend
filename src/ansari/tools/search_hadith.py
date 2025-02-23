@@ -1,4 +1,10 @@
 import requests
+import logging
+import json
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
 TOOL_NAME = "search_hadith"
@@ -31,7 +37,7 @@ class SearchHadith:
     def get_tool_name(self):
         return TOOL_NAME
 
-    def run(self, query: str, num_results: int = 5):
+    def run(self, query: str, num_results: int = 10):
         headers = {"x-api-key": self.api_key}
         payload = {
             "query": query,
@@ -85,18 +91,24 @@ class SearchHadith:
     def format_as_reference_list(self, results):
         """Format raw API results as a list of reference documents for Claude."""
         documents = []
+        logger.info(f"!!!! Formatting as reference list:\n{json.dumps(results, indent=2)}")
         for result in results:
             source_book = result.get("source_book", "")
             chapter = result.get("chapter_number", "")
+            chapter_name = result.get("chapter_english", "")
             hadith = result.get("hadith_number", "")
+            section_number = result.get("section_number", "")
+            section_name = result.get("section_english", "")
+            id = result.get("id", "")
             text = result.get("en_text", "")
+            ar_text = result.get("ar_text", "")
             grade = result.get("grade_en", "").strip()
             
             # Create citation title
-            title = f"{source_book} - Chapter {chapter}, Hadith {hadith}"
+            title = f"{source_book} - Chapter {chapter}: {chapter_name}, Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
             
             # Combine text and grade
-            content = f"Text: {text}"
+            content = f"Arabic Text: {ar_text}\nEnglish Text: {text}"
             if grade:
                 content += f"\nGrade: {grade}"
             
@@ -117,10 +129,8 @@ class SearchHadith:
     def run_as_list(self, query: str, num_results: int = 3):
         print(f'Searching hadith for "{query}"')
         results = self.run(query, num_results)
-        tool_result = self.format_as_tool_result(results)
-        return [self.pp_hadith(r) for r in tool_result["results"]]
+        return self.format_as_list(results)
 
     def run_as_string(self, query: str, num_results: int = 3):
         results = self.run(query, num_results)
-        tool_result = self.format_as_tool_result(results)
-        return "\n".join([self.pp_hadith(r) for r in tool_result["results"]])
+        return "\n".join(self.format_as_list(results))

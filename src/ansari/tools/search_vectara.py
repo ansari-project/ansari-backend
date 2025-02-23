@@ -1,7 +1,12 @@
+import logging
 import json
 
 import requests
 
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class SearchVectara:
     def __init__(
@@ -135,30 +140,16 @@ class SearchVectara:
 
     def format_as_reference_list(self, response: dict) -> list:
         """Format raw API results as a list of reference documents for Claude."""
-        if not response.get("search_results"):
+        if not response or "search_results" not in response:
             return []
 
         documents = []
+        logger.info(f"!!!! Formatting as reference list:\n{json.dumps(response, indent=2)}")
         for result in response["search_results"]:
-            # Extract metadata
-            metadata = {}
-            for m in result.get("metadata", []):
-                metadata[m["name"]] = m["value"]
-            
-            # Create citation title from metadata
-            source = metadata.get("source", "")
-            volume = metadata.get("volume", "")
-            page = metadata.get("page", "")
-            
-            title_parts = []
-            if source:
-                title_parts.append(source)
-            if volume:
-                title_parts.append(f"Volume {volume}")
-            if page:
-                title_parts.append(f"Page {page}")
-            
-            title = " - ".join(title_parts) if title_parts else "Unknown Source"
+            # Temporary placeholder. 
+            # Nasty hack. TODO(mwk): Fix this
+            volume = result.get("document_id", "").replace(".txt", "")
+            title = "Encyclopedia of Islamic Jurisprudence, Volume " + volume
             
             # Get the text content
             text = result.get("text", "")
@@ -171,7 +162,7 @@ class SearchVectara:
                     "data": text
                 },
                 "title": title,
-                "context": "Retrieved from Islamic literature",
+                "context": "Retrieved from Encyclopedia of Islamic jurisprudence",
                 "citations": {"enabled": True}
             })
             
@@ -180,17 +171,14 @@ class SearchVectara:
     def run_as_list(self, query: str, num_results: int = 10, **kwargs) -> list:
         """Return results as a list of strings"""
         response = self.run(query, num_results, **kwargs)
-        tool_result = self.format_as_tool_result(response)
-        return [r["text"] for r in tool_result["results"]]
+        return self.format_as_list(response)
 
     def run_as_json(self, query: str, num_results: int = 10, **kwargs) -> dict:
         """Return results wrapped in a JSON object"""
         response = self.run(query, num_results, **kwargs)
-        tool_result = self.format_as_tool_result(response)
-        return {"matches": [r["text"] for r in tool_result["results"]]}
+        return {"matches": self.format_as_list(response)}
 
     def run_as_string(self, query: str, num_results: int = 10, **kwargs) -> str:
         """Return results as a newline-separated string"""
-        response = self.run(query, num_results, **kwargs)
-        tool_result = self.format_as_tool_result(response)
-        return "\n".join([r["text"] for r in tool_result["results"]])
+        results = self.run(query, num_results, **kwargs)
+        return "\n".join(self.format_as_list(results))

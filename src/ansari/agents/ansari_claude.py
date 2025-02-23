@@ -15,6 +15,7 @@ from ansari.util.prompt_mgr import PromptMgr
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
+from pprint import pformat
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -284,14 +285,19 @@ class AnsariClaude(Ansari):
                                     # Process the tool call
                                     (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
                                     
+                                    logging.info(f"!!!! Reference list:\n{json.dumps(reference_list, indent=2)}")
                                     # Add tool result and reference list in the same message
+                                    # Note: Right now, it's unclear what the right thing to do is, 
+                                    # if the returned values are intended for RAG. We could include
+                                    # both but this increases the token cost for no difference in output. 
                                     self.message_history.append({
                                         "role": "user",
                                         "content": [
                                             {
                                                 "type": "tool_result",
                                                 "tool_use_id": tc["id"],
-                                                "content": tool_result
+                                                # Alternatively, this could be the tool result
+                                                "content": "Please see the included reference list below." 
                                             }
                                         ] + reference_list  # Reference list already contains properly formatted documents
                                     })

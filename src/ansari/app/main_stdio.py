@@ -2,6 +2,7 @@
 
 import logging
 import typer
+import sys
 from typing import Optional
 
 from ansari.agents import Ansari
@@ -25,10 +26,17 @@ def main(
         "-l",
         help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
         case_sensitive=False
+    ),
+    input: Optional[str] = typer.Option(
+        None,
+        "--input",
+        "-i", 
+        help="Input to send to the agent. If not provided, starts interactive mode."
     )
 ):
     """
-    Run the Ansari agent in stdio mode
+    Run the Ansari agent. If input is provided, process it and exit.
+    If no input is provided, start interactive mode.
     """
     # Convert log level string to logging constant
     numeric_level = getattr(logging, log_level.upper(), None)
@@ -45,8 +53,19 @@ def main(
     else:
         raise ValueError(f"Unknown agent type: {agent}. Must be one of: AnsariClaude, Ansari")
     
-    presenter = StdioPresenter(agent_instance)
-    presenter.present()
+    # Print greeting
+    print(agent_instance.greet())
+    
+    if input:
+        # Process single input and exit
+        for word in agent_instance.process_input(input):
+            if word is not None:
+                print(word, end='', flush=True)
+        print()
+    else:
+        # No input provided, start interactive mode
+        presenter = StdioPresenter(agent_instance, skip_greeting=True)
+        presenter.present()
 
 if __name__ == "__main__":
     app()
