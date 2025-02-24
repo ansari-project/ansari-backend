@@ -59,10 +59,13 @@ class Settings(BaseSettings):
     API_SERVER_PORT: int = Field(default=8000)
 
     OPENAI_API_KEY: SecretStr
+    ANTHROPIC_API_KEY: SecretStr
     PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
 
     VECTARA_API_KEY: SecretStr
+
+    MAX_FAILURES: int = Field(default=3)
 
     MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
         alias="MAWSUAH_VECTARA_CORPUS_KEY",
@@ -130,7 +133,6 @@ class Settings(BaseSettings):
 
     MODEL: str = Field(default="gpt-4o")
     MAX_TOOL_TRIES: int = Field(default=3)
-    MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
     AYAH_SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_ayah")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
