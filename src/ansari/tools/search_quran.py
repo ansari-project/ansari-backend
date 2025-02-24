@@ -14,25 +14,33 @@ class SearchQuran:
             "type": "function",
             "function": {
                 "name": "search_quran",
-                "description": "Search and retrieve relevant ayahs based on "
-                "a specific topic. Returns multiple ayahs when applicable.",
+                "description": """
+                Search and retrieve relevant ayahs based on a specific topic. 
+                Returns multiple ayahs when applicable.""",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Topic or subject matter to search for within the Holy Quran",
+                            "description": """
+                            Topic or subject matter to search for within the Holy Quran.
+                            Make this as specific as possible.
+                            Do not include the word quran in the request. 
+
+                            Returns results both as tool results and as 
+                            references for citations.
+                            """,
                         },
                     },
                     "required": ["query"],
-                },
-            },
+                }
+            }
         }
 
     def get_tool_name(self):
         return TOOL_NAME
 
-    def run(self, query: str, num_results: int = 5):
+    def run(self, query: str, num_results: int = 10):
         headers = {"x-api-key": self.api_key}
         payload = {
             "query": query,
@@ -54,15 +62,61 @@ class SearchQuran:
         ayah_num = ayah["id"]
         ayah_ar = ayah.get("text", "Not retrieved")
         ayah_en = ayah.get("en_text", "Not retrieved")
-        result = f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\n\nEnglish Text: {ayah_en}\n\n"
+        result = f"Ayah: {ayah_num}\nArabic Text: {ayah_ar}\nEnglish Text: {ayah_en}\n"
         return result
+
+    def format_as_list(self, results):
+        """Format raw API results as a list of strings."""
+        return [self.pp_ayah(r) for r in results]
+
+    def format_as_tool_result(self, results):
+        """Format raw API results as a tool result dictionary."""
+        formatted_results = []
+        for result in results:
+            formatted_results.append({
+                "type": "text",
+                "text": f"""
+                Arabic text: {result.get("text", "")} \n\n
+                English text: {result.get("en_text", "")}\n\n
+                Ayah number: {result.get("id", "")}\n
+                """
+            })
+        
+        return formatted_results
+
+    def format_as_reference_list(self, results):
+        """Format raw API results as a list of reference documents for Claude."""
+        documents = []
+        for result in results:
+            id = result.get("id", "")
+            arabic = result.get("text", "")
+            english = result.get("en_text", "")
+            
+            # Create citation title
+            title = f"Quran {id}"
+            
+            # Combine Arabic and English text
+            text = f"Arabic: {arabic}\nEnglish: {english}"
+            
+            documents.append({
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": text
+                },
+                "title": title,
+                "context": "Retrieved from the Holy Quran",
+                "citations": {"enabled": True}
+            })
+            
+        return documents
 
     def run_as_list(self, query: str, num_results: int = 10):
         print(f'Searching quran for "{query}"')
         results = self.run(query, num_results)
-        return [self.pp_ayah(r) for r in results]
+        return self.format_as_list(results)
 
     def run_as_string(self, query: str, num_results: int = 10):
         results = self.run(query, num_results)
-        rstring = "\n".join([self.pp_ayah(r) for r in results])
-        return rstring
+        return "\n".join(self.format_as_list(results))

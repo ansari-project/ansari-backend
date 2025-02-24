@@ -7,6 +7,7 @@ import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Literal, Optional, Tuple, Union
+import uuid
 
 import bcrypt
 import jwt
@@ -86,7 +87,7 @@ class AnsariDB:
         if token_type not in ["access", "reset", "refresh"]:
             raise ValueError("Invalid token type")
         payload = {
-            "user_id": user_id,
+            "user_id": str(user_id),
             "type": token_type,
             "exp": datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
         }
@@ -94,7 +95,14 @@ class AnsariDB:
 
     def decode_token(self, token: str) -> dict[str, str]:
         try:
-            return jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+            payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
+
+            # Convert user_id to a UUID, throw ValueError otherwise
+            payload["user_id"] = uuid.UUID(payload["user_id"], version=4)
+
+            return payload
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid token")
         except ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token has expired")
         except InvalidTokenError as e:
@@ -355,6 +363,18 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return None, None, None, None
 
+    def retrieve_user_info_by_user_id(self, id):
+        try:
+            select_cmd = "SELECT id, email, first_name, last_name FROM users WHERE id = %s;"
+            result = self._execute_query(select_cmd, (id,), "one")[0]
+            if result:
+                user_id, email, first_name, last_name = result
+                return user_id, email, first_name, last_name
+            return None, None, None, None
+        except Exception as e:
+            logger.warning(f"Warning (possible error): {e}")
+            return None, None, None, None
+
     def retrieve_user_info_whatsapp(self, phone_num: str, db_cols: Union[list, str]) -> Optional[Tuple]:
         """
         Retrieves user information from the users_whatsapp table.
@@ -610,7 +630,7 @@ class AnsariDB:
         """
         try:
             select_cmd = """
-            SELECT role, content, tool_name 
+            SELECT role, content, tool_name
             FROM messages_whatsapp
             WHERE thread_id = %s AND user_id_whatsapp = %s
             ORDER BY timestamp;
@@ -732,6 +752,29 @@ class AnsariDB:
         try:
             delete_cmd = """DELETE FROM access_tokens WHERE user_id = %s AND token = %s;"""
             self._execute_query(delete_cmd, (user_id, token))
+            return {"status": "success"}
+        except Exception as e:
+            logger.warning(f"Warning (possible error): {e}")
+            return {"status": "failure", "error": str(e)}
+
+    def delete_user(self, user_id):
+        try:
+            for db_table in [
+                "preferences",
+                "feedback",
+                "messages",
+                "threads",
+                "users_whatsapp",
+                "refresh_tokens",
+                "access_tokens",
+                "reset_tokens",
+            ]:
+                delete_cmd = f"""DELETE FROM {db_table} WHERE user_id = %s;"""
+                self._execute_query(delete_cmd, (user_id,))
+
+            delete_cmd = "DELETE FROM users WHERE id = %s;"
+            self._execute_query(delete_cmd, (user_id,))
+
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")

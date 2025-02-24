@@ -4,11 +4,13 @@ from ansari.agents.ansari import Ansari
 
 
 class StdioPresenter:
-    def __init__(self, agent: Ansari):
+    def __init__(self, agent: Ansari, skip_greeting=False):
         self.agent = agent
+        self.skip_greeting = skip_greeting
 
     def present(self):
-        sys.stdout.write(self.agent.greet() + "\n")
+        if not self.skip_greeting:
+            sys.stdout.write(self.agent.greet() + "\n")
         sys.stdout.write("> ")
         sys.stdout.flush()
         inp = sys.stdin.readline()
