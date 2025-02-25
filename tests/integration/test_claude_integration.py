@@ -85,6 +85,7 @@ class MockDatabase:
         
     def convert_message_llm(self, msg):
         """Replicate the AnsariDB.convert_message_llm method"""
+<<<<<<< HEAD
         # For testing malformed messages, handle here directly
         role, content, tool_name, tool_details, ref_list = msg
         
@@ -156,6 +157,12 @@ class MockDatabase:
             # For user messages, keep the format simple
             else:
                 return [{"role": role, "content": parsed_content}]
+=======
+        # Import the actual implementation from ansari_db.py
+        from ansari.ansari_db import AnsariDB
+        db = AnsariDB(Settings())
+        return db.convert_message_llm(msg)
+>>>>>>> 92902ff (Adjust test.)
 
 @pytest.fixture
 def settings():
@@ -345,7 +352,48 @@ class TestMessageReconstruction:
         assert isinstance(reconstructed[0]["content"], list), "Content should be a list"
         assert any(block.get("type") == "tool_result" for block in reconstructed[0]["content"]), "Should have tool result block"
         assert any(block.get("type") == "document" for block in reconstructed[0]["content"]), "Should have document block"
+<<<<<<< HEAD
     
+=======
+        
+    @pytest.mark.integration
+    def test_malformed_messages(self, settings):
+        """Test reconstruction of malformed messages"""
+        logger.info("Testing reconstruction of malformed messages")
+        
+        mock_db = MockDatabase()
+        
+        # Test Case 1: Malformed JSON in content
+        malformed_content_msg = ("assistant", "{broken json", None, None, None)
+        reconstructed = mock_db.convert_message_llm(malformed_content_msg)
+        assert len(reconstructed) == 1, "Should have one reconstructed message"
+        assert reconstructed[0]["role"] == "assistant", "Role should be preserved"
+        
+        # Test Case 2: Malformed JSON in tool details
+        malformed_tool_msg = (
+            "assistant", 
+            json.dumps([{"type": "text", "text": "Test"}]), 
+            "search_hadith", 
+            "{broken json", 
+            None
+        )
+        reconstructed = mock_db.convert_message_llm(malformed_tool_msg)
+        assert len(reconstructed) == 1, "Should have one reconstructed message"
+        assert reconstructed[0]["role"] == "assistant", "Role should be preserved"
+        
+        # Test Case 3: Malformed JSON in reference list
+        malformed_ref_msg = (
+            "user",
+            json.dumps([{"type": "tool_result", "tool_use_id": "123", "content": "Test result"}]),
+            "search_hadith",
+            json.dumps({"id": "123"}),
+            "{broken json"
+        )
+        reconstructed = mock_db.convert_message_llm(malformed_ref_msg)
+        assert len(reconstructed) == 1, "Should have one reconstructed message"
+        assert reconstructed[0]["role"] == "user", "Role should be preserved"
+
+>>>>>>> 92902ff (Adjust test.)
     @pytest.mark.integration
     def test_message_structure_consistency(self, settings):
         """Test that messages maintain consistent structure expected by the system"""

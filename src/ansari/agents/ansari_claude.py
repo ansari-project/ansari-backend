@@ -16,9 +16,13 @@ from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
 <<<<<<< HEAD
+<<<<<<< HEAD
 from ansari.ansari_logger import get_logger
 =======
 >>>>>>> f67369c (Fixed each of the sources.)
+=======
+from ansari.ansari_logger import get_logger
+>>>>>>> 92902ff (Adjust test.)
 from pprint import pformat
 
 # Set up logging
@@ -457,6 +461,7 @@ class AnsariClaude(Ansari):
                                 title = getattr(citation, 'document_title', '')
                                 citations_text += f"[{i}] {title}:\n {text}\n"
 <<<<<<< HEAD
+<<<<<<< HEAD
                             assistant_text += citations_text
                             yield citations_text
 =======
@@ -536,6 +541,10 @@ class AnsariClaude(Ansari):
                         tool_calls = []
             
 >>>>>>> f67369c (Fixed each of the sources.)
+=======
+                            assistant_text += citations_text
+                            yield citations_text
+>>>>>>> 92902ff (Adjust test.)
             else:
                 # Handle non-streaming response
                 if response.content:
