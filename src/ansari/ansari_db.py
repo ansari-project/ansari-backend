@@ -34,14 +34,14 @@ class MessageLogger:
         logger.debug(f"DB is {db}")
         self.db = db
 
-    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict[str, dict] = None) -> None:
+    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict[str, dict] = None, ref_list: list = None) -> None:
         if not self.to_whatsapp:
-            self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details)
+            self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
         else:
             self.db.append_message_whatsapp(
                 self.user_id,
                 self.thread_id,
-                {"role": role, "content": content, "tool_name": tool_name, "tool_details": tool_details},
+                {"role": role, "content": content, "tool_name": tool_name, "tool_details": tool_details, "ref_list": ref_list}
             )
 
 
@@ -332,6 +332,7 @@ class AnsariDB:
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
             insert_cmd = "INSERT INTO refresh_tokens (user_id, token, access_token_id) VALUES (%s, %s, %s);"
+            logger.info(f"Insert command: {insert_cmd}, params: ({user_id}, {token}, {access_token_id})")   
             self._execute_query(insert_cmd, (user_id, token, access_token_id))
             return {"status": "success", "token": token}
         except Exception as e:
@@ -483,69 +484,103 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None):
-        try:
-            insert_cmd = (
-                "INSERT INTO messages (thread_id, user_id, role, content, tool_name, tool_details) "
-                + "VALUES (%s, %s, %s, %s, %s, %s);"
-            )
-
-            if tool_details:
-                tool_details = json.dumps(tool_details)
-
-            params_1 = (thread_id, user_id, role, content, tool_name, tool_details)
-
-            # Appending a message should update the thread's updated_at field.
-            update_cmd = "UPDATE threads SET updated_at = now() WHERE id = %s AND user_id = %s;"
-            params_2 = (thread_id, user_id)
-
-            self._execute_query([insert_cmd, update_cmd], [params_1, params_2], commit_after="all")
-
-            return {"status": "success"}
-        except Exception as e:
-            logger.warning(f"Warning (possible error): {e}")
-            return {"status": "failure", "error": str(e)}
-
-    def append_message_whatsapp(self, user_id_whatsapp: int, thread_id: int, db_cols_to_vals: dict) -> dict:
-        """
-        Appends a message to the messages_whatsapp table.
-
+    def append_message(
+        self, 
+        user_id: int, 
+        thread_id: int, 
+        role: str, 
+        content: str | list | dict, 
+        tool_name: str = None, 
+        tool_details: dict[str, dict] = None,
+        ref_list: list = None
+    ) -> None:
+        """Append a message to the given thread.
+        
+        This method standardizes the message format before storage to ensure
+        consistency when messages are retrieved later. Complex structures
+        like lists and dictionaries are properly serialized.
+        
         Args:
-            user_id_whatsapp (int): The ID of the WhatsApp user.
-            thread_id (int): The ID of the thread.
-            db_cols_to_vals (dict): A dictionary where keys are column names of the `messages_whatsapp` DB table
-                                    and values are the corresponding values to be inserted.
-
-        Returns:
-            dict: A dictionary with the status of the operation.
-
-        Raises:
-            ValueError: If no fields are provided to insert.
+            user_id: The user ID
+            thread_id: The thread ID
+            role: The role of the message sender (e.g., "user" or "assistant")
+            content: The message content, can be string, list, or dict
+            tool_name: Optional name of tool used
+            tool_details: Optional details of tool call
+            ref_list: Optional list of reference documents
         """
         try:
-            # Add user_id_whatsapp to the dictionary
-            db_cols_to_vals["user_id_whatsapp"] = user_id_whatsapp
+            # Standardize content format based on message type
+            if role == "assistant" and not isinstance(content, list):
+                # Convert simple assistant messages to expected format
+                content = [{"type": "text", "text": content}]
+                
+            # Ensure proper serialization of complex structures
+            serialized_content = (
+                json.dumps(content) 
+                if isinstance(content, (dict, list)) 
+                else content
+            )
+            
+            # Properly serialize tool details and reference list
+            serialized_tool_details = (
+                json.dumps(tool_details) 
+                if tool_details is not None 
+                else None
+            )
+            
+            serialized_ref_list = (
+                json.dumps(ref_list) 
+                if ref_list is not None 
+                else None
+            )
+            
+            # Insert into database
+            query = """
+                INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            params = (
+                user_id,
+                thread_id,
+                role,
+                serialized_content,
+                tool_name,
+                serialized_tool_details,
+                serialized_ref_list
+            )
+            
+            self._execute_query(query, params, "")
+            
+        except Exception as e:
+            logger.warning(f"Error appending message to database: {e}")
+            raise
 
-            # Construct the SQL INSERT statement dynamically based on the provided dictionary
-            columns = ", ".join(db_cols_to_vals.keys())
-            placeholders = ", ".join(["%s"] * len(db_cols_to_vals))
-            insert_cmd = f"INSERT INTO messages_whatsapp (thread_id, {columns}) VALUES (%s, {placeholders});"
-
-            if "tool_details" in db_cols_to_vals and db_cols_to_vals["tool_details"]:
-                db_cols_to_vals["tool_details"] = json.dumps(db_cols_to_vals["tool_details"])
-
-            params_1 = (thread_id, *db_cols_to_vals.values())
-
-            # Appending a message should update the thread's updated_at field.
-            update_cmd = "UPDATE threads_whatsapp SET updated_at = now() WHERE id = %s AND user_id_whatsapp = %s;"
-            params_2 = (thread_id, user_id_whatsapp)
-
-            self._execute_query([insert_cmd, update_cmd], [params_1, params_2], commit_after="all")
-
-            return {"status": "success"}
+    def append_message_whatsapp(
+        self,
+        user_id: int,
+        thread_id: int,
+        message: dict[str, str | dict[str, dict]],
+    ) -> None:
+        """Append a message to the given whatsapp thread."""
+        try:
+            query = """
+                INSERT INTO messages_whatsapp (user_id_whatsapp, thread_id, role, content, tool_name, tool_details, ref_list)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            params = (
+                user_id,
+                thread_id,
+                message["role"],
+                message["content"],
+                message.get("tool_name"),
+                json.dumps(message.get("tool_details")) if message.get("tool_details") else None,
+                json.dumps(message.get("ref_list")) if message.get("ref_list") else None
+            )
+            self._execute_query(query, params, "")
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
-            return {"status": "failure", "error": str(e)}
+            raise
 
     def get_thread(self, thread_id, user_id):
         """Get all messages in a thread.
@@ -553,8 +588,10 @@ class AnsariDB:
         tool messages are not included.
         """
         try:
+            # We need to check user_id to make sure that the user has access to the thread.
             select_cmd_1 = (
-                "SELECT id, role, content FROM messages " + "WHERE thread_id = %s AND user_id = %s ORDER BY updated_at;"
+                "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
+                + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
             select_cmd_2 = "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
             params = (thread_id, user_id)
@@ -584,7 +621,7 @@ class AnsariDB:
         try:
             # We need to check user_id to make sure that the user has access to the thread.
             select_cmd_1 = (
-                "SELECT role, content, tool_details FROM messages "
+                "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
             select_cmd_2 = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
@@ -603,7 +640,7 @@ class AnsariDB:
             msgs = []
             for db_row in result:
                 msgs.extend(self.convert_message_llm(db_row))
-
+                
             # Wrap the messages in a history object bundled with its thread name
             history = {
                 "thread_name": thread_name,
@@ -630,17 +667,16 @@ class AnsariDB:
         """
         try:
             select_cmd = """
-            SELECT role, content, tool_name
+            SELECT role, content, tool_name, tool_details, ref_list
             FROM messages_whatsapp
             WHERE thread_id = %s AND user_id_whatsapp = %s
-            ORDER BY timestamp;
+            ORDER BY updated_at;
             """
             result = self._execute_query(select_cmd, (thread_id, user_id_whatsapp), "all")[0]
-            return (
-                [{"role": x[0], "content": x[1], "name": x[2]} if x[2] else {"role": x[0], "content": x[1]} for x in result]
-                if result
-                else []
-            )
+            messages = []
+            for msg in result:
+                messages.extend(self.convert_message_llm(msg))
+            return messages
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return []
@@ -848,16 +884,146 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def convert_message(self, msg: Iterable[str]) -> dict:
-        return {"id": msg[0], "role": msg[1], "content": msg[2]}
+        """Convert a message from database format to API format."""
+        role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
+        
+        return {"role": role, "content": content}
 
     def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
-        if len(msg) >= 3 and msg[2]:
-            tool_details = msg[2]
-            internal_msg = tool_details["internal_message"]
-            tool_msg = tool_details["tool_message"]
-            return [internal_msg, tool_msg]
-
-        return [{"role": msg[0], "content": msg[1]}]
+        """Convert a message from database format to LLM format.
+        
+        This method ensures that the database-stored messages are reconstructed
+        into the proper format expected by the LLM interface, preserving all
+        necessary structure and relationships between content, tool data, and references.
+        """
+        role, content, tool_name, tool_details, ref_list = msg
+        
+        # Parse JSON content if needed
+        if isinstance(content, str) and (content.startswith('[') or content.startswith('{')):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                # Keep as string if not valid JSON
+                pass
+                
+        # Handle tool result messages (typically user messages with tool response)
+        if tool_name and role == "user":
+            # Parse the reference list if it exists
+            ref_list_data = json.loads(ref_list) if ref_list else []
+            
+            # Parse tool details
+            tool_use_id = None
+            if tool_details:
+                try:
+                    tool_details_dict = json.loads(tool_details)
+                    tool_use_id = tool_details_dict.get("id")
+                except json.JSONDecodeError:
+                    pass
+            
+            # Create a properly structured tool result message
+            result_content = []
+            
+            # Add the tool result block
+            if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
+                # Content already has tool_result structure
+                result_content = content
+            else:
+                # Need to create tool_result structure
+                result_content = [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use_id,
+                        "content": content
+                    }
+                ]
+            
+            # Add reference list data
+            if ref_list_data:
+                result_content.extend(ref_list_data)
+                
+            return [{
+                "role": role,
+                "content": result_content
+            }]
+            
+        # Handle assistant messages with tool use
+        elif role == "assistant" and tool_name:
+            # Create a properly structured assistant message with tool use
+            result = []
+            
+            # First add the regular content message
+            if content:
+                if isinstance(content, list):
+                    result.append({
+                        "role": role,
+                        "content": content
+                    })
+                else:
+                    result.append({
+                        "role": role,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": content
+                            }
+                        ]
+                    })
+            
+            # Parse tool details
+            if tool_details:
+                try:
+                    tool_details_dict = json.loads(tool_details)
+                    tool_id = tool_details_dict.get("id")
+                    tool_input = tool_details_dict.get("input")
+                    
+                    # If we have a message already, append the tool_use to its content
+                    if result:
+                        if isinstance(result[0]["content"], list):
+                            result[0]["content"].append({
+                                "type": "tool_use",
+                                "id": tool_id,
+                                "name": tool_name,
+                                "input": tool_input
+                            })
+                    # Otherwise create a new message
+                    else:
+                        result.append({
+                            "role": role,
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": tool_id,
+                                    "name": tool_name,
+                                    "input": tool_input
+                                }
+                            ]
+                        })
+                except json.JSONDecodeError:
+                    pass
+                    
+            return result
+            
+        # Handle regular messages (no tool use)
+        else:
+            # For text messages from assistant, ensure they have the proper structure
+            if role == "assistant":
+                if isinstance(content, list):
+                    # Already in the right format
+                    return [{"role": role, "content": content}]
+                else:
+                    # Convert to the expected format with type: text
+                    return [{
+                        "role": role,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": content
+                            }
+                        ]
+                    }]
+            # For user messages, keep the format simple unless already complex
+            else:
+                return [{"role": role, "content": content}]
 
     def store_quran_answer(
         self,

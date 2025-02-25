@@ -72,11 +72,26 @@ class Ansari:
         return self.greeting.render()
 
     def process_input(self, user_input: str):
-        # Append user's message to the message history
-        self.message_history.append({"role": "user", "content": user_input})
-
-        # Process the message history, which will internally return/yield Ansari's response
-        return self.process_message_history()
+        """Process user input and generate a response."""
+        logger.debug(f"Processing input: {user_input}")
+        
+        # Add user message to history
+        self.message_history.append({
+            "role": "user",
+            "content": user_input
+        })
+        logger.debug("Added user message to history")
+        
+        if self.message_logger:
+            self.message_logger.log(
+                role="user",
+                content=user_input
+            )
+            logger.debug("Logged user message")
+        
+        for m in self.process_message_history():
+            if m:
+                yield m
 
     def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
