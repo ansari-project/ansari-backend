@@ -6,54 +6,9 @@ from ansari.config import Settings
 from ansari.ansari_db import MessageLogger, AnsariDB
 from ansari.ansari_logger import get_logger
 from tests.integration.test_helpers import history_and_log_matches
+from tests.integration.test_ansari_generic import AnsariTester, IntegrationMessageLogger, MockDatabase
 
 logger = get_logger()
-
-class IntegrationMessageLogger:
-    def __init__(self):
-        self.messages = []
-        
-    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict = None, ref_list: list = None):
-        logger.debug(f"Logging message: role={role}, content={content}, tool_name={tool_name}")
-        
-        # Store message with all details
-        self.messages.append({
-            "role": role,
-            "content": content,
-            "tool_name": tool_name,
-            "tool_details": tool_details,
-            "ref_list": ref_list
-        })
-
-# Mock database implementation for testing reconstruction
-class MockDatabase:
-    def __init__(self):
-        self.stored_messages = []
-        
-    def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None, ref_list=None):
-        """Store message in mock database"""
-        # Serialize complex structures like a real database would
-        serialized_content = json.dumps(content) if isinstance(content, (dict, list)) else content
-        serialized_tool_details = json.dumps(tool_details) if tool_details is not None else None
-        serialized_ref_list = json.dumps(ref_list) if ref_list is not None else None
-        
-        self.stored_messages.append((
-            role,
-            serialized_content,
-            tool_name,
-            serialized_tool_details,
-            serialized_ref_list
-        ))
-        
-    def get_stored_messages(self):
-        """Return all stored messages"""
-        return self.stored_messages
-        
-    def convert_message_llm(self, msg):
-        # Import the actual implementation from ansari_db.py
-        from ansari.ansari_db import AnsariDB
-        db = AnsariDB(Settings())
-        return db.convert_message_llm(msg)
 
 @pytest.fixture
 def settings():
@@ -68,91 +23,28 @@ def message_logger():
 def mock_db():
     return MockDatabase()
 
+@pytest.fixture
+def ansari_tester(settings):
+    """Create an AnsariTester configured for base Ansari"""
+    return AnsariTester(Ansari, settings)
+
 @pytest.mark.integration
-def test_simple_conversation(settings, message_logger):
+def test_simple_conversation(ansari_tester):
     """Integration test for a simple conversation with Ansari"""
-    logger.info("Starting simple conversation integration test")
-    
-    agent = Ansari(settings=settings, message_logger=message_logger)
-    
-    # Test a simple conversation
-    responses = []
-    for response in agent.process_input("What sources do you use?"):
-        responses.append(response)
-    
-    # Combine all responses
-    full_response = "".join(responses)
-    
-    # Verify we got a meaningful response
-    assert len(full_response) > 50  # Response should be substantial
-    
-    # Verify messages were logged
-    assert len(message_logger.messages) >= 2  # Should have at least user input and Ansari response
-    
-    # Verify message logger messages match agent history
-    history_and_log_matches(agent, message_logger)
-    
-    # Verify messages were logged
-    assert any(msg["role"] == "user" for msg in message_logger.messages)
-    assert any(msg["role"] == "assistant" for msg in message_logger.messages)
+    logger.info("Starting simple conversation integration test for Ansari")
+    assert ansari_tester.test_simple_conversation()
 
 @pytest.mark.integration
-def test_conversation_with_references(settings, message_logger):
+def test_conversation_with_references(ansari_tester):
     """Integration test for a conversation that should include Quran/Hadith references"""
-    logger.info("Starting conversation with references integration test")
-    
-    agent = Ansari(settings=settings, message_logger=message_logger)
-    
-    # Test a query that should trigger reference lookups
-    responses = []
-    for response in agent.process_input("Are corals mentioned in the Quran?"):
-        responses.append(response)
-    
-    # Combine all responses
-    full_response = "".join(responses)
-    
-    # Verify we got a meaningful response
-    assert len(full_response) > 100  # Response should be substantial
-    
-    # Verify messages were logged with references
-    assert len(message_logger.messages) >= 2
-    
-    # Verify message logger messages match agent history
-    history_and_log_matches(agent, message_logger)
-    
-    # Check for references in the response
-    assert any("tool_name" in msg and msg["tool_name"] == "search_quran" for msg in message_logger.messages), "No Quran references found in the response"
+    logger.info("Starting conversation with references integration test for Ansari")
+    assert ansari_tester.test_conversation_with_references()
 
 @pytest.mark.integration
-def test_multi_turn_conversation(settings, message_logger):
+def test_multi_turn_conversation(ansari_tester):
     """Integration test for a multi-turn conversation"""
-    logger.info("Starting multi-turn conversation integration test")
-    
-    agent = Ansari(settings=settings, message_logger=message_logger)
-    
-    # First turn
-    responses1 = []
-    for response in agent.process_input("What is the concept of Tawakkul in Islam?"):
-        responses1.append(response)
-    full_response1 = "".join(responses1)
-    assert len(full_response1) > 50
-    
-    # Second turn - follow-up question
-    responses2 = []
-    for response in agent.process_input("How can one practically apply this concept in daily life?"):
-        responses2.append(response)
-    full_response2 = "".join(responses2)
-    assert len(full_response2) > 50
-    
-    # Verify conversation flow
-    messages = message_logger.messages
-    assert len(messages) >= 4  # Should have at least 4 messages (2 user, 2 assistant)
-    
-    # Verify message logger messages match agent history
-    history_and_log_matches(agent, message_logger)
-    
-    # Verify context retention
-    assert any("Tawakkul" in str(msg["content"]) for msg in messages), "Context should be retained"
+    logger.info("Starting multi-turn conversation integration test for Ansari")
+    assert ansari_tester.test_multi_turn_conversation()
 
 
 class TestMessageReconstruction:
@@ -232,4 +124,11 @@ class TestMessageReconstruction:
         reconstructed = mock_db.convert_message_llm(tool_result_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "tool", "Role should be preserved"
-        assert isinstance(reconstructed[0]["content"], str), "Content should be a string" 
+        assert isinstance(reconstructed[0]["content"], str), "Content should be a string"
+
+@pytest.mark.integration
+def test_run_all_ansari_tests(settings):
+    """Run all tests for base Ansari using the generic tester"""
+    tester = AnsariTester(Ansari, settings)
+    results = tester.run_all_tests()
+    assert all(results), "All tests should pass for base Ansari" 

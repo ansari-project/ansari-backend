@@ -11,6 +11,7 @@ from tests.integration.test_helpers import history_and_log_matches
 
 logger = get_logger()
 
+# Common classes for all integration tests
 class IntegrationMessageLogger:
     def __init__(self):
         self.messages = []
@@ -26,6 +27,36 @@ class IntegrationMessageLogger:
             "tool_details": tool_details,
             "ref_list": ref_list
         })
+
+# Mock database implementation for testing reconstruction
+class MockDatabase:
+    def __init__(self):
+        self.stored_messages = []
+        
+    def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None, ref_list=None):
+        """Store message in mock database"""
+        # Serialize complex structures like a real database would
+        serialized_content = json.dumps(content) if isinstance(content, (dict, list)) else content
+        serialized_tool_details = json.dumps(tool_details) if tool_details is not None else None
+        serialized_ref_list = json.dumps(ref_list) if ref_list is not None else None
+        
+        self.stored_messages.append((
+            role,
+            serialized_content,
+            tool_name,
+            serialized_tool_details,
+            serialized_ref_list
+        ))
+        
+    def get_stored_messages(self):
+        """Return all stored messages"""
+        return self.stored_messages
+        
+    def convert_message_llm(self, msg):
+        # Import the actual implementation from ansari_db.py
+        from ansari.ansari_db import AnsariDB
+        db = AnsariDB(Settings())
+        return db.convert_message_llm(msg)
 
 class AnsariTester:
     """Generic tester class for Ansari implementations.
