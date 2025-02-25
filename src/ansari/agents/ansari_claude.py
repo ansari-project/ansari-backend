@@ -212,7 +212,7 @@ class AnsariClaude(Ansari):
             ref_list=ref_list
         )
 
-    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
+    def replace_message_history(self, message_history: list[dict], use_tool=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -220,7 +220,7 @@ class AnsariClaude(Ansari):
         # AnsariClaude doesn't use system message, so we don't need to prefix it
         self.message_history = message_history
 
-        for m in self.process_message_history(use_tool, stream=stream):
+        for m in self.process_message_history(use_tool):
             if m:
                 yield m
         
@@ -290,12 +290,11 @@ class AnsariClaude(Ansari):
        
         return (tool_result, reference_list)
 
-    def process_one_round(self, use_tool=True, stream=True) -> Generator[str, None, None]:
+    def process_one_round(self, use_tool=True) -> Generator[str, None, None]:
         """Process one round of conversation.
         
         Args:
             use_tool: Whether to allow tool usage. Intended to be used when using a tool fails. 
-            stream: Whether to stream the response
             
         Yields:
             Chunks of the response text
@@ -307,7 +306,7 @@ class AnsariClaude(Ansari):
         prompt_mgr = PromptMgr()
         system_prompt = prompt_mgr.bind("system_msg_claude").render()
 
-        logger.info(f"Sending messages to Claude: {self.message_history}")
+        logger.info(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
         
         # Create API request parameters
         params = {
@@ -316,7 +315,7 @@ class AnsariClaude(Ansari):
             "messages": self.message_history,
             "max_tokens": 4096,
             "temperature": 0.0,
-            "stream": stream
+            "stream": True  # Always stream
         }
 
         # Add tools if enabled or if history contains tool messages
@@ -362,287 +361,177 @@ class AnsariClaude(Ansari):
 
         try:
             logger.info("Processing response chunks")
-            if stream:
-                for chunk in response:
-                    logger.debug(f"Raw chunk: {chunk}")
-                    
-                    if chunk.type == 'content_block_start':
-                        if chunk.content_block.type == 'tool_use':
-                            # Start of a tool call
-                            logger.info(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
-                            current_tool = {
-                                'id': chunk.content_block.id,
-                                'name': chunk.content_block.name,
-                                'arguments': ""
-                            }
-                            logger.debug(f"Starting tool call: {current_tool}")
+            for chunk in response:
+                logger.debug(f"Raw chunk: {chunk}")
+                
+                if chunk.type == 'content_block_start':
+                    if chunk.content_block.type == 'tool_use':
+                        # Start of a tool call
+                        logger.info(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
+                        current_tool = {
+                            'id': chunk.content_block.id,
+                            'name': chunk.content_block.name,
+                            'arguments': ""
+                        }
+                        logger.debug(f"Starting tool call: {current_tool}")
+                        
+                elif chunk.type == 'content_block_delta':
+                    if hasattr(chunk.delta, 'text'):
+                        text = chunk.delta.text
+                        assistant_text += text
+                        yield text
+                    elif getattr(chunk.delta, 'type', None) == 'citations_delta':
+                        # Process citation delta
+                        citation = chunk.delta.citation
+                        self.citations.append(citation)
+                        citation_ref = f" [{len(self.citations)}] "
+                        assistant_text += citation_ref
+                        yield citation_ref
+                    elif hasattr(chunk.delta, 'partial_json'):
+                        # Accumulate JSON for tool arguments
+                        current_json += chunk.delta.partial_json
+                        
+                elif chunk.type == 'content_block_stop':
+                    if current_tool:
+                        try:
+                            arguments = json.loads(current_json)
+                            logger.debug(f"Tool arguments: {arguments}")
+                            current_tool['args'] = json.dumps(arguments)
+                            tool_calls.append(current_tool)
                             
-                    elif chunk.type == 'content_block_delta':
-                        if hasattr(chunk.delta, 'text'):
-                            text = chunk.delta.text
-                            assistant_text += text
-                            yield text
-                        elif getattr(chunk.delta, 'type', None) == 'citations_delta':
-                            # Process citation delta
-                            citation = chunk.delta.citation
-                            self.citations.append(citation)
-                            citation_ref = f" [{len(self.citations)}] "
-                            assistant_text += citation_ref
-                            yield citation_ref
-                        elif hasattr(chunk.delta, 'partial_json'):
-                            # Accumulate JSON for tool arguments
-                            current_json += chunk.delta.partial_json
-                            
-                    elif chunk.type == 'content_block_stop':
-                        if current_tool:
+                            # Process the tool call right away to get results
                             try:
-                                arguments = json.loads(current_json)
-                                logger.debug(f"Tool arguments: {arguments}")
-                                current_tool['args'] = json.dumps(arguments)
+                                # Process tool and get results
+                                (tool_result, reference_list) = self.process_tool_call(
+                                    current_tool['name'],
+                                    current_tool['args'],
+                                    current_tool['id']
+                                )
                                 
-                                # Process the tool call right away to get results
-                                try:
-                                    # Process tool and get results
-                                    (tool_result, reference_list) = self.process_tool_call(
-                                        current_tool['name'],
-                                        current_tool['args'],
-                                        current_tool['id']
-                                    )
-                                    
-                                    # Store results for later use when building user message
-                                    tool_results.append({
-                                        "tool_use_id": current_tool['id'],
-                                        "content": "Please see the included reference list below."
-                                    })
-                                    references.extend(reference_list)
-                                    
-                                except Exception as e:
-                                    logger.error(f"Error processing tool call: {str(e)}")
-                                    # Store error for later use
-                                    tool_results.append({
-                                        "tool_use_id": current_tool['id'],
-                                        "content": [{"type": "text", "text": str(e)}]
-                                    })
-                                
-                                # Add to tool calls list
-                                tool_calls.append(current_tool)
-                                
-                                # Reset for next tool
-                                current_tool = None
-                                current_json = ""
+                                # Store results for later use when building user message
+                                tool_results.append({
+                                    "tool_use_id": current_tool['id'],
+                                    "content": "Please see the included reference list below."
+                                })
+                                references.extend(reference_list)
                                 
                             except Exception as e:
-                                error_msg = f"Tool call failed: {str(e)}"
-                                logger.error(error_msg)
-                                raise
+                                logger.error(f"Error processing tool call: {str(e)}")
+                                # Store error for later use
+                                tool_results.append({
+                                    "tool_use_id": current_tool['id'],
+                                    "content": [{"type": "text", "text": str(e)}]
+                                })
                             
-                    elif chunk.type == 'message_delta':
-                        if chunk.delta.stop_reason == 'tool_use':
-                            logger.debug("Message stopped for tool use")
-                        elif hasattr(chunk.delta, 'text'):
-                            text = chunk.delta.text
-                            assistant_text += text
-                            yield text
+                            # Add to tool calls list
+                            # tool_calls.append(current_tool)  # Commenting out to prevent duplicate processing
                             
-                    elif chunk.type == 'message_stop':
-                        # Add citations list at the end if there were any citations
-                        if self.citations:
-                            citations_text = "\n\n**Citations**:\n"
-                            logger.debug(f"Full Citations: {self.citations}")
-                            for i, citation in enumerate(self.citations, 1):
-                                text = getattr(citation, 'cited_text', '')
-                                title = getattr(citation, 'document_title', '')
-                                citations_text += f"[{i}] {title}:\n {text}\n"
-                            assistant_text += citations_text
-                            yield citations_text 
-                            
-                        # Add the assistant's message to history
-                        if assistant_text:
-                            self.message_history.append({
-                                "role": "assistant",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": assistant_text.strip()
-                                    }
-                                ]
-                            })
-
-                        # Process any accumulated tool calls
-                        if tool_calls:
-                            logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
-                            for tc in tool_calls:
-                                try:
-                                    # Add tool use to the last assistant message's content
-                                    self.message_history[-1]["content"].append({
-                                        "type": "tool_use",
-                                        "id": tc["id"],
-                                        "name": tc["name"],
-                                        "input": json.loads(tc["args"])
-                                    })
-                                    
-                                    # Process the tool call
-                                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
-                                    
-                                    logging.info(f"!!!! Reference list:\n{json.dumps(reference_list, indent=2)}")
-                                    # Add tool result and reference list in the same message
-                                    # Note: Right now, it's unclear what the right thing to do is, 
-                                    # if the returned values are intended for RAG. We could include
-                                    # both but this increases the token cost for no difference in output. 
-                                    self.message_history.append({
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "tool_result",
-                                                "tool_use_id": tc["id"],
-                                                # Alternatively, this could be the tool result
-                                                "content": "Please see the included reference list below." 
-                                            }
-                                        ] + reference_list  # Reference list already contains properly formatted documents
-                                    })
-                                    
-                                    if self.message_logger:
-                                        self._log_message(self.message_history[-1])  # Tool result
-                                    
-                                except Exception as e:
-                                    logger.error(f"Error processing tool call: {str(e)}")
-                                    # Add error as tool result
-                                    self.message_history.append({
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "tool_result",
-                                                "tool_use_id": tc["id"],
-                                                "content": [{"type": "text", "text": str(e)}]
-                                            }
-                                        ]
-                                    })
-
-
-                        # Log the assistant message after all tool uses are appended
-                        if self.message_logger and assistant_text:
-                            self._log_message(self.message_history[-1])
-                        
-                        # Reset for next message
-                        assistant_text = ""
-                        self.citations = []
-                        tool_calls = []
-            else:
-                # Handle non-streaming response
-                if response.content:
-                    text = response.content[0].text
-                    assistant_text += text
-                    yield text
-                    
-                # Extract tool calls from non-streaming response
-                for content_block in response.content:
-                    if getattr(content_block, 'type', None) == 'tool_use':
-                        tool_calls.append({
-                            'id': content_block.id,
-                            'name': content_block.name,
-                            'args': json.dumps(content_block.input)
-                        })
-                        
-                        # Process the tool call
-                        try:
-                            (tool_result, reference_list) = self.process_tool_call(
-                                content_block.name,
-                                json.dumps(content_block.input),
-                                content_block.id
-                            )
-                            
-                            # Store results for later use
-                            tool_results.append({
-                                "tool_use_id": content_block.id,
-                                "content": "Please see the included reference list below."
-                            })
-                            references.extend(reference_list)
+                            # Reset for next tool
+                            current_tool = None
+                            current_json = ""
                             
                         except Exception as e:
-                            logger.error(f"Error processing tool call: {str(e)}")
-                            tool_results.append({
-                                "tool_use_id": content_block.id,
-                                "content": [{"type": "text", "text": str(e)}]
-                            })
-                
-            # Now build the complete messages and add them to history
-            
-            # 1. Build the assistant message with text and any tool calls
-            if assistant_text or tool_calls:
-                # Start with text content
-                content_blocks = []
-                if assistant_text:
-                    content_blocks.append({
-                        "type": "text",
-                        "text": assistant_text.strip()
-                    })
-                
-                # Add any tool use blocks
-                for tc in tool_calls:
-                    content_blocks.append({
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "input": json.loads(tc["args"])
-                    })
-                
-                # Create the complete assistant message
-                # If assistant text is exactly 1 character long and there are no tool calls,
-                # use a simple string instead of a list
-                if assistant_text and len(assistant_text.strip()) == 1 and not tool_calls:
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": assistant_text.strip()
-                    }
-                else:
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": content_blocks
-                    }
-                
-                # Add to history
-                self.message_history.append(assistant_message)
-                
-                # Log the complete message
-                if self.message_logger:
-                    self._log_message(assistant_message)
-            
-            # 2. Build the user message with tool results and references if any
-            if tool_results:
-                # Start with tool result blocks
-                content_blocks = []
-                for result in tool_results:
-                    content_blocks.append({
-                        "type": "tool_result",
-                        "tool_use_id": result["tool_use_id"],
-                        "content": result["content"]
-                    })
-                
-                # Add any reference blocks
-                content_blocks.extend(references)
-                
-                # Create the complete user message
-                user_tool_message = {
-                    "role": "user",
-                    "content": content_blocks
-                }
-                
-                # Add to history
-                self.message_history.append(user_tool_message)
-                
-                # Log the complete message
-                if self.message_logger:
-                    self._log_message(user_tool_message)
+                            error_msg = f"Tool call failed: {str(e)}"
+                            logger.error(error_msg)
+                            raise
+                        
+                elif chunk.type == 'message_delta':
+                    if chunk.delta.stop_reason == 'tool_use':
+                        logger.debug("Message stopped for tool use")
+                    elif hasattr(chunk.delta, 'text'):
+                        text = chunk.delta.text
+                        assistant_text += text
+                        yield text
+                        
+                elif chunk.type == 'message_stop':
+                    # Add citations list at the end if there were any citations
+                    if self.citations:
+                        citations_text = "\n\n**Citations**:\n"
+                        logger.debug(f"Full Citations: {self.citations}")
+                        for i, citation in enumerate(self.citations, 1):
+                            text = getattr(citation, 'cited_text', '')
+                            title = getattr(citation, 'document_title', '')
+                            citations_text += f"[{i}] {title}:\n {text}\n"
+                        assistant_text += citations_text
+                        yield citations_text 
+                        
+                    # Add the assistant's message to history
+                    if assistant_text:
+                        self.message_history.append({
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": assistant_text.strip()
+                                }
+                            ]
+                        })
+
+                    # Process any accumulated tool calls
+                    if tool_calls:
+                        logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
+                        for tc in tool_calls:
+                            try:
+                                # Add tool use to the last assistant message's content
+                                self.message_history[-1]["content"].append({
+                                    "type": "tool_use",
+                                    "id": tc["id"],
+                                    "name": tc["name"],
+                                    "input": json.loads(tc["args"])
+                                })
+                                
+                                # Process the tool call
+                                (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
+                                
+                                logging.info(f"!!!! Reference list:\n{json.dumps(reference_list, indent=2)}")
+                                # Add tool result and reference list in the same message
+                                # Note: Right now, it's unclear what the right thing to do is, 
+                                # if the returned values are intended for RAG. We could include
+                                # both but this increases the token cost for no difference in output. 
+                                self.message_history.append({
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "tool_result",
+                                            "tool_use_id": tc["id"],
+                                            # Alternatively, this could be the tool result
+                                            "content": "Please see the included reference list below." 
+                                        }
+                                    ] + reference_list  # Reference list already contains properly formatted documents
+                                })
+                                
+                                if self.message_logger:
+                                    self._log_message(self.message_history[-1])  # Tool result
+                                
+                            except Exception as e:
+                                logger.error(f"Error processing tool call: {str(e)}")
+                                # Add error as tool result
+                                self.message_history.append({
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "tool_result",
+                                            "tool_use_id": tc["id"],
+                                            "content": [{"type": "text", "text": str(e)}]
+                                        }
+                                    ]
+                                })
+
+
+                    # Log the assistant message after all tool uses are appended
+                    if self.message_logger and assistant_text:
+                        self._log_message(self.message_history[-1])
                     
-            # Reset for next round
-            self.citations = []
-                    
+                    # Reset for next message
+                    assistant_text = ""
+                    self.citations = []
+                    tool_calls = []
         except Exception as e:
             logger.error(f"Error processing response: {str(e)}")
             logger.error(f"Current chunk: {chunk if 'chunk' in locals() else 'No chunk'}")
             raise
 
-    def process_message_history(self, use_tool=True, stream=True):
+    def process_message_history(self, use_tool=True):
         logger.debug("!!! Entering process_message_history");
         last_msg = self.message_history[-1]
 
@@ -660,7 +549,7 @@ class AnsariClaude(Ansari):
                 # We want to yield from so that we can send the sequence through the input
                 # Also use tools only if we haven't tried too many times (failure)
                 #  and if the last message was not from the tool (success!)
-                yield from self.process_one_round(use_tool, stream=stream)
+                yield from self.process_one_round(use_tool)
                 count += 1
                 logger.debug("!!! After iteration")
 
