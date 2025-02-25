@@ -15,11 +15,12 @@ from ansari.util.prompt_mgr import PromptMgr
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
+from ansari.ansari_logger import get_logger
 from pprint import pformat
 
 # Set up logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = get_logger()
+
 
 class AnsariClaude(Ansari):
     """Claude-based implementation of the Ansari agent."""
@@ -48,6 +49,181 @@ class AnsariClaude(Ansari):
         # Initialize citation tracking
         self.citations = []
 
+    def validate_message(self, message):
+        """Validates message structure for consistency before logging.
+        
+        This method ensures that messages have the expected structure based on their role
+        and type, which helps maintain consistency between in-memory and database 
+        representations.
+        
+        Args:
+            message: The message to validate
+            
+        Returns:
+            bool: True if the message is valid, False otherwise
+        """
+        if not isinstance(message, dict):
+            logger.warning("Message must be a dictionary")
+            return False
+            
+        if "role" not in message:
+            logger.warning("Message must have a role")
+            return False
+            
+        if "content" not in message:
+            logger.warning("Message must have content")
+            return False
+            
+        role = message["role"]
+        content = message["content"]
+        
+        # Assistant messages should have list content with typed blocks
+        if role == "assistant":
+            if not isinstance(content, list):
+                logger.warning("Assistant message content should be a list")
+                return False
+                
+            # Check if any block is missing a type
+            for block in content:
+                if not isinstance(block, dict) or "type" not in block:
+                    logger.warning("Assistant message content blocks must have a type")
+                    return False
+                    
+                # Text blocks must have text
+                if block["type"] == "text" and "text" not in block:
+                    logger.warning("Text blocks must have text")
+                    return False
+                    
+                # Tool use blocks must have id, name, and input
+                if block["type"] == "tool_use":
+                    if "id" not in block:
+                        logger.warning("Tool use blocks must have an id")
+                        return False
+                    if "name" not in block:
+                        logger.warning("Tool use blocks must have a name")
+                        return False
+                    if "input" not in block:
+                        logger.warning("Tool use blocks must have input")
+                        return False
+        
+        # User messages with tool results should have the right structure
+        if role == "user" and isinstance(content, list):
+            tool_result_blocks = [b for b in content if b.get("type") == "tool_result"]
+            if tool_result_blocks:
+                for block in tool_result_blocks:
+                    if "tool_use_id" not in block:
+                        logger.warning("Tool result blocks must have a tool_use_id")
+                        return False
+                    if "content" not in block:
+                        logger.warning("Tool result blocks must have content")
+                        return False
+        
+        return True
+        
+    def _log_message(self, message):
+        """Log a message using the message_logger with complete representation from message_history.
+        
+        This ensures that the messages logged to the database match what's in the message_history.
+        The database will store this in a flattened format which will be reconstructed during retrieval.
+        """
+        if not self.message_logger:
+            return
+            
+        # Validate message structure
+        if not self.validate_message(message):
+            logger.warning(f"Invalid message structure: {message}")
+            return
+            
+        role = message["role"]
+        content = message["content"]
+        
+        # Ensure consistent structure before storing
+        if role == "assistant" and not isinstance(content, list):
+            logger.warning(f"Assistant message with non-list content: {content}")
+            # Convert to standard format
+            content = [{"type": "text", "text": str(content)}]
+        
+        # Initialize variables for tracking tool and reference information
+        tool_name = None
+        tool_details = None
+        ref_list = None
+        
+        # Handle different message content formats
+        if isinstance(content, list):
+            # Extract tool use information from assistant messages
+            tool_use_blocks = [block for block in content if block.get("type") == "tool_use"]
+            if tool_use_blocks and role == "assistant":
+                tool_block = tool_use_blocks[0]  # Use first tool if multiple
+                
+                # Ensure tool block has all required fields
+                if "id" not in tool_block or "name" not in tool_block or "input" not in tool_block:
+                    logger.warning(f"Tool use block missing required fields: {tool_block}")
+                else:
+                    tool_name = tool_block.get("name")
+                    tool_details = {
+                        "id": tool_block.get("id"),
+                        "input": tool_block.get("input")
+                    }
+                    
+                    # Filter out tool use blocks for content storage
+                    # We'll reconstruct them during retrieval
+                    filtered_content = [block for block in content if block.get("type") != "tool_use"]
+                    if filtered_content:
+                        content = filtered_content
+                    else:
+                        # Ensure we don't store empty content if all blocks were tool use
+                        content = [{"type": "text", "text": ""}]
+            
+            # Extract reference lists from user messages containing tool results
+            tool_result_blocks = [block for block in content if block.get("type") == "tool_result"]
+            if tool_result_blocks and role == "user":
+                # Ensure tool result blocks have required fields
+                for block in tool_result_blocks:
+                    if "tool_use_id" not in block:
+                        logger.warning(f"Tool result block missing tool_use_id: {block}")
+                    if "content" not in block:
+                        logger.warning(f"Tool result block missing content: {block}")
+                        # Add default content
+                        block["content"] = "No content available"
+                
+                # Separate reference documents (documents with type field) from the tool result
+                ref_blocks = [block for block in content if block.get("type") == "document"]
+                other_blocks = [block for block in content if block.get("type") != "document"]
+                
+                if ref_blocks:
+                    # Ensure each reference block has required fields
+                    for block in ref_blocks:
+                        if not isinstance(block, dict) or "type" not in block:
+                            logger.warning(f"Reference block missing type field: {block}")
+                    
+                    ref_list = ref_blocks
+                    content = other_blocks  # Store only the non-reference blocks in content
+                    
+                    # Ensure we don't store empty content
+                    if not content:
+                        content = [{"type": "text", "text": ""}]
+        
+        # Log the message with appropriate structure
+        self.message_logger.log(
+            role=role,
+            content=content,
+            tool_name=tool_name,
+            tool_details=tool_details,
+            ref_list=ref_list
+        )
+
+    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
+        """
+        Replaces the current message history (stored in Ansari) with the given message history,
+        and then processes it to generate a response from Ansari.
+        """
+        # AnsariClaude doesn't use system message, so we don't need to prefix it
+        self.message_history = message_history
+
+        for m in self.process_message_history(use_tool, stream=stream):
+            if m:
+                yield m
+        
     def _convert_tool_format(self, tool):
         """Convert from OpenAI's function calling format to Claude's format.
         
@@ -125,17 +301,17 @@ class AnsariClaude(Ansari):
             Chunks of the response text
 
         Side effect: 
-            - Updates the message history
-            - Logs updates to the message history. 
+            - Updates the message history with at most one assistant message and one user message
+            - Logs these messages once they're complete
         """
         prompt_mgr = PromptMgr()
         system_prompt = prompt_mgr.bind("system_msg_claude").render()
 
-        logger.debug(f"Sending messages to Claude: {self.message_history}")
+        logger.info(f"Sending messages to Claude: {self.message_history}")
         
         # Create API request parameters
         params = {
-            "model": "claude-3-5-sonnet-20241022",
+            "model": self.settings.ANTHROPIC_MODEL,
             "system": system_prompt,
             "messages": self.message_history,
             "max_tokens": 4096,
@@ -174,13 +350,15 @@ class AnsariClaude(Ansari):
                 time.sleep(5)
                 continue
 
-        # Process the response
-        full_response = ""
+        # Variables to accumulate complete messages before adding to history
+        assistant_text = ""
         tool_calls = []
+        tool_results = []
+        references = []
+        
+        # Variables for processing the streaming response
         current_tool = None
         current_json = ""
-        citations = []
-        citation_texts = []
 
         try:
             logger.info("Processing response chunks")
@@ -202,14 +380,14 @@ class AnsariClaude(Ansari):
                     elif chunk.type == 'content_block_delta':
                         if hasattr(chunk.delta, 'text'):
                             text = chunk.delta.text
-                            full_response += text
+                            assistant_text += text
                             yield text
                         elif getattr(chunk.delta, 'type', None) == 'citations_delta':
                             # Process citation delta
                             citation = chunk.delta.citation
                             self.citations.append(citation)
                             citation_ref = f" [{len(self.citations)}] "
-                            full_response += citation_ref
+                            assistant_text += citation_ref
                             yield citation_ref
                         elif hasattr(chunk.delta, 'partial_json'):
                             # Accumulate JSON for tool arguments
@@ -221,6 +399,32 @@ class AnsariClaude(Ansari):
                                 arguments = json.loads(current_json)
                                 logger.debug(f"Tool arguments: {arguments}")
                                 current_tool['args'] = json.dumps(arguments)
+                                
+                                # Process the tool call right away to get results
+                                try:
+                                    # Process tool and get results
+                                    (tool_result, reference_list) = self.process_tool_call(
+                                        current_tool['name'],
+                                        current_tool['args'],
+                                        current_tool['id']
+                                    )
+                                    
+                                    # Store results for later use when building user message
+                                    tool_results.append({
+                                        "tool_use_id": current_tool['id'],
+                                        "content": "Please see the included reference list below."
+                                    })
+                                    references.extend(reference_list)
+                                    
+                                except Exception as e:
+                                    logger.error(f"Error processing tool call: {str(e)}")
+                                    # Store error for later use
+                                    tool_results.append({
+                                        "tool_use_id": current_tool['id'],
+                                        "content": [{"type": "text", "text": str(e)}]
+                                    })
+                                
+                                # Add to tool calls list
                                 tool_calls.append(current_tool)
                                 
                                 # Reset for next tool
@@ -230,11 +434,6 @@ class AnsariClaude(Ansari):
                             except Exception as e:
                                 error_msg = f"Tool call failed: {str(e)}"
                                 logger.error(error_msg)
-                                tool_calls.append({
-                                    "tool": current_tool,
-                                    "error": error_msg,
-                                    "traceback": traceback.format_exc()
-                                })
                                 raise
                             
                     elif chunk.type == 'message_delta':
@@ -242,7 +441,7 @@ class AnsariClaude(Ansari):
                             logger.debug("Message stopped for tool use")
                         elif hasattr(chunk.delta, 'text'):
                             text = chunk.delta.text
-                            full_response += text
+                            assistant_text += text
                             yield text
                             
                     elif chunk.type == 'message_stop':
@@ -254,102 +453,117 @@ class AnsariClaude(Ansari):
                                 text = getattr(citation, 'cited_text', '')
                                 title = getattr(citation, 'document_title', '')
                                 citations_text += f"[{i}] {title}:\n {text}\n"
-                            full_response += citations_text
-                            yield citations_text 
-                            
-                        # Add the assistant's message to history
-                        if full_response:
-                            self.message_history.append({
-                                "role": "assistant",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": full_response.strip()
-                                    }
-                                ]
-                            })
-
-                        # Process any accumulated tool calls
-                        if tool_calls:
-                            logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
-                            for tc in tool_calls:
-                                try:
-                                    # Add tool use to the last assistant message's content
-                                    self.message_history[-1]["content"].append({
-                                        "type": "tool_use",
-                                        "id": tc["id"],
-                                        "name": tc["name"],
-                                        "input": json.loads(tc["args"])
-                                    })
-                                    
-                                    # Process the tool call
-                                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
-                                    
-                                    logging.info(f"!!!! Reference list:\n{json.dumps(reference_list, indent=2)}")
-                                    # Add tool result and reference list in the same message
-                                    # Note: Right now, it's unclear what the right thing to do is, 
-                                    # if the returned values are intended for RAG. We could include
-                                    # both but this increases the token cost for no difference in output. 
-                                    self.message_history.append({
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "tool_result",
-                                                "tool_use_id": tc["id"],
-                                                # Alternatively, this could be the tool result
-                                                "content": "Please see the included reference list below." 
-                                            }
-                                        ] + reference_list  # Reference list already contains properly formatted documents
-                                    })
-                                    
-                                    if self.message_logger:
-                                        self.message_logger.log(self.message_history[-1])  # Tool result
-                                    
-                                except Exception as e:
-                                    logger.error(f"Error processing tool call: {str(e)}")
-                                    # Add error as tool result
-                                    self.message_history.append({
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "tool_result",
-                                                "tool_use_id": tc["id"],
-                                                "content": [{"type": "text", "text": str(e)}]
-                                            }
-                                        ]
-                                    })
-
-
-                        # Log the assistant message after all tool uses are appended
-                        if self.message_logger and full_response:
-                            self.message_logger.log(self.message_history[-1])
-                        
-                        # Reset for next message
-                        full_response = ""
-                        self.citations = []
-                        tool_calls = []
-            
+                            assistant_text += citations_text
+                            yield citations_text
             else:
                 # Handle non-streaming response
                 if response.content:
                     text = response.content[0].text
-                    full_response += text
+                    assistant_text += text
                     yield text
+                    
+                # Extract tool calls from non-streaming response
+                for content_block in response.content:
+                    if getattr(content_block, 'type', None) == 'tool_use':
+                        tool_calls.append({
+                            'id': content_block.id,
+                            'name': content_block.name,
+                            'args': json.dumps(content_block.input)
+                        })
+                        
+                        # Process the tool call
+                        try:
+                            (tool_result, reference_list) = self.process_tool_call(
+                                content_block.name,
+                                json.dumps(content_block.input),
+                                content_block.id
+                            )
+                            
+                            # Store results for later use
+                            tool_results.append({
+                                "tool_use_id": content_block.id,
+                                "content": "Please see the included reference list below."
+                            })
+                            references.extend(reference_list)
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing tool call: {str(e)}")
+                            tool_results.append({
+                                "tool_use_id": content_block.id,
+                                "content": [{"type": "text", "text": str(e)}]
+                            })
+                
+            # Now build the complete messages and add them to history
             
-            # Add response to message history
-            if full_response:
-                logger.debug(f"Adding text response to history: {full_response}")
-                self.message_history.append({
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": full_response.strip()
-                        }
-                    ]
-                })
+            # 1. Build the assistant message with text and any tool calls
+            if assistant_text or tool_calls:
+                # Start with text content
+                content_blocks = []
+                if assistant_text:
+                    content_blocks.append({
+                        "type": "text",
+                        "text": assistant_text.strip()
+                    })
+                
+                # Add any tool use blocks
+                for tc in tool_calls:
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["name"],
+                        "input": json.loads(tc["args"])
+                    })
+                
+                # Create the complete assistant message
+                # If assistant text is exactly 1 character long and there are no tool calls,
+                # use a simple string instead of a list
+                if assistant_text and len(assistant_text.strip()) == 1 and not tool_calls:
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": assistant_text.strip()
+                    }
+                else:
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": content_blocks
+                    }
+                
+                # Add to history
+                self.message_history.append(assistant_message)
+                
+                # Log the complete message
                 if self.message_logger:
-                    self.message_logger.log(self.message_history[-1])
+                    self._log_message(assistant_message)
+            
+            # 2. Build the user message with tool results and references if any
+            if tool_results:
+                # Start with tool result blocks
+                content_blocks = []
+                for result in tool_results:
+                    content_blocks.append({
+                        "type": "tool_result",
+                        "tool_use_id": result["tool_use_id"],
+                        "content": result["content"]
+                    })
+                
+                # Add any reference blocks
+                content_blocks.extend(references)
+                
+                # Create the complete user message
+                user_tool_message = {
+                    "role": "user",
+                    "content": content_blocks
+                }
+                
+                # Add to history
+                self.message_history.append(user_tool_message)
+                
+                # Log the complete message
+                if self.message_logger:
+                    self._log_message(user_tool_message)
+                    
+            # Reset for next round
+            self.citations = []
                     
         except Exception as e:
             logger.error(f"Error processing response: {str(e)}")

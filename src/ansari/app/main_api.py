@@ -504,10 +504,16 @@ def add_message(
         # Get the thread history (excluding incoming user's message, as it will be logged later)
         history = db.get_thread_llm(thread_id, token_params["user_id"])
 
-        # Create a new thread for the current user if not already created (i.e., history is empty)
-        # NOTE: the name of this thread is set to the first message
-        #   that the user sends in this new thread
-        if history["thread_name"] is None:
+        # Check if we got a valid history response
+        if not history or "thread_name" not in history:
+            # Create a new thread since we either got an empty response or invalid format
+            db.set_thread_name(
+                thread_id,
+                token_params["user_id"],
+                req.content,
+            )
+            logger.info(f"Added thread {thread_id}")
+        elif history["thread_name"] is None:
             db.set_thread_name(
                 thread_id,
                 token_params["user_id"],
@@ -515,10 +521,13 @@ def add_message(
             )
             logger.info(f"Added thread {thread_id}")
 
+        # Get the thread history
+        history = db.get_thread(thread_id, token_params["user_id"])
+
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = db.convert_message_llm(["user", req.content])[0]
+        user_msg = db.convert_message_llm(["user", req.content, None, None, None])[0]
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will
