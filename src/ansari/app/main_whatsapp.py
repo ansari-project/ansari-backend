@@ -136,9 +136,9 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
     # Rest of the code below is for processing text messages sent by the whatsapp user
     incoming_msg_text = incoming_msg_body["body"]
 
-    # # Send acknowledgment message (only when TESTING_LOCALLY)
+    # # Send acknowledgment message (only when DEV_MODE)
     # # and if dev. doesn't need it, comment it out :]
-    # if get_settings().TESTING_LOCALLY:
+    # if get_settings().DEV_MODE:
     #     await presenter.send_whatsapp_message(
     #         from_whatsapp_number,
     #         f"Ack: {incoming_msg_text}",

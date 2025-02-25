@@ -120,7 +120,6 @@ class Settings(BaseSettings):
     DISCORD_TOKEN: SecretStr | None = Field(default=None)
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
-    WHATSAPP_RECIPIENT_WAID: SecretStr | None = Field(default=None)
     WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
@@ -137,7 +136,7 @@ class Settings(BaseSettings):
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
 
     LOGGING_LEVEL: str = Field(default="INFO")
-    TESTING_LOCALLY: bool = Field(default=False)
+    DEV_MODE: bool = Field(default=False)
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):
