@@ -84,85 +84,10 @@ class MockDatabase:
         return self.stored_messages
         
     def convert_message_llm(self, msg):
-        """Replicate the AnsariDB.convert_message_llm method"""
-<<<<<<< HEAD
-        # For testing malformed messages, handle here directly
-        role, content, tool_name, tool_details, ref_list = msg
-        
-        # Handle malformed JSON safely
-        # First try to parse the content
-        parsed_content = content
-        if isinstance(content, str) and (content.startswith('[') or content.startswith('{')):
-            try:
-                parsed_content = json.loads(content)
-            except json.JSONDecodeError:
-                # Keep as string if not valid JSON
-                parsed_content = content
-                
-        # Parse tool details safely
-        parsed_tool_details = None
-        if tool_details:
-            try:
-                parsed_tool_details = json.loads(tool_details)
-            except json.JSONDecodeError:
-                # Keep None if not valid JSON
-                parsed_tool_details = {"id": "unknown", "input": {}}
-                
-        # Parse reference list safely
-        parsed_ref_list = []
-        if ref_list:
-            try:
-                parsed_ref_list = json.loads(ref_list)
-            except json.JSONDecodeError:
-                # Keep empty list if not valid JSON
-                parsed_ref_list = []
-                
-        # Now import and use the actual implementation
-        # But with our safely parsed values
-        try:
-            from ansari.ansari_db import AnsariDB
-            db = AnsariDB(Settings())
-            
-            # Create a sanitized message tuple
-            sanitized_msg = (
-                role,
-                parsed_content,
-                tool_name,
-                json.dumps(parsed_tool_details) if parsed_tool_details else None,
-                json.dumps(parsed_ref_list) if parsed_ref_list else None
-            )
-            
-            return db.convert_message_llm(sanitized_msg)
-        except Exception as e:
-            # Fallback implementation if the real one fails
-            logger.warning(f"Error using real convert_message_llm: {e}")
-            
-            # Create a basic structure for assistant messages
-            if role == "assistant":
-                text_content = parsed_content
-                if isinstance(parsed_content, list):
-                    # Already in the right format
-                    return [{"role": role, "content": parsed_content}]
-                else:
-                    # Convert to the expected format with type: text
-                    return [{
-                        "role": role,
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": str(text_content)
-                            }
-                        ]
-                    }]
-            # For user messages, keep the format simple
-            else:
-                return [{"role": role, "content": parsed_content}]
-=======
         # Import the actual implementation from ansari_db.py
         from ansari.ansari_db import AnsariDB
         db = AnsariDB(Settings())
         return db.convert_message_llm(msg)
->>>>>>> 92902ff (Adjust test.)
 
 @pytest.fixture
 def settings():
