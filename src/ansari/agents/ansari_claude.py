@@ -15,7 +15,10 @@ from ansari.util.prompt_mgr import PromptMgr
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
+<<<<<<< HEAD
 from ansari.ansari_logger import get_logger
+=======
+>>>>>>> f67369c (Fixed each of the sources.)
 from pprint import pformat
 
 # Set up logging
@@ -453,8 +456,86 @@ class AnsariClaude(Ansari):
                                 text = getattr(citation, 'cited_text', '')
                                 title = getattr(citation, 'document_title', '')
                                 citations_text += f"[{i}] {title}:\n {text}\n"
+<<<<<<< HEAD
                             assistant_text += citations_text
                             yield citations_text
+=======
+                            full_response += citations_text
+                            yield citations_text 
+                            
+                        # Add the assistant's message to history
+                        if full_response:
+                            self.message_history.append({
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": full_response.strip()
+                                    }
+                                ]
+                            })
+
+                        # Process any accumulated tool calls
+                        if tool_calls:
+                            logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
+                            for tc in tool_calls:
+                                try:
+                                    # Add tool use to the last assistant message's content
+                                    self.message_history[-1]["content"].append({
+                                        "type": "tool_use",
+                                        "id": tc["id"],
+                                        "name": tc["name"],
+                                        "input": json.loads(tc["args"])
+                                    })
+                                    
+                                    # Process the tool call
+                                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["args"], tc["id"])
+                                    
+                                    logging.info(f"!!!! Reference list:\n{json.dumps(reference_list, indent=2)}")
+                                    # Add tool result and reference list in the same message
+                                    # Note: Right now, it's unclear what the right thing to do is, 
+                                    # if the returned values are intended for RAG. We could include
+                                    # both but this increases the token cost for no difference in output. 
+                                    self.message_history.append({
+                                        "role": "user",
+                                        "content": [
+                                            {
+                                                "type": "tool_result",
+                                                "tool_use_id": tc["id"],
+                                                # Alternatively, this could be the tool result
+                                                "content": "Please see the included reference list below." 
+                                            }
+                                        ] + reference_list  # Reference list already contains properly formatted documents
+                                    })
+                                    
+                                    if self.message_logger:
+                                        self.message_logger.log(self.message_history[-1])  # Tool result
+                                    
+                                except Exception as e:
+                                    logger.error(f"Error processing tool call: {str(e)}")
+                                    # Add error as tool result
+                                    self.message_history.append({
+                                        "role": "user",
+                                        "content": [
+                                            {
+                                                "type": "tool_result",
+                                                "tool_use_id": tc["id"],
+                                                "content": [{"type": "text", "text": str(e)}]
+                                            }
+                                        ]
+                                    })
+
+
+                        # Log the assistant message after all tool uses are appended
+                        if self.message_logger and full_response:
+                            self.message_logger.log(self.message_history[-1])
+                        
+                        # Reset for next message
+                        full_response = ""
+                        self.citations = []
+                        tool_calls = []
+            
+>>>>>>> f67369c (Fixed each of the sources.)
             else:
                 # Handle non-streaming response
                 if response.content:
