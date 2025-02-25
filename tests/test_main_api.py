@@ -1,3 +1,37 @@
+# This file aims to test the main API endpoints of the app (i.e., `main_api.py`) using pytest and FastAPI's TestClient.
+# Steps:
+#    1. Import necessary modules and configure logging.
+#    2. Define test data and fixtures for user registration, login, and thread creation.
+#    3. Implement tests for :
+#           user registration with valid and invalid credentials.
+#           user login with valid and invalid credentials.
+#           logging in from multiple devices and handling concurrent sessions.
+#           user logout and token invalidation.
+#           refreshing tokens and handling concurrent refresh requests.
+#           creating, deleting, and sharing threads.
+#           accessing threads with different user tokens.
+#           CORS validation.
+#           adding feedback to messages.
+#    4. Implement integration tests for answering ayah questions and storing responses in the database.
+# NOTE: TestClient internally uses httpx and allows you to make requests to your FastAPI application
+#           as if you were interacting with it over the network, but without actually starting a server.
+
+# OPTIONAL READ: The following notes explain pytest's syntax:
+# * Fixtures are functions that provide a fixed baseline for tests by setting up some state or context.
+#       They can be used to provide test data / database connection / other setup tasks.
+#       They can also be shared across multiple test functions.
+#           This is why you see `register_user` passed as an argument to other test functions.
+# * A pytest marker is a way to add metadata to test functions in pytest.
+#       Markers can be used to categorize tests, control test execution, and apply specific behaviors/configs to tests.
+#       For example, markers can be used to skip tests, parametrize tests with different input values, etc.
+# * `mark.asyncio` means that the function is async., so it should be run using an asyncio event loop.
+#       This is useful when testing async code like FastAPI endpoints.
+# * (unused here, but useful info): a `@patch` decorator is used to temporarily replace an object or function
+#       with a mock during a test.
+#       It is part of the unittest.mock module and is useful for isolating the code being tested by mocking dependencies.
+#       This allows you to control the behavior of dependencies and test how your code interacts with them.
+
+
 import logging
 import time
 import uuid

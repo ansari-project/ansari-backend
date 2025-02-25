@@ -1,13 +1,11 @@
-# TODO NOW: ask vscode copilot question when pulling MessageRecorder
-
 import inspect
 import json
 import logging
 import re
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Literal, Optional, Tuple, Union
-import uuid
 
 import bcrypt
 import jwt
