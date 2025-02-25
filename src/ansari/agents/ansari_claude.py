@@ -15,14 +15,7 @@ from ansari.util.prompt_mgr import PromptMgr
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_vectara import SearchVectara
-<<<<<<< HEAD
-<<<<<<< HEAD
 from ansari.ansari_logger import get_logger
-=======
->>>>>>> f67369c (Fixed each of the sources.)
-=======
-from ansari.ansari_logger import get_logger
->>>>>>> 92902ff (Adjust test.)
 from pprint import pformat
 
 # Set up logging
@@ -460,22 +453,17 @@ class AnsariClaude(Ansari):
                                 text = getattr(citation, 'cited_text', '')
                                 title = getattr(citation, 'document_title', '')
                                 citations_text += f"[{i}] {title}:\n {text}\n"
-<<<<<<< HEAD
-<<<<<<< HEAD
                             assistant_text += citations_text
-                            yield citations_text
-=======
-                            full_response += citations_text
                             yield citations_text 
                             
                         # Add the assistant's message to history
-                        if full_response:
+                        if assistant_text:
                             self.message_history.append({
                                 "role": "assistant",
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": full_response.strip()
+                                        "text": assistant_text.strip()
                                     }
                                 ]
                             })
@@ -514,7 +502,7 @@ class AnsariClaude(Ansari):
                                     })
                                     
                                     if self.message_logger:
-                                        self.message_logger.log(self.message_history[-1])  # Tool result
+                                        self._log_message(self.message_history[-1])  # Tool result
                                     
                                 except Exception as e:
                                     logger.error(f"Error processing tool call: {str(e)}")
@@ -532,19 +520,13 @@ class AnsariClaude(Ansari):
 
 
                         # Log the assistant message after all tool uses are appended
-                        if self.message_logger and full_response:
-                            self.message_logger.log(self.message_history[-1])
+                        if self.message_logger and assistant_text:
+                            self._log_message(self.message_history[-1])
                         
                         # Reset for next message
-                        full_response = ""
+                        assistant_text = ""
                         self.citations = []
                         tool_calls = []
-            
->>>>>>> f67369c (Fixed each of the sources.)
-=======
-                            assistant_text += citations_text
-                            yield citations_text
->>>>>>> 92902ff (Adjust test.)
             else:
                 # Handle non-streaming response
                 if response.content:
