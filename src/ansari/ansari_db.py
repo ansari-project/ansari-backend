@@ -607,7 +607,7 @@ class AnsariDB:
             thread_name = thread_name_result[0]
             retval = {
                 "thread_name": thread_name,
-                "messages": [self.convert_message(x) for x in result if x[1] != "tool"],
+                "messages": [self.convert_message(x) for x in result],
             }
             return retval
         except Exception as e:
@@ -884,9 +884,26 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def convert_message(self, msg: Iterable[str]) -> dict:
-        """Convert a message from database format to API format."""
+        """Convert a message from database format to a displayable format. 
+        This means stripping things like tool usage. """
         role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
         logger.info(f"Content is {content}")
+        
+        # If content is a string that looks like JSON, try to parse it
+        if isinstance(content, str) and (content.startswith('[') or content.startswith('{')):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                # Keep as string if not valid JSON
+                pass
+                
+        # If content is a list, find the first element with type "text"
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    content = item.get("text", "")
+                    break
+                    
         return {"role": role, "content": content}
 
     def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
