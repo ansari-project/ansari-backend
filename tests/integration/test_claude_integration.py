@@ -28,6 +28,8 @@ def mock_db():
 @pytest.fixture
 def claude_tester(settings):
     """Create an AnsariTester configured for AnsariClaude"""
+    # Just testing basic stuff, let's make it as fast as possible. 
+    settings.MODEL = "claude-3-5-haiku-latest"
     return AnsariTester(AnsariClaude, settings)
 
 @pytest.mark.integration

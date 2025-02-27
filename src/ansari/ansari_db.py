@@ -886,7 +886,7 @@ class AnsariDB:
     def convert_message(self, msg: Iterable[str]) -> dict:
         """Convert a message from database format to API format."""
         role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
-        
+        logger.info(f"Content is {content}")
         return {"role": role, "content": content}
 
     def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:

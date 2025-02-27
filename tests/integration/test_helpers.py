@@ -5,6 +5,23 @@ import inspect
 
 logger = get_logger()
 
+class IntegrationMessageLogger:
+    def __init__(self):
+        self.reset()  # Move initialization to a reset method
+
+    def reset(self):
+        """Reset the message log."""
+        self.messages = []
+        
+    def log(self, role, content, tool_name=None, tool_details=None, ref_list=None):
+        self.messages.append({
+            "role": role,
+            "content": content,
+            "tool_name": tool_name,
+            "tool_details": tool_details,
+            "ref_list": ref_list
+        })
+
 def history_and_log_matches(agent, message_logger):
     """Verify that the message history in the agent matches the messages in the logger.
     

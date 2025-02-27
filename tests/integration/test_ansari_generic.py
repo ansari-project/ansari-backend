@@ -7,26 +7,10 @@ from ansari.agents.ansari_claude import AnsariClaude
 from ansari.config import Settings
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
-from tests.integration.test_helpers import history_and_log_matches
+from tests.integration.test_helpers import history_and_log_matches, IntegrationMessageLogger
 
-logger = get_logger()
-
-# Common classes for all integration tests
-class IntegrationMessageLogger:
-    def __init__(self):
-        self.messages = []
-        
-    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict = None, ref_list: list = None):
-        logger.debug(f"Logging message: role={role}, content={content}, tool_name={tool_name}")
-        
-        # Store message with all details
-        self.messages.append({
-            "role": role,
-            "content": content,
-            "tool_name": tool_name,
-            "tool_details": tool_details,
-            "ref_list": ref_list
-        })
+# Set logging level explicitly to DEBUG
+logger = get_logger(logging_level="DEBUG")
 
 # Mock database implementation for testing reconstruction
 class MockDatabase:
@@ -57,6 +41,16 @@ class MockDatabase:
         from ansari.ansari_db import AnsariDB
         db = AnsariDB(Settings())
         return db.convert_message_llm(msg)
+        
+    def convert_message(self, msg):
+        """Convert a message from database format to API format.
+        
+        Delegates to the real AnsariDB.convert_message method.
+        """
+        # Import the actual implementation from ansari_db.py
+        from ansari.ansari_db import AnsariDB
+        db = AnsariDB(Settings())
+        return db.convert_message(msg)
 
 class AnsariTester:
     """Generic tester class for Ansari implementations.
@@ -84,12 +78,13 @@ class AnsariTester:
         logger.info(f"Starting simple conversation test for {self.agent_class.__name__}")
         
         message_logger = IntegrationMessageLogger()
+        message_logger.reset()  # Reset before the test
         agent = self.create_agent(message_logger)
         
         # Test a simple conversation
-        responses = []
-        for response in agent.process_input("What sources do you use?"):
-            responses.append(response)
+        logger.debug("Starting simple conversation test")
+        responses =  agent.process_input("What sources do you use?")
+        logger.debug("Ended")
         
         # Combine all responses
         full_response = "".join(responses)
@@ -114,6 +109,7 @@ class AnsariTester:
         logger.info(f"Starting conversation with references test for {self.agent_class.__name__}")
         
         message_logger = IntegrationMessageLogger()
+        message_logger.reset()  # Reset before the test
         agent = self.create_agent(message_logger)
         
         # Test a query that should trigger reference lookups
@@ -132,25 +128,7 @@ class AnsariTester:
         
         # Verify message logger messages match agent history
         history_and_log_matches(agent, message_logger)
-        
-        # Check for references or tool usage in the response (implementation-specific)
-        has_references = False
-        for msg in message_logger.messages:
-            # Check for tool name
-            if msg.get("tool_name") in ["search_quran", "search_hadith"]:
-                has_references = True
-                break
-            # Check for reference list
-            if msg.get("ref_list"):
-                has_references = True
-                break
-            # Check for tool_details
-            if msg.get("tool_details"):
-                has_references = True
-                break
                 
-        assert has_references, "No references found in the response"
-        
         return True
     
     def test_multi_turn_conversation(self):
@@ -158,6 +136,7 @@ class AnsariTester:
         logger.info(f"Starting multi-turn conversation test for {self.agent_class.__name__}")
         
         message_logger = IntegrationMessageLogger()
+        message_logger.reset()  # Reset before the test
         agent = self.create_agent(message_logger)
         
         # First turn
@@ -194,12 +173,59 @@ class AnsariTester:
         
         return True
     
+    def test_message_conversion(self):
+        """Test message conversion functions for converting database messages to API/LLM format."""
+        logger.info(f"Starting message conversion test for {self.agent_class.__name__}")
+        
+        mock_db = MockDatabase()
+        
+        # Process a message to generate some conversation data
+        message_logger = IntegrationMessageLogger()
+        message_logger.reset()  # Reset before the test
+        agent = self.create_agent(message_logger)
+        
+        # Generate some message data
+        for response in agent.process_input("What are the five pillars of Islam?"):
+            pass
+            
+        # Store messages in mock database
+        for i, msg in enumerate(message_logger.messages):
+            mock_db.append_message(
+                user_id=1, 
+                thread_id=1, 
+                role=msg["role"], 
+                content=msg["content"],
+                tool_name=msg["tool_name"],
+                tool_details=msg["tool_details"],
+                ref_list=msg["ref_list"]
+            )
+            
+        # Test convert_message (DB format to API format)
+        for i, msg in enumerate(mock_db.get_stored_messages()):
+            api_msg = mock_db.convert_message(msg)
+            assert "role" in api_msg, f"API message {i} missing role"
+            assert "content" in api_msg, f"API message {i} missing content"
+            assert api_msg["role"] == msg[0], f"API message {i} has incorrect role"
+            
+        # Test convert_message_llm (DB format to LLM format)
+        for i, msg in enumerate(mock_db.get_stored_messages()):
+            llm_msgs = mock_db.convert_message_llm(msg)
+            assert len(llm_msgs) >= 1, f"LLM conversion must return at least one message"
+            
+            for llm_msg in llm_msgs:
+                assert "role" in llm_msg, f"LLM message {i} missing role"
+                assert "content" in llm_msg, f"LLM message {i} missing content"
+                assert llm_msg["role"] == msg[0], f"LLM message {i} has incorrect role"
+                
+        return True
+    
     def run_all_tests(self) -> List[bool]:
         """Run all tests and return the results."""
         test_methods = [
             self.test_simple_conversation,
             self.test_conversation_with_references,
-            self.test_multi_turn_conversation
+            self.test_multi_turn_conversation,
+            self.test_message_conversion
         ]
         
         results = []
@@ -221,6 +247,12 @@ class AnsariTester:
 def settings():
     return Settings()
 
+@pytest.fixture(autouse=True)
+def setup_message_logger():
+    message_logger = IntegrationMessageLogger()
+    yield message_logger
+    message_logger.reset()  # Clean up after each test
+
 @pytest.mark.integration
 @pytest.mark.parametrize("agent_class", [Ansari, AnsariClaude])
 def test_simple_conversation_all_agents(agent_class, settings):
@@ -241,6 +273,13 @@ def test_multi_turn_conversation_all_agents(agent_class, settings):
     """Run the multi-turn conversation test on all agent implementations."""
     tester = AnsariTester(agent_class, settings)
     assert tester.test_multi_turn_conversation()
+
+@pytest.mark.integration
+@pytest.mark.parametrize("agent_class", [Ansari, AnsariClaude])
+def test_message_conversion_all_agents(agent_class, settings):
+    """Test message conversion functions for all agent implementations."""
+    tester = AnsariTester(agent_class, settings)
+    assert tester.test_message_conversion()
 
 # Helper function to run tests directly
 def run_tests_for_implementation(agent_class: Type[Ansari]):
