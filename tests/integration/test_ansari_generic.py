@@ -52,6 +52,7 @@ class MockDatabase:
         db = AnsariDB(Settings())
         return db.convert_message(msg)
 
+
 class AnsariTester:
     """Generic tester class for Ansari implementations.
     
@@ -110,6 +111,7 @@ class AnsariTester:
         
         message_logger = IntegrationMessageLogger()
         message_logger.reset()  # Reset before the test
+=
         agent = self.create_agent(message_logger)
         
         # Test a query that should trigger reference lookups
@@ -128,7 +130,8 @@ class AnsariTester:
         
         # Verify message logger messages match agent history
         history_and_log_matches(agent, message_logger)
-                
+
+
         return True
     
     def test_multi_turn_conversation(self):
@@ -219,6 +222,7 @@ class AnsariTester:
                 
         return True
     
+
     def run_all_tests(self) -> List[bool]:
         """Run all tests and return the results."""
         test_methods = [

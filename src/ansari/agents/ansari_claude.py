@@ -153,6 +153,7 @@ class AnsariClaude(Ansari):
         )
 
     def replace_message_history(self, message_history: list[dict]):
+
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -463,3 +464,4 @@ class AnsariClaude(Ansari):
             #  and if the last message was not from the tool (success!)
             yield from self.process_one_round()
             count += 1
+
