@@ -19,6 +19,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
+from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
 from ansari.tools.search_vectara import SearchVectara
 from ansari.util.prompt_mgr import PromptMgr
 
@@ -58,10 +59,14 @@ class Ansari:
             self.settings.MAWSUAH_TOOL_PARAMS,
             self.settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
+        ste = SearchTafsirEncyc(
+            self.settings.VECTARA_API_KEY.get_secret_value()
+        )
         return {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
             sm.get_tool_name(): sm,
+            ste.get_tool_name(): ste,
         }
 
     def set_message_logger(self, message_logger: MessageLogger):
