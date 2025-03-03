@@ -11,6 +11,8 @@ example_projects/
 lib/
 share/
 src/ansari_backend.egg-info/*
+tmp/
+dist/
 
 .env
 .history
