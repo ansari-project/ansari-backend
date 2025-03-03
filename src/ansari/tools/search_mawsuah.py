@@ -56,7 +56,10 @@ class SearchMawsuah(SearchVectara):
             if isinstance(doc, str):
                 continue
                 
-            # Keep only the Arabic text
+            # Keep only the Arabic text and remove HTML tags
+            text = doc["source"]["data"]
+            text = text.replace("<em>", "").replace("</em>", "")
+            doc["source"]["data"] = text
             doc["title"] = "Encyclopedia of Islamic Jurisprudence"
             doc["citations"] = {"enabled": True}
                 
@@ -99,7 +102,7 @@ class SearchMawsuah(SearchVectara):
         # Process results
         results = []
         for i, result in enumerate(response.get("search_results", [])):
-            arabic_text = result.get("text", "")
+            arabic_text = result.get("text", "").replace("<em>", "").replace("</em>", "")
             
             entry = f"Entry {i+1}:\n"
             entry += f"Arabic Text: {arabic_text}\n"
