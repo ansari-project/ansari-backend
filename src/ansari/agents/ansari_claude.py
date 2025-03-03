@@ -1,5 +1,6 @@
 import json
 import time
+import asyncio
 from typing import Generator
 
 import anthropic
@@ -10,6 +11,7 @@ from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.ansari_logger import get_logger
 from ansari.tools.search_mawsuah import SearchMawsuah
+from ansari.util.translation import translate_texts_parallel
 
 # Set up logging
 logger = get_logger()
@@ -349,10 +351,24 @@ class AnsariClaude(Ansari):
                 if self.citations:
                     citations_text = "\n\n**Citations**:\n"
                     logger.debug(f"Full Citations: {self.citations}")
-                    for i, citation in enumerate(self.citations, 1):
+                    
+                    # Collect all Arabic texts that need translation
+                    arabic_texts = []
+                    
+                    for citation in self.citations:
                         text = getattr(citation, "cited_text", "")
+                        arabic_texts.append(text)
+                    
+                    # Translate all cited texts in one batch using asyncio.gather to maintain order
+                    english_translations = []
+                    if arabic_texts:
+                        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
+                    
+                    # Format citations with both Arabic and English
+                    for i, (citation, english_translation) in enumerate(zip(self.citations, english_translations), 1):
+                        arabic_text = getattr(citation, "cited_text", "")
                         title = getattr(citation, "document_title", "")
-                        citations_text += f"[{i}] {title}:\n {text}\n"
+                        citations_text += f"[{i}] {title}:\n Arabic: {arabic_text}\n English: {english_translation}\n"
                     assistant_text += citations_text
                     yield citations_text
 
@@ -367,13 +383,18 @@ class AnsariClaude(Ansari):
                 if assistant_text.strip():
                     content_blocks.append({"type": "text", "text": assistant_text.strip()})
 
-                # Create the message content based on whether we have content blocks or tool calls
+                # Always include tool_calls in content blocks if present
+                # This ensures the tool use call is saved in the message history
+                if tool_calls:
+                    content_blocks.extend(tool_calls)
+
+                # Create the message content based on whether we have content blocks
                 message_content = None
-                if content_blocks or tool_calls:
-                    message_content = content_blocks + tool_calls
+                if content_blocks:
+                    message_content = content_blocks
                 else:
-                    # If no content blocks or tool calls, use a single empty text element
-                    message_content = content_blocks[0].text
+                    # If no content blocks, use a single empty text element
+                    message_content = [{"type": "text", "text": ""}]
 
                 self.message_history.append({"role": "assistant", "content": message_content})
                 # Append the message to the message logger
