@@ -1,8 +1,6 @@
 import logging
-import asyncio
 from typing import Dict, List, Any
 from ansari.tools.search_vectara import SearchVectara
-from ansari.util.translation import translate_text, translate_texts_parallel
 
 TOOL_NAME = "search_mawsuah"
 
@@ -38,13 +36,14 @@ class SearchMawsuah(SearchVectara):
     def format_as_ref_list(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Format raw API results as a list of reference documents for Claude.
-        Each reference will include both the original Arabic text and its English translation.
+        Each reference will include only the original Arabic text for efficiency.
+        The English translation will be added later only for the parts that are cited.
         
         Args:
             response: The raw API response from Vectara
             
         Returns:
-            A list of reference documents formatted for Claude with Arabic and English text
+            A list of reference documents formatted for Claude with Arabic text
         """
         # Get base documents from parent class
         documents = super().format_as_ref_list(response)
@@ -52,32 +51,14 @@ class SearchMawsuah(SearchVectara):
         if not documents:
             return ["No results found."]
         
-        # Extract Arabic texts from documents that aren't strings
-        arabic_texts = []
-        valid_doc_indices = []
-        
-        for i, doc in enumerate(documents):
+        # Update documents with just Arabic text and citation support
+        for doc in documents:
             if isinstance(doc, str):
                 continue
                 
-            arabic_texts.append(doc["source"]["data"])
-            valid_doc_indices.append(i)
-        
-        # Translate all texts in parallel
-        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
-        
-        # Update documents with translations
-        for idx, trans_idx in enumerate(valid_doc_indices):
-            doc = documents[trans_idx]
-            arabic_text = arabic_texts[idx]
-            english_translation = english_translations[idx]
-            
-            # Combine Arabic and English text
-            combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}"
-            
-            # Update the document with combined text
-            doc["source"]["data"] = combined_text
-            doc["title"] = f"Encyclopedia of Islamic Jurisprudence"
+            # Keep only the Arabic text
+            doc["title"] = "Encyclopedia of Islamic Jurisprudence"
+            doc["citations"] = {"enabled": True}
                 
         return documents
 
@@ -101,35 +82,13 @@ class SearchMawsuah(SearchVectara):
                 "text": "No results found."
             }
         
-        # Extract all Arabic texts from results
-        entries = result.get("results", [])
-        arabic_texts = [entry.get("text", "") for entry in entries]
-        
-        # Translate all texts in parallel
-        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
-        
-        # Add translations to each result
-        items = []
-        for i, entry in enumerate(entries):
-            arabic_text = arabic_texts[i]
-            english_translation = english_translations[i]
-            
-            formatted_text = f"Arabic Text: {arabic_text}\n\n"
-            if english_translation:
-                formatted_text += f"English Translation: {english_translation}\n\n"
-            
-            items.append({
-                "type": "text",
-                "text": formatted_text
-            })
-        
         return {
-            "type": "array",
-            "items": items
+            "type": "text",
+            "text": "Please see the references below."
         }
 
     def run_as_string(self, query: str, num_results: int = 10, **kwargs) -> str:
-        """Return results as a human-readable string with both Arabic and English."""
+        """Return results as a human-readable string with Arabic text only."""
         # Get the response using the parent's run method
         response = self.run(query, num_results, **kwargs)
         
@@ -137,23 +96,13 @@ class SearchMawsuah(SearchVectara):
         if not response.get("search_results"):
             return "No results found."
         
-        # Extract all Arabic texts from results
-        search_results = response.get("search_results", [])
-        arabic_texts = [result.get("text", "") for result in search_results]
-        
-        # Translate all texts in parallel
-        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
-        
         # Process results
         results = []
-        for i, result in enumerate(search_results):
-            arabic_text = arabic_texts[i]
-            english_translation = english_translations[i]
+        for i, result in enumerate(response.get("search_results", [])):
+            arabic_text = result.get("text", "")
             
             entry = f"Entry {i+1}:\n"
             entry += f"Arabic Text: {arabic_text}\n"
-            if english_translation:
-                entry += f"English Translation: {english_translation}\n"
             
             results.append(entry)
                 
