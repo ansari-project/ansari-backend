@@ -8,6 +8,7 @@ import requests
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 class SearchVectara:
     def __init__(
         self,
@@ -42,8 +43,8 @@ class SearchVectara:
                         for param in self.params
                     },
                     "required": self.required_params,
-                }
-            }
+                },
+            },
         }
 
     def get_tool_name(self):
@@ -115,30 +116,26 @@ class SearchVectara:
     def format_as_tool_result(self, response: dict) -> dict:
         """Format raw API results as a tool result dictionary."""
         if not response.get("search_results"):
-            return {
-                "results": [],
-                "tool_name": self.get_tool_name()
-            }
+            return {"results": [], "tool_name": self.get_tool_name()}
 
         formatted_results = []
         for result in response["search_results"]:
             metadata = {}
             for m in result.get("metadata", []):
                 metadata[m["name"]] = m["value"]
-            
-            formatted_results.append({
-                "text": result.get("text", ""),
-                "score": result.get("score", 0),
-                "metadata": metadata,
-                "reference": f"{metadata.get('source', '')} {metadata.get('volume', '')}:{metadata.get('page', '')}"
-            })
-        
-        return {
-            "results": formatted_results,
-            "tool_name": self.get_tool_name()
-        }
 
-    def format_as_reference_list(self, response: dict) -> list:
+            formatted_results.append(
+                {
+                    "text": result.get("text", ""),
+                    "score": result.get("score", 0),
+                    "metadata": metadata,
+                    "reference": f"{metadata.get('source', '')} {metadata.get('volume', '')}:{metadata.get('page', '')}",
+                }
+            )
+
+        return {"results": formatted_results, "tool_name": self.get_tool_name()}
+
+    def format_as_ref_list(self, response: dict) -> list:
         """Format raw API results as a list of reference documents for Claude."""
         if not response or "search_results" not in response:
             return []
@@ -146,26 +143,24 @@ class SearchVectara:
         documents = []
         logger.info(f"!!!! Formatting as reference list:\n{json.dumps(response, indent=2)}")
         for result in response["search_results"]:
-            # Temporary placeholder. 
+            # Temporary placeholder.
             # Nasty hack. TODO(mwk): Fix this
             volume = result.get("document_id", "").replace(".txt", "")
             title = "Encyclopedia of Islamic Jurisprudence, Volume " + volume
-            
+
             # Get the text content
             text = result.get("text", "")
-            
-            documents.append({
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": text
-                },
-                "title": title,
-                "context": "Retrieved from Encyclopedia of Islamic jurisprudence",
-                "citations": {"enabled": True}
-            })
-            
+
+            documents.append(
+                {
+                    "type": "document",
+                    "source": {"type": "text", "media_type": "text/plain", "data": text},
+                    "title": title,
+                    "context": "Retrieved from Encyclopedia of Islamic jurisprudence",
+                    "citations": {"enabled": True},
+                }
+            )
+
         return documents
 
     def run_as_list(self, query: str, num_results: int = 10, **kwargs) -> list:

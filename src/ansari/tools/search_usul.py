@@ -69,7 +69,7 @@ class SearchUsul(BaseSearchTool):
             },
         }
 
-    def run(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = True) -> Dict[str, Any]:
+    def run(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = False) -> Dict[str, Any]:
         """Execute the search and return raw results.
 
         Args:
