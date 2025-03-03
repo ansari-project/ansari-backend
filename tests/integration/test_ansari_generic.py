@@ -111,7 +111,6 @@ class AnsariTester:
         
         message_logger = IntegrationMessageLogger()
         message_logger.reset()  # Reset before the test
-=
         agent = self.create_agent(message_logger)
         
         # Test a query that should trigger reference lookups

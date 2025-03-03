@@ -2,8 +2,7 @@
 
 import logging
 import typer
-import sys
-from typing import Optional, Generator
+from typing import Optional
 
 from ansari.agents import Ansari
 from ansari.agents.ansari_claude import AnsariClaude
@@ -12,27 +11,16 @@ from ansari.presenters.stdio_presenter import StdioPresenter
 
 app = typer.Typer()
 
+
 @app.command()
 def main(
-    agent: str = typer.Option(
-        "Ansari",
-        "--agent",
-        "-a",
-        help="Agent to use (AnsariClaude or Ansari)"
-    ),
+    agent: str = typer.Option("Ansari", "--agent", "-a", help="Agent to use (AnsariClaude or Ansari)"),
     log_level: str = typer.Option(
-        "INFO",
-        "--log-level",
-        "-l",
-        help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
-        case_sensitive=False
+        "INFO", "--log-level", "-l", help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)", case_sensitive=False
     ),
     input: Optional[str] = typer.Option(
-        None,
-        "--input",
-        "-i", 
-        help="Input to send to the agent. If not provided, starts interactive mode."
-    )
+        None, "--input", "-i", help="Input to send to the agent. If not provided, starts interactive mode."
+    ),
 ):
     """
     Run the Ansari agent. If input is provided, process it and exit.
@@ -41,21 +29,21 @@ def main(
     # Convert log level string to logging constant
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
-        raise ValueError(f'Invalid log level: {log_level}')
-    
+        raise ValueError(f"Invalid log level: {log_level}")
+
     logging.basicConfig(level=numeric_level)
     settings = get_settings()
-    
+
     if agent == "AnsariClaude":
         agent_instance = AnsariClaude(settings)
     elif agent == "Ansari":
         agent_instance = Ansari(settings)
     else:
         raise ValueError(f"Unknown agent type: {agent}. Must be one of: AnsariClaude, Ansari")
-    
+
     # Print greeting
     print(agent_instance.greet())
-    
+
     if input:
         # Process single input and exit
         result = agent_instance.process_input(input)
@@ -63,12 +51,13 @@ def main(
         if result:
             for word in result:
                 if word is not None:
-                    print(word, end='', flush=True)
+                    print(word, end="", flush=True)
             print()
     else:
         # No input provided, start interactive mode
         presenter = StdioPresenter(agent_instance, skip_greeting=True)
         presenter.present()
+
 
 if __name__ == "__main__":
     app()

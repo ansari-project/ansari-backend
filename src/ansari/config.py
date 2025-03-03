@@ -117,6 +117,56 @@ class Settings(BaseSettings):
     )
     TAFSIR_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
+    # Settings for Tafsir Encyclopedia search tool
+    TAFSIR_ENCYC_FN_NAME: str = Field(default="search_tafsir_encyc")
+    TAFSIR_ENCYC_FN_DESCRIPTION: str = Field(
+        default="""
+        Searches specialized tafsir encyclopedias for scholarly interpretations of Quranic verses.
+        This tool provides access to rich, contextual explanations from multiple scholarly sources,
+        helping to understand deeper meanings and scholarly consensus on Quranic interpretation.
+        The search will be based on the 'query' parameter, which must be provided.
+        """,
+    )
+    TAFSIR_ENCYC_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Topic or concept to search for within tafsir encyclopedias. Can be in Arabic or English.",
+            },
+        ],
+    )
+    TAFSIR_ENCYC_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    # Settings for Usul Fiqh search tool
+    USUL_FN_NAME: str = Field(default="search_usul")
+    USUL_FN_DESCRIPTION: str = Field(
+        default="""
+        Searches principles of Islamic jurisprudence (usul al-fiqh) for scholarly methodologies
+        and frameworks used to derive Islamic legal rulings. This tool provides access to 
+        foundational concepts that govern how Islamic law is derived from primary sources.
+        The search will be based on the 'query' parameter, which must be provided.
+        """,
+    )
+    USUL_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Principle, methodology, or concept to search for within usul al-fiqh texts.",
+            },
+        ],
+    )
+    USUL_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    # Usul.ai API settings
+    USUL_API_TOKEN: SecretStr = Field(default="")  # Set via environment variable
+    USUL_BASE_URL: str = Field(default="https://semantic-search.usul.ai/v1/vector-search")
+    USUL_TOOL_NAME_PREFIX: str = Field(default="search_usul")
+    TAFSIR_ENCYC_BOOK_ID: str = Field(default="pet7s2sjr900zvxjsafa3s3b")
+    TAFSIR_ENCYC_VERSION_ID: str = Field(default="MT3i8pDNoM")
+    TAFSIR_ENCYC_TOOL_NAME: str = Field(default="search_tafsir_encyc")
+
     DISCORD_TOKEN: SecretStr | None = Field(default=None)
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
