@@ -2,6 +2,7 @@
 
 import anthropic
 from typing import Optional
+import asyncio
 
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
@@ -66,3 +67,24 @@ def translate_text(
     except Exception as e:
         logger.error(f"Translation error: {str(e)}")
         raise
+
+async def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
+    """
+    Translate multiple texts in parallel.
+    
+    Args:
+        texts: List of texts to translate
+        target_lang: Target language code (e.g., "ar", "en")
+        source_lang: Source language code (e.g., "ar", "en")
+            
+    Returns:
+        List of translations
+    """
+    if not texts:
+        return []
+            
+    # Create translation tasks for all texts
+    tasks = [asyncio.to_thread(translate_text, text, target_lang, source_lang) for text in texts]
+        
+    # Run all translations in parallel and return results
+    return await asyncio.gather(*tasks)

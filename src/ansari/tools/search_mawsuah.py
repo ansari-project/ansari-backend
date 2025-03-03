@@ -2,7 +2,7 @@ import logging
 import asyncio
 from typing import Dict, List, Any
 from ansari.tools.search_vectara import SearchVectara
-from ansari.util.translation import translate_text
+from ansari.util.translation import translate_text, translate_texts_parallel
 
 TOOL_NAME = "search_mawsuah"
 
@@ -35,25 +35,6 @@ class SearchMawsuah(SearchVectara):
             required_params=["query"]
         )
             
-    async def translate_texts_parallel(self, texts: List[str]) -> List[str]:
-        """
-        Translate multiple texts in parallel.
-        
-        Args:
-            texts: List of Arabic texts to translate
-            
-        Returns:
-            List of English translations
-        """
-        if not texts:
-            return []
-            
-        # Create translation tasks for all texts
-        tasks = [asyncio.to_thread(translate_text, text, "en", "ar") for text in texts]
-        
-        # Run all translations in parallel and return results
-        return await asyncio.gather(*tasks)
-
     def format_as_ref_list(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Format raw API results as a list of reference documents for Claude.
@@ -83,7 +64,7 @@ class SearchMawsuah(SearchVectara):
             valid_doc_indices.append(i)
         
         # Translate all texts in parallel
-        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
         
         # Update documents with translations
         for idx, trans_idx in enumerate(valid_doc_indices):
@@ -92,11 +73,11 @@ class SearchMawsuah(SearchVectara):
             english_translation = english_translations[idx]
             
             # Combine Arabic and English text
-            combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}" if english_translation else arabic_text
+            combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}"
             
             # Update the document with combined text
             doc["source"]["data"] = combined_text
-            doc["title"] = f"Encyclopedia of Islamic Jurisprudence, Entry {trans_idx+1}"
+            doc["title"] = f"Encyclopedia of Islamic Jurisprudence"
                 
         return documents
 
@@ -125,7 +106,7 @@ class SearchMawsuah(SearchVectara):
         arabic_texts = [entry.get("text", "") for entry in entries]
         
         # Translate all texts in parallel
-        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
         
         # Add translations to each result
         items = []
@@ -161,7 +142,7 @@ class SearchMawsuah(SearchVectara):
         arabic_texts = [result.get("text", "") for result in search_results]
         
         # Translate all texts in parallel
-        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
         
         # Process results
         results = []
