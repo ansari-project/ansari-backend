@@ -1,4 +1,3 @@
-import json
 import requests
 from ansari.ansari_logger import get_logger
 
