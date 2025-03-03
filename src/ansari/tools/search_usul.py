@@ -101,67 +101,89 @@ class SearchUsul(BaseSearchTool):
 
         return response.json()
 
-    def format_as_ref_list(self, results: Dict[str, Any]) -> List[str]:
-        """Format raw results as a list of reference strings.
+    def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Format raw results as a list of reference documents for Claude.
 
         Args:
             results: Raw results from run()
 
         Returns:
-            List of formatted reference strings
+            List of document objects formatted for Claude in the format required by BaseSearchTool
         """
-        formatted_results = []
-
-        # Check for empty results in different ways:
-        # 1. results is None or empty dict
-        # 2. "results" key doesn't exist
-        # 3. "results" key exists but is an empty list
+        # Check for empty results in different ways
         if not results or "results" not in results or not results.get("results", []):
             return ["No results found."]
-
+            
+        documents = []
         for result in results.get("results", []):
-            # Handle the new API response structure
+            # Extract data from the result
             if "node" in result:
                 node = result["node"]
                 text = node.get("text", "")
-
-                # Extract node ID and page info from metadata if available
+                node_id = "Unknown"
                 page_info = "Unknown"
+                volume_info = ""
                 chapter_info = ""
 
+                # Extract metadata if available
                 if "metadata" in node:
                     metadata = node["metadata"]
-
-                    # Extract page information
+                    node_id = metadata.get("bookId", "Unknown")
+                    
+                    # Extract page and volume information
                     if "pages" in metadata and len(metadata["pages"]) > 0:
                         page = metadata["pages"][0]
-                        page_num = page.get("page", "")
-                        volume = page.get("volume", "")
-                        page_info = f"{page_num}" + (f" (Vol: {volume})" if volume else "")
-
+                        page_info = page.get("page", "Unknown")
+                        volume_info = page.get("volume", "")
+                        
                     # Extract chapter information
                     if "chapters" in metadata and len(metadata["chapters"]) > 0:
                         chapter = metadata["chapters"][0]
-                        chapter_title = chapter.get("title", "")
-                        chapter_info = f"\nChapter: {chapter_title}"
+                        chapter_info = chapter.get("title", "")
             else:
                 # Fallback to original structure if "node" is not present
                 text = result.get("text", "")
-                page_info = result.get("page", "")
-                chapter_info = ""
-
+                node_id = result.get("nodeId", "Unknown")
+                page_info = result.get("page", "Unknown")
+                volume_info = ""
+                
                 if "chapter" in result:
-                    chapter_title = result["chapter"].get("title", "")
-                    chapter_info = f"\nChapter: {chapter_title}"
+                    chapter_info = result["chapter"].get("title", "")
+                else:
+                    chapter_info = ""
 
-            formatted_results.append(f"Page: {page_info}{chapter_info}\nText: {text}\n")
+            # Create citation title with available information
+            title_parts = []
+            title_parts.append("Islamic Legal Principles")
+            if volume_info:
+                title_parts.append(f"Volume {volume_info}")
+            if page_info and page_info != "Unknown":
+                title_parts.append(f"Page {page_info}")
+            if node_id and node_id != "Unknown":
+                title_parts.append(f"ID: {node_id}")
+                
+            title = ", ".join(title_parts)
+            
+            # Add chapter info to the data if available
+            if chapter_info:
+                data = f"Chapter: {chapter_info}\n\n{text}"
+            else:
+                data = text
 
-        # If after processing all results we still have an empty list,
-        # return the "No results found" message
-        if not formatted_results:
-            return ["No results found."]
-
-        return formatted_results
+            # Create the document object following BaseSearchTool's required format
+            documents.append({
+                "type": "document",
+                "source": {
+                    "type": "text", 
+                    "media_type": "text/plain", 
+                    "data": data
+                },
+                "title": title,
+                "context": "Retrieved from principles of Islamic jurisprudence (usul al-fiqh)",
+                "citations": {"enabled": True}
+            })
+            
+        return documents
 
     def format_as_tool_result(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Format raw results as a tool result for Claude.
@@ -252,7 +274,10 @@ class SearchUsul(BaseSearchTool):
         """
         print(f'Searching Usul.ai for "{query}"')
         results = self.run(query, limit, page, include_chapters)
-        return self.format_as_ref_list(results)
+        ref_docs = self.format_as_ref_list(results)
+        
+        # Convert document objects to strings using the base class helper
+        return [self.format_document_as_string(doc) for doc in ref_docs]
 
     def run_as_string(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = True) -> str:
         """Run search and return results as a single string.
@@ -267,4 +292,8 @@ class SearchUsul(BaseSearchTool):
             String of formatted results
         """
         results = self.run(query, limit, page, include_chapters)
-        return "\n".join(self.format_as_ref_list(results))
+        ref_docs = self.format_as_ref_list(results)
+        
+        # Format documents as strings using the base class helper and join
+        formatted_strings = [self.format_document_as_string(doc) for doc in ref_docs]
+        return "\n\n".join(formatted_strings)

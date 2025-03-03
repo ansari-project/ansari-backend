@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 
 
 class BaseSearchTool(ABC):
@@ -29,7 +29,7 @@ class BaseSearchTool(ABC):
         pass
 
     @abstractmethod
-    def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def format_as_ref_list(self, results: Dict[str, Any]) -> List[Union[Dict[str, Any], str]]:
         """Format raw results as a list of document dictionaries.
 
         Args:
@@ -42,8 +42,11 @@ class BaseSearchTool(ABC):
                 "source": {"type": "text", "media_type": "text/plain", "data": str},
                 "title": str,
                 "context": str,
+                "citations": {"enabled": bool},
                 ...
             }
+            
+            Or a list containing a single string "No results found." if no results.
         """
         pass
 
@@ -58,3 +61,29 @@ class BaseSearchTool(ABC):
             Dict containing formatted results for Claude
         """
         pass
+        
+    def format_document_as_string(self, document: Dict[str, Any]) -> str:
+        """Helper method to format a document object as a string.
+        
+        Args:
+            document: A document dictionary as returned by format_as_ref_list
+            
+        Returns:
+            A string representation of the document
+        """
+        if isinstance(document, str):
+            return document
+            
+        if document.get("type") != "document" or "source" not in document:
+            return str(document)
+            
+        title = document.get("title", "")
+        data = document["source"].get("data", "")
+        context = document.get("context", "")
+        
+        result = f"{title}\n"
+        if context:
+            result += f"Context: {context}\n"
+        result += f"{data}"
+        
+        return result
