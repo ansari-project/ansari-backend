@@ -20,6 +20,7 @@ from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
 from ansari.tools.search_vectara import SearchVectara
+from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.prompt_mgr import PromptMgr
 
 # previous logger name: __name__ + ".Ansari"
@@ -50,13 +51,9 @@ class Ansari:
         """Initialize tool instances. Can be overridden by subclasses."""
         sq = SearchQuran(self.settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(self.settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchVectara(
+        sm = SearchMawsuah(
             self.settings.VECTARA_API_KEY.get_secret_value(),
             self.settings.MAWSUAH_VECTARA_CORPUS_KEY,
-            self.settings.MAWSUAH_FN_NAME,
-            self.settings.MAWSUAH_FN_DESCRIPTION,
-            self.settings.MAWSUAH_TOOL_PARAMS,
-            self.settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         ste = SearchTafsirEncyc(self.settings.USUL_API_TOKEN.get_secret_value())
         return {

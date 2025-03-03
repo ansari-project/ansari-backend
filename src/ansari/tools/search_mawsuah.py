@@ -1,109 +1,43 @@
 import json
 import logging
 import os
-import requests
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Any
 from anthropic import Anthropic
+from ansari.tools.search_vectara import SearchVectara
 
-VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
 TOOL_NAME = "search_mawsuah"
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 
-class SearchMawsuah:
-    def __init__(self, vectara_auth_token, vectara_customer_id, vectara_corpus_id, anthropic_api_key=None):
-        self.auth_token = vectara_auth_token
-        self.customer_id = vectara_customer_id
-        self.corpus_id = vectara_corpus_id
-        self.base_url = VECTARA_BASE_URL
-        self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-
-    def get_tool_description(self):
-        return {
-            "type": "function",
-            "function": {
-                "name": TOOL_NAME,
-                "description": (
-                    "Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
-                    "You call this tool when you need to provide information about Islamic law. "
-                    "Regardless of the language used in the original conversation, you will translate "
-                    "the query into Arabic before searching the encyclopedia. The tool returns a list "
-                    "of **potentially** relevant matches, which may include multiple paragraphs."
-                ),
-            },
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The topic to search for in the fiqh encyclopedia. "
-                        "You will translate this query into Arabic.",
-                    },
-                },
-                "required": ["query"],
-            },
-        }
-
-    def get_tool_name(self):
-        return TOOL_NAME
-
-    def run(self, query: str, num_results: int = 5):
-        print(f'Searching al-mawsuah for "{query}"')
-        # Headers
-        headers = {
-            "x-api-key": self.auth_token,
-            "customer-id": self.customer_id,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        data = {
-            "query": [
+class SearchMawsuah(SearchVectara):
+    def __init__(self, vectara_api_key, vectara_corpus_key):
+        # Initialize the SearchVectara parent with the necessary parameters
+        super().__init__(
+            vectara_api_key=vectara_api_key,
+            vectara_corpus_key=vectara_corpus_key,
+            fn_name=TOOL_NAME,
+            fn_description=(
+                "Queries an encyclopedia of Islamic jurisprudence (fiqh) for relevant rulings. "
+                "You call this tool when you need to provide information about Islamic law. "
+                "Regardless of the language used in the original conversation, you will translate "
+                "the query into Arabic before searching the encyclopedia. The tool returns a list "
+                "of **potentially** relevant matches, which may include multiple paragraphs."
+            ),
+            params=[
                 {
-                    "query": query,
-                    "queryContext": "",
-                    "start": 0,
-                    "numResults": num_results,
-                    "contextConfig": {
-                        "charsBefore": 0,
-                        "charsAfter": 0,
-                        "sentencesBefore": 2,
-                        "sentencesAfter": 2,
-                        "startTag": "<match>",
-                        "endTag": "</match>",
-                    },
-                    "corpusKey": [
-                        {
-                            "customerId": self.customer_id,
-                            "corpusId": self.corpus_id,
-                            "semantics": 0,
-                            "metadataFilter": "",
-                            "lexicalInterpolationConfig": {"lambda": 0.1},
-                            "dim": [],
-                        },
-                    ],
-                    "summary": [],
-                },
+                    "name": "query",
+                    "type": "string",
+                    "description": "The topic to search for in the fiqh encyclopedia. "
+                    "You will translate this query into Arabic.",
+                }
             ],
-        }
-
-        response = requests.post(self.base_url, headers=headers, data=json.dumps(data))
-
-        if response.status_code != 200:
-            print(
-                f"Query failed with code {response.status_code}, reason {response.reason}, text {response.text}",
-            )
-            response.raise_for_status()
-
-        return response.json()
-
-    def pp_response(self, response):
-        results = []
-        for response_item in response["responseSet"]:
-            for result in response_item["response"]:
-                results.append(result["text"])
-        return results
+            required_params=["query"]
+        )
+        
+        # Get Anthropic API key from environment
+        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     def translate_text(self, arabic_text: str) -> str:
         """
@@ -143,35 +77,29 @@ class SearchMawsuah:
         Returns:
             A list of reference documents formatted for Claude with Arabic and English text
         """
-        if not response.get("responseSet"):
+        # Get base documents from parent class
+        documents = super().format_as_ref_list(response)
+        
+        if not documents:
             return ["No results found."]
             
-        documents = []
-        for response_item in response.get("responseSet", []):
-            for i, result in enumerate(response_item.get("response", [])):
-                # Get the Arabic text
-                arabic_text = result.get("text", "")
+        # Enhance each document with a translation
+        for i, doc in enumerate(documents):
+            if isinstance(doc, str):
+                continue
                 
-                # Get English translation
-                english_translation = self.translate_text(arabic_text)
-                
-                # Create citation title and combined text
-                title = f"Encyclopedia of Islamic Jurisprudence, Entry {i+1}"
-                
-                # Combine Arabic and English text
-                combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}" if english_translation else arabic_text
-                
-                documents.append({
-                    "type": "document",
-                    "source": {
-                        "type": "text",
-                        "media_type": "text/plain",
-                        "data": combined_text
-                    },
-                    "title": title,
-                    "context": "Retrieved from Encyclopedia of Islamic Jurisprudence",
-                    "citations": {"enabled": True}
-                })
+            # Get the Arabic text from the document
+            arabic_text = doc["source"]["data"]
+            
+            # Get English translation
+            english_translation = self.translate_text(arabic_text)
+            
+            # Combine Arabic and English text
+            combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}" if english_translation else arabic_text
+            
+            # Update the document with combined text
+            doc["source"]["data"] = combined_text
+            doc["title"] = f"Encyclopedia of Islamic Jurisprudence, Entry {i+1}"
                 
         return documents
 
@@ -185,75 +113,56 @@ class SearchMawsuah:
         Returns:
             A tool result dictionary with formatted results
         """
-        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
+        # Get base tool result from parent class
+        result = super().format_as_tool_result(response)
+        
+        # If no results were found, return as is
+        if not result.get("results", []):
             return {
                 "type": "text",
                 "text": "No results found."
             }
             
+        # Add translations to each result
         items = []
-        for response_item in response.get("responseSet", []):
-            for result in response_item.get("response", []):
-                arabic_text = result.get("text", "")
-                english_translation = self.translate_text(arabic_text)
-                
-                formatted_text = f"Arabic Text: {arabic_text}\n\n"
-                if english_translation:
-                    formatted_text += f"English Translation: {english_translation}\n\n"
-                
-                items.append({
-                    "type": "text",
-                    "text": formatted_text
-                })
+        for entry in result.get("results", []):
+            arabic_text = entry.get("text", "")
+            english_translation = self.translate_text(arabic_text)
+            
+            formatted_text = f"Arabic Text: {arabic_text}\n\n"
+            if english_translation:
+                formatted_text += f"English Translation: {english_translation}\n\n"
+            
+            items.append({
+                "type": "text",
+                "text": formatted_text
+            })
         
         return {
             "type": "array",
             "items": items
         }
 
-    def format_tool_response(self, response: Dict[str, Any]) -> str:
-        """
-        Format the final tool response as a string.
-        
-        Args:
-            response: The raw API response from Vectara
-            
-        Returns:
-            A string message about the search results
-        """
-        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
-            return "No results found for the query in the Encyclopedia of Islamic Jurisprudence."
-            
-        count = 0
-        for response_item in response.get("responseSet", []):
-            count += len(response_item.get("response", []))
-            
-        return f"Found {count} relevant results from the Encyclopedia of Islamic Jurisprudence. Please see the included reference list for details."
-
-    def run_as_list(self, query: str, num_results: int = 10):
-        return self.pp_response(self.run(query, num_results))
-
-    def run_as_json(self, query: str, num_results: int = 10):
-        return {"matches": self.pp_response(self.run(query, num_results))}
-        
-    def run_as_string(self, query: str, num_results: int = 10) -> str:
+    def run_as_string(self, query: str, num_results: int = 10, **kwargs) -> str:
         """Return results as a human-readable string with both Arabic and English."""
-        response = self.run(query, num_results)
+        # Get the response using the parent's run method
+        response = self.run(query, num_results, **kwargs)
         
-        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
+        # Handle no results case
+        if not response.get("search_results"):
             return "No results found."
             
+        # Process results
         results = []
-        for response_item in response.get("responseSet", []):
-            for i, result in enumerate(response_item.get("response", [])):
-                arabic_text = result.get("text", "")
-                english_translation = self.translate_text(arabic_text)
-                
-                entry = f"Entry {i+1}:\n"
-                entry += f"Arabic Text: {arabic_text}\n"
-                if english_translation:
-                    entry += f"English Translation: {english_translation}\n"
-                
-                results.append(entry)
+        for i, result in enumerate(response.get("search_results", [])):
+            arabic_text = result.get("text", "")
+            english_translation = self.translate_text(arabic_text)
+            
+            entry = f"Entry {i+1}:\n"
+            entry += f"Arabic Text: {arabic_text}\n"
+            if english_translation:
+                entry += f"English Translation: {english_translation}\n"
+            
+            results.append(entry)
                 
         return "\n\n".join(results)

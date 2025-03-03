@@ -9,6 +9,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.ansari_logger import get_logger
+from ansari.tools.search_mawsuah import SearchMawsuah
 
 # Set up logging
 logger = get_logger()
