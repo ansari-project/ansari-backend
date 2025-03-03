@@ -412,6 +412,8 @@ class AnsariClaude(Ansari):
                                     + document_blocks,
                                 }
                             )
+                            # Log the tool result message
+                            self._log_message(self.message_history[-1])
 
                         except Exception as e:
                             logger.error(f"Error processing tool call: {str(e)}")
@@ -428,6 +430,8 @@ class AnsariClaude(Ansari):
                                     ],
                                 }
                             )
+                            # Log the error message
+                            self._log_message(self.message_history[-1])
 
     def process_message_history(self):
         """
