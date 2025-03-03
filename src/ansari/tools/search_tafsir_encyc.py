@@ -54,78 +54,88 @@ class SearchTafsirEncyc(SearchUsul):
         return base_description
         
     def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Format raw results as a list of reference objects for the tafsir encyclopedia.
-        
-        This implementation returns a list of structured objects rather than strings.
+        """Format raw results as a list of reference documents for Claude.
 
         Args:
             results: Raw results from run()
 
         Returns:
-            List of formatted reference objects
+            List of document objects formatted for Claude
         """
-        formatted_results = []
-
         # Check for empty results in different ways:
-        # 1. results is None or empty dict
-        # 2. "results" key doesn't exist
-        # 3. "results" key exists but is an empty list
         if not results or "results" not in results or not results.get("results", []):
-            return [{"message": "No results found."}]
+            return ["No results found."]
 
+        documents = []
         for result in results.get("results", []):
-            # Initialize the reference object with default values
-            ref_obj = {
-                "id": "Unknown",
-                "page": "Unknown",
-                "volume": "",
-                "text": "",
-                "chapters": [],
-                "source": "Encyclopedia of Quranic Interpretation Based on Narrations"
-            }
-            
-            # Handle the API response structure
+            # Extract data from the result
             if "node" in result:
                 node = result["node"]
-                ref_obj["text"] = node.get("text", "")
+                text = node.get("text", "")
+                node_id = "Unknown"
+                page_info = "Unknown"
+                volume_info = ""
+                chapter_info = ""
 
-                # Extract node ID and page info from metadata if available
+                # Extract metadata if available
                 if "metadata" in node:
                     metadata = node["metadata"]
-                    book_id = metadata.get("bookId", "")
-                    ref_obj["id"] = f"{book_id}" if book_id else "Unknown"
-
-                    # Extract page information
+                    node_id = metadata.get("bookId", "Unknown")
+                    
+                    # Extract page and volume information
                     if "pages" in metadata and len(metadata["pages"]) > 0:
                         page = metadata["pages"][0]
-                        ref_obj["page"] = page.get("page", "Unknown")
-                        ref_obj["volume"] = page.get("volume", "")
-
+                        page_info = page.get("page", "Unknown")
+                        volume_info = page.get("volume", "")
+                        
                     # Extract chapter information
                     if "chapters" in metadata and len(metadata["chapters"]) > 0:
-                        for chapter in metadata["chapters"]:
-                            chapter_title = chapter.get("title", "")
-                            if chapter_title:
-                                ref_obj["chapters"].append({"title": chapter_title})
+                        chapter = metadata["chapters"][0]
+                        chapter_info = chapter.get("title", "")
             else:
                 # Fallback to original structure if "node" is not present
-                ref_obj["text"] = result.get("text", "")
-                ref_obj["id"] = result.get("nodeId", "Unknown")
-                ref_obj["page"] = result.get("page", "Unknown")
-
+                text = result.get("text", "")
+                node_id = result.get("nodeId", "Unknown")
+                page_info = result.get("page", "Unknown")
+                volume_info = ""
+                
                 if "chapter" in result:
-                    chapter_title = result["chapter"].get("title", "")
-                    if chapter_title:
-                        ref_obj["chapters"].append({"title": chapter_title})
+                    chapter_info = result["chapter"].get("title", "")
+                else:
+                    chapter_info = ""
 
-            formatted_results.append(ref_obj)
+            # Create citation title with available information
+            title_parts = []
+            title_parts.append("Encyclopedia of Quranic Interpretation")
+            if volume_info:
+                title_parts.append(f"Volume {volume_info}")
+            if page_info:
+                title_parts.append(f"Page {page_info}")
+            if node_id:
+                title_parts.append(f"ID: {node_id}")
+                
+            title = ", ".join(title_parts)
+            
+            # Add chapter info to the data if available
+            if chapter_info:
+                data = f"Chapter: {chapter_info}\n\n{text}"
+            else:
+                data = text
 
-        # If after processing all results we still have an empty list,
-        # return a message object
-        if not formatted_results:
-            return [{"message": "No results found."}]
+            # Create the document object
+            documents.append({
+                "type": "document",
+                "source": {
+                    "type": "text", 
+                    "media_type": "text/plain", 
+                    "data": data
+                },
+                "title": title,
+                "context": "Retrieved from the Encyclopedia of Quranic Interpretation Based on Narrations",
+                "citations": {"enabled": True}
+            })
 
-        return formatted_results
+        return documents if documents else ["No results found."]
     
     def _ref_object_to_string(self, ref_obj: Dict[str, Any]) -> str:
         """Convert a reference object to a string representation.
@@ -136,29 +146,22 @@ class SearchTafsirEncyc(SearchUsul):
         Returns:
             String representation of the reference
         """
-        if "message" in ref_obj:
-            return ref_obj["message"]
-            
-        # Start with ID and page/volume
-        result = f"Node ID: {ref_obj['id']}\n"
+        if isinstance(ref_obj, str):
+            return ref_obj
         
-        if ref_obj.get("volume"):
-            result += f"Page: {ref_obj['page']} (Vol: {ref_obj['volume']})\n"
-        else:
-            result += f"Page: {ref_obj['page']}\n"
-            
-        # Add chapters if available
-        if ref_obj.get("chapters"):
-            chapters_text = []
-            for chapter in ref_obj["chapters"]:
-                if chapter.get("title"):
-                    chapters_text.append(chapter["title"])
-            
-            if chapters_text:
-                result += f"Chapter: {', '.join(chapters_text)}\n"
+        if "type" not in ref_obj or ref_obj["type"] != "document":
+            # Handle old format or unexpected format
+            return str(ref_obj)
         
-        # Add the main text
-        result += f"Text: {ref_obj['text']}\n"
+        # Extract data from the document object
+        title = ref_obj.get("title", "")
+        data = ""
+        if "source" in ref_obj and "data" in ref_obj["source"]:
+            data = ref_obj["source"]["data"]
+        
+        # Format as string
+        result = f"Node ID: {title}\n"
+        result += f"Text: {data}\n"
         
         return result
         
@@ -194,8 +197,8 @@ class SearchTafsirEncyc(SearchUsul):
         formatted_refs = self.format_as_ref_list(results)
         
         # Check if we have actual results or just a "no results" message
-        if len(formatted_refs) == 1 and "message" in formatted_refs[0]:
-            return {"type": "text", "text": formatted_refs[0]["message"]}
+        if len(formatted_refs) == 1 and isinstance(formatted_refs[0], str):
+            return {"type": "text", "text": formatted_refs[0]}
             
         # Otherwise, convert each reference to a tool result item
         formatted_items = []
@@ -223,4 +226,7 @@ class SearchTafsirEncyc(SearchUsul):
             return "No results found for your query in the Encyclopedia of Quranic Interpretation."
             
         count = len(results.get("results", []))
-        return f"Found {count} relevant passage(s) in the Encyclopedia of Quranic Interpretation. Please see the included reference list for details."
+        return (
+            f"Found {count} relevant passage(s) in the Encyclopedia of Quranic Interpretation. "
+            "Please see the included reference list for details."
+        )

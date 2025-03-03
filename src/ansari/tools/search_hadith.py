@@ -86,7 +86,10 @@ class SearchHadith:
             grade = result.get("grade_en", "").strip()
 
             # Create citation title
-            title = f"{source_book} - Chapter {chapter}: {chapter_name}, Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
+            title = (
+                f"{source_book} - Chapter {chapter}: {chapter_name}, "
+                f"Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
+            )
 
             # Complete text of hadith with grade
             data = f"English Text: {text}"

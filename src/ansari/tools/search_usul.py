@@ -126,14 +126,11 @@ class SearchUsul(BaseSearchTool):
                 text = node.get("text", "")
 
                 # Extract node ID and page info from metadata if available
-                node_id = "Unknown"
                 page_info = "Unknown"
                 chapter_info = ""
 
                 if "metadata" in node:
                     metadata = node["metadata"]
-                    book_id = metadata.get("bookId", "")
-                    node_id = f"{book_id}" if book_id else "Unknown"
 
                     # Extract page information
                     if "pages" in metadata and len(metadata["pages"]) > 0:
@@ -150,7 +147,6 @@ class SearchUsul(BaseSearchTool):
             else:
                 # Fallback to original structure if "node" is not present
                 text = result.get("text", "")
-                node_id = result.get("nodeId", "")
                 page_info = result.get("page", "")
                 chapter_info = ""
 
@@ -158,7 +154,7 @@ class SearchUsul(BaseSearchTool):
                     chapter_title = result["chapter"].get("title", "")
                     chapter_info = f"\nChapter: {chapter_title}"
 
-            formatted_results.append(f"ID: {node_id}\nPage: {page_info}{chapter_info}\nText: {text}\n")
+            formatted_results.append(f"Page: {page_info}{chapter_info}\nText: {text}\n")
 
         # If after processing all results we still have an empty list,
         # return the "No results found" message
