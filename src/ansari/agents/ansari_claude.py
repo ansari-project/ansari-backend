@@ -143,7 +143,7 @@ class AnsariClaude(Ansari):
             ref_list=ref_list,
         )
 
-    def replace_message_history(self, message_history: list[dict]):
+    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -151,7 +151,7 @@ class AnsariClaude(Ansari):
         # AnsariClaude doesn't use system message, so we don't need to prefix it
         self.message_history = message_history
 
-        for m in self.process_message_history():
+        for m in self.process_message_history(use_tool, stream):
             if m:
                 yield m
 
@@ -433,7 +433,7 @@ class AnsariClaude(Ansari):
                             # Log the error message
                             self._log_message(self.message_history[-1])
 
-    def process_message_history(self):
+    def process_message_history(self, use_tool=True, stream=True):
         """
         This is the main loop that processes the message history.
         It yields from the process_one_round method until the last message is an assistant message.
