@@ -9,11 +9,11 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# Skip these tests if no API token is available
-pytestmark = pytest.mark.skipif(
-    not hasattr(settings, "USUL_API_TOKEN") or settings.USUL_API_TOKEN is None,
-    reason="USUL_API_TOKEN not set in environment or config"
-)
+# Don't skip tests
+# pytestmark = pytest.mark.skipif(
+#     not hasattr(settings, "USUL_API_TOKEN") or settings.USUL_API_TOKEN is None,
+#     reason="USUL_API_TOKEN not set in environment or config"
+# )
 
 
 class TestSearchTafsirEncyc:
