@@ -141,7 +141,6 @@ class SearchVectara:
             return []
 
         documents = []
-        logger.info(f"!!!! Formatting as reference list:\n{json.dumps(response, indent=2)}")
         for result in response["search_results"]:
             # Temporary placeholder.
             # Nasty hack. TODO(mwk): Fix this
