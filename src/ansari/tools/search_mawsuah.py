@@ -1,9 +1,8 @@
-import json
 import logging
-import os
+import asyncio
 from typing import Dict, List, Any
-from anthropic import Anthropic
 from ansari.tools.search_vectara import SearchVectara
+from ansari.util.translation import translate_text
 
 TOOL_NAME = "search_mawsuah"
 
@@ -35,36 +34,25 @@ class SearchMawsuah(SearchVectara):
             ],
             required_params=["query"]
         )
-        
-        # Get Anthropic API key from environment
-        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-
-    def translate_text(self, arabic_text: str) -> str:
+            
+    async def translate_texts_parallel(self, texts: List[str]) -> List[str]:
         """
-        Translate Arabic text to English using Anthropic's Claude API.
+        Translate multiple texts in parallel.
         
         Args:
-            arabic_text: The Arabic text to translate
+            texts: List of Arabic texts to translate
             
         Returns:
-            The English translation of the text
+            List of English translations
         """
-        if not self.anthropic_api_key:
-            logger.warning("No Anthropic API key provided, skipping translation")
-            return ""
+        if not texts:
+            return []
             
-        try:
-            client = Anthropic(api_key=self.anthropic_api_key)
-            response = client.messages.create(
-                model="claude-3-7-sonnet-20250219",
-                max_tokens=1000,
-                system="You are a translator specializing in Arabic to English translation. Translate the provided text accurately and fluently, preserving the meaning, tone, and context.",
-                messages=[{"role": "user", "content": f"Translate this Arabic text to English: {arabic_text}"}]
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Translation error: {e}")
-            return ""
+        # Create translation tasks for all texts
+        tasks = [asyncio.to_thread(translate_text, text, "en", "ar") for text in texts]
+        
+        # Run all translations in parallel and return results
+        return await asyncio.gather(*tasks)
 
     def format_as_ref_list(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -82,24 +70,33 @@ class SearchMawsuah(SearchVectara):
         
         if not documents:
             return ["No results found."]
-            
-        # Enhance each document with a translation
+        
+        # Extract Arabic texts from documents that aren't strings
+        arabic_texts = []
+        valid_doc_indices = []
+        
         for i, doc in enumerate(documents):
             if isinstance(doc, str):
                 continue
                 
-            # Get the Arabic text from the document
-            arabic_text = doc["source"]["data"]
-            
-            # Get English translation
-            english_translation = self.translate_text(arabic_text)
+            arabic_texts.append(doc["source"]["data"])
+            valid_doc_indices.append(i)
+        
+        # Translate all texts in parallel
+        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        
+        # Update documents with translations
+        for idx, trans_idx in enumerate(valid_doc_indices):
+            doc = documents[trans_idx]
+            arabic_text = arabic_texts[idx]
+            english_translation = english_translations[idx]
             
             # Combine Arabic and English text
             combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}" if english_translation else arabic_text
             
             # Update the document with combined text
             doc["source"]["data"] = combined_text
-            doc["title"] = f"Encyclopedia of Islamic Jurisprudence, Entry {i+1}"
+            doc["title"] = f"Encyclopedia of Islamic Jurisprudence, Entry {trans_idx+1}"
                 
         return documents
 
@@ -122,12 +119,19 @@ class SearchMawsuah(SearchVectara):
                 "type": "text",
                 "text": "No results found."
             }
-            
+        
+        # Extract all Arabic texts from results
+        entries = result.get("results", [])
+        arabic_texts = [entry.get("text", "") for entry in entries]
+        
+        # Translate all texts in parallel
+        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        
         # Add translations to each result
         items = []
-        for entry in result.get("results", []):
-            arabic_text = entry.get("text", "")
-            english_translation = self.translate_text(arabic_text)
+        for i, entry in enumerate(entries):
+            arabic_text = arabic_texts[i]
+            english_translation = english_translations[i]
             
             formatted_text = f"Arabic Text: {arabic_text}\n\n"
             if english_translation:
@@ -151,12 +155,19 @@ class SearchMawsuah(SearchVectara):
         # Handle no results case
         if not response.get("search_results"):
             return "No results found."
-            
+        
+        # Extract all Arabic texts from results
+        search_results = response.get("search_results", [])
+        arabic_texts = [result.get("text", "") for result in search_results]
+        
+        # Translate all texts in parallel
+        english_translations = asyncio.run(self.translate_texts_parallel(arabic_texts))
+        
         # Process results
         results = []
-        for i, result in enumerate(response.get("search_results", [])):
-            arabic_text = result.get("text", "")
-            english_translation = self.translate_text(arabic_text)
+        for i, result in enumerate(search_results):
+            arabic_text = arabic_texts[i]
+            english_translation = english_translations[i]
             
             entry = f"Entry {i+1}:\n"
             entry += f"Arabic Text: {arabic_text}\n"
