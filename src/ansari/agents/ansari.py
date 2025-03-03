@@ -399,11 +399,6 @@ class Ansari:
         # Now we have to pass the results back in
         # NOTE: "citation" == ayah/hadith/etc. (based on the called tool)
         try:
-            # Debug logging to see what's going on
-            print(f"DEBUG - Results type before processing: {type(results)}")
-            print(f"DEBUG - First result item type: {type(results[0]) if results and isinstance(results, list) else 'N/A'}")
-            print(f"DEBUG - Results sample before processing: {str(results)[:200]}")
-            
             # Ensure results is a list of strings
             if not isinstance(results, list):
                 logger.error(f"Results is not a list: {type(results)}")
@@ -412,9 +407,7 @@ class Ansari:
                 logger.warning("Not all results are strings, converting to strings")
                 results = [str(item) for item in results]
             
-            print(f"DEBUG - Results after conversion: {str(results)[:200]}")
             results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
-            print(f"DEBUG - Final results_str: {results_str[:200]}")
         except Exception as e:
             logger.error(f"Error joining results: {str(e)}")
             logger.error(f"Results that caused error: {results}")
