@@ -140,12 +140,10 @@ class SearchQuran:
         logger.info(f'Searching quran for "{query}"')
         results = self.run(query, num_results)
         logger.debug(f'Results from API: {type(results)}')
-        print(f'DEBUG - Results structure: {str(results)[:500]}')
         try:
             # Use the direct approach from the original implementation
             formatted_results = []
             for r in results:
-                print(f"DEBUG - Processing result item: {type(r)}")
                 ayah_str = self.pp_ayah(r)
                 formatted_results.append(ayah_str)
             return formatted_results
