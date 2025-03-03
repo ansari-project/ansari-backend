@@ -1,6 +1,5 @@
 import requests
 import logging
-import json
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -72,7 +71,6 @@ class SearchHadith:
     def format_as_ref_list(self, results):
         """Format raw API results as a list of reference documents for Claude."""
         documents = []
-        logger.info(f"!!!! Formatting as reference list:\n{json.dumps(results, indent=2)}")
         for result in results:
             source_book = result.get("source_book", "")
             chapter = result.get("chapter_number", "")
