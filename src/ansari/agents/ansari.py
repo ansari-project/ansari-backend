@@ -10,7 +10,6 @@ import copy
 import json
 import time
 import traceback
-from datetime import datetime
 
 import litellm
 
@@ -33,18 +32,18 @@ class Ansari:
         self.settings = settings
         self.json_format = json_format
         self.message_logger = message_logger
-        
+
         # Initialize tools
         self.tool_name_to_instance = self._initialize_tools()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
-        
+
         # Initialize prompt manager and system message
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
-        
+
         # Initialize message history with system message
         self.message_history = [{"role": "system", "content": self.sys_msg}]
-        
+
         self.model = settings.MODEL
 
     def _initialize_tools(self):
@@ -59,9 +58,7 @@ class Ansari:
             self.settings.MAWSUAH_TOOL_PARAMS,
             self.settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
-        ste = SearchTafsirEncyc(
-            self.settings.VECTARA_API_KEY.get_secret_value()
-        )
+        ste = SearchTafsirEncyc(self.settings.USUL_API_TOKEN.get_secret_value())
         return {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
@@ -79,21 +76,15 @@ class Ansari:
     def process_input(self, user_input: str):
         """Process user input and generate a response."""
         logger.debug(f"Processing input: {user_input}")
-        
+
         # Add user message to history
-        self.message_history.append({
-            "role": "user",
-            "content": user_input
-        })
+        self.message_history.append({"role": "user", "content": user_input})
         logger.debug("Added user message to history")
-        
+
         if self.message_logger:
-            self.message_logger.log(
-                role="user",
-                content=user_input
-            )
+            self.message_logger.log(role="user", content=user_input)
             logger.debug("Logged user message")
-        
+
         for m in self.process_message_history():
             if m:
                 yield m
@@ -348,12 +339,35 @@ class Ansari:
             logger.warning(f"Unknown tool name: {tool_name}")
             return
         try:
-            query: str = json.loads(tool_args)["query"]
+            logger.debug(f"Tool args: {tool_args}")
+            args_dict = json.loads(tool_args)
+            logger.debug(f"Parsed tool args: {args_dict}")
+            query: str = args_dict["query"]
+            logger.debug(f"Extracted query: {query}")
         except json.JSONDecodeError:
+            logger.error(f"JSON decode error for tool args: {tool_args}")
             raise json.JSONDecodeError
+        except KeyError as e:
+            logger.error(f"Missing key in tool args: {e} - Tool args: {tool_args}")
+            query = "" 
 
-        tool_instance: SearchQuran | SearchHadith = self.tool_name_to_instance[tool_name]
-        results = tool_instance.run_as_list(query)
+        tool_instance = self.tool_name_to_instance[tool_name]
+        logger.debug(f"Running {tool_name} with query: {query}")
+        try:
+            # Get raw results directly using run() instead of run_as_list()
+            raw_results = tool_instance.run(query)
+            logger.debug(f"Raw results type: {type(raw_results)}")
+            
+            # Format the results as a list of strings
+            results = tool_instance.format_as_list(raw_results)
+            logger.debug(f"Formatted results type: {type(results)}")
+            logger.debug(f"Results sample: {str(results)[:200] if results else 'Empty results'}")
+        except Exception as e:
+            import traceback
+            logger.error(f"Error running {tool_name}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return an error message as results
+            results = [f"Error running {tool_name}: {str(e)}"]
 
         tool_definition = {
             "name": tool_name,
@@ -384,7 +398,28 @@ class Ansari:
 
         # Now we have to pass the results back in
         # NOTE: "citation" == ayah/hadith/etc. (based on the called tool)
-        results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
+        try:
+            # Debug logging to see what's going on
+            print(f"DEBUG - Results type before processing: {type(results)}")
+            print(f"DEBUG - First result item type: {type(results[0]) if results and isinstance(results, list) else 'N/A'}")
+            print(f"DEBUG - Results sample before processing: {str(results)[:200]}")
+            
+            # Ensure results is a list of strings
+            if not isinstance(results, list):
+                logger.error(f"Results is not a list: {type(results)}")
+                results = [str(results)]
+            elif not all(isinstance(item, str) for item in results):
+                logger.warning("Not all results are strings, converting to strings")
+                results = [str(item) for item in results]
+            
+            print(f"DEBUG - Results after conversion: {str(results)[:200]}")
+            results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
+            print(f"DEBUG - Final results_str: {results_str[:200]}")
+        except Exception as e:
+            logger.error(f"Error joining results: {str(e)}")
+            logger.error(f"Results that caused error: {results}")
+            results_str = f"Error processing results: {str(e)}"
+        
         msg_generated_from_tool = {
             "role": "tool",
             "content": results_str,

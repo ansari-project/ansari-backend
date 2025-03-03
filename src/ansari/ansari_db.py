@@ -34,14 +34,16 @@ class MessageLogger:
         logger.debug(f"DB is {db}")
         self.db = db
 
-    def log(self, role: str, content: str, tool_name: str = None, tool_details: dict[str, dict] = None, ref_list: list = None) -> None:
+    def log(
+        self, role: str, content: str, tool_name: str = None, tool_details: dict[str, dict] = None, ref_list: list = None
+    ) -> None:
         if not self.to_whatsapp:
             self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
         else:
             self.db.append_message_whatsapp(
                 self.user_id,
                 self.thread_id,
-                {"role": role, "content": content, "tool_name": tool_name, "tool_details": tool_details, "ref_list": ref_list}
+                {"role": role, "content": content, "tool_name": tool_name, "tool_details": tool_details, "ref_list": ref_list},
             )
 
 
@@ -332,7 +334,7 @@ class AnsariDB:
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
             insert_cmd = "INSERT INTO refresh_tokens (user_id, token, access_token_id) VALUES (%s, %s, %s);"
-            logger.info(f"Insert command: {insert_cmd}, params: ({user_id}, {token}, {access_token_id})")   
+            logger.info(f"Insert command: {insert_cmd}, params: ({user_id}, {token}, {access_token_id})")
             self._execute_query(insert_cmd, (user_id, token, access_token_id))
             return {"status": "success", "token": token}
         except Exception as e:
@@ -485,21 +487,21 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def append_message(
-        self, 
-        user_id: int, 
-        thread_id: int, 
-        role: str, 
-        content: str | list | dict, 
-        tool_name: str = None, 
+        self,
+        user_id: int,
+        thread_id: int,
+        role: str,
+        content: str | list | dict,
+        tool_name: str = None,
         tool_details: dict[str, dict] = None,
-        ref_list: list = None
+        ref_list: list = None,
     ) -> None:
         """Append a message to the given thread.
-        
+
         This method standardizes the message format before storage to ensure
         consistency when messages are retrieved later. Complex structures
         like lists and dictionaries are properly serialized.
-        
+
         Args:
             user_id: The user ID
             thread_id: The thread ID
@@ -514,44 +516,24 @@ class AnsariDB:
             if role == "assistant" and not isinstance(content, list):
                 # Convert simple assistant messages to expected format
                 content = [{"type": "text", "text": content}]
-                
+
             # Ensure proper serialization of complex structures
-            serialized_content = (
-                json.dumps(content) 
-                if isinstance(content, (dict, list)) 
-                else content
-            )
-            
+            serialized_content = json.dumps(content) if isinstance(content, (dict, list)) else content
+
             # Properly serialize tool details and reference list
-            serialized_tool_details = (
-                json.dumps(tool_details) 
-                if tool_details is not None 
-                else None
-            )
-            
-            serialized_ref_list = (
-                json.dumps(ref_list) 
-                if ref_list is not None 
-                else None
-            )
-            
+            serialized_tool_details = json.dumps(tool_details) if tool_details is not None else None
+
+            serialized_ref_list = json.dumps(ref_list) if ref_list is not None else None
+
             # Insert into database
             query = """
                 INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            params = (
-                user_id,
-                thread_id,
-                role,
-                serialized_content,
-                tool_name,
-                serialized_tool_details,
-                serialized_ref_list
-            )
-            
+            params = (user_id, thread_id, role, serialized_content, tool_name, serialized_tool_details, serialized_ref_list)
+
             self._execute_query(query, params, "")
-            
+
         except Exception as e:
             logger.warning(f"Error appending message to database: {e}")
             raise
@@ -575,7 +557,7 @@ class AnsariDB:
                 message["content"],
                 message.get("tool_name"),
                 json.dumps(message.get("tool_details")) if message.get("tool_details") else None,
-                json.dumps(message.get("ref_list")) if message.get("ref_list") else None
+                json.dumps(message.get("ref_list")) if message.get("ref_list") else None,
             )
             self._execute_query(query, params, "")
         except Exception as e:
@@ -640,7 +622,7 @@ class AnsariDB:
             msgs = []
             for db_row in result:
                 msgs.extend(self.convert_message_llm(db_row))
-                
+
             # Wrap the messages in a history object bundled with its thread name
             history = {
                 "thread_name": thread_name,
@@ -884,50 +866,50 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def convert_message(self, msg: Iterable[str]) -> dict:
-        """Convert a message from database format to a displayable format. 
-        This means stripping things like tool usage. """
+        """Convert a message from database format to a displayable format.
+        This means stripping things like tool usage."""
         role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
         logger.info(f"Content is {content}")
-        
+
         # If content is a string that looks like JSON, try to parse it
-        if isinstance(content, str) and (content.startswith('[') or content.startswith('{')):
+        if isinstance(content, str) and (content.startswith("[") or content.startswith("{")):
             try:
                 content = json.loads(content)
             except json.JSONDecodeError:
                 # Keep as string if not valid JSON
                 pass
-                
+
         # If content is a list, find the first element with type "text"
         if isinstance(content, list):
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "text":
                     content = item.get("text", "")
                     break
-                    
+
         return {"role": role, "content": content}
 
     def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
         """Convert a message from database format to LLM format.
-        
+
         This method ensures that the database-stored messages are reconstructed
         into the proper format expected by the LLM interface, preserving all
         necessary structure and relationships between content, tool data, and references.
         """
         role, content, tool_name, tool_details, ref_list = msg
-        
+
         # Parse JSON content if needed
-        if isinstance(content, str) and (content.startswith('[') or content.startswith('{')):
+        if isinstance(content, str) and (content.startswith("[") or content.startswith("{")):
             try:
                 content = json.loads(content)
             except json.JSONDecodeError:
                 # Keep as string if not valid JSON
                 pass
-                
+
         # Handle tool result messages (typically user messages with tool response)
         if tool_name and role == "user":
             # Parse the reference list if it exists
             ref_list_data = json.loads(ref_list) if ref_list else []
-            
+
             # Parse tool details
             tool_use_id = None
             if tool_details:
@@ -936,90 +918,62 @@ class AnsariDB:
                     tool_use_id = tool_details_dict.get("id")
                 except json.JSONDecodeError:
                     pass
-            
+
             # Create a properly structured tool result message
             result_content = []
-            
+
             # Add the tool result block
             if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
                 # Content already has tool_result structure
                 result_content = content
             else:
                 # Need to create tool_result structure
-                result_content = [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use_id,
-                        "content": content
-                    }
-                ]
-            
+                result_content = [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content}]
+
             # Add reference list data
             if ref_list_data:
                 result_content.extend(ref_list_data)
-                
-            return [{
-                "role": role,
-                "content": result_content
-            }]
-            
+
+            return [{"role": role, "content": result_content}]
+
         # Handle assistant messages with tool use
         elif role == "assistant" and tool_name:
             # Create a properly structured assistant message with tool use
             result = []
-            
+
             # First add the regular content message
             if content:
                 if isinstance(content, list):
-                    result.append({
-                        "role": role,
-                        "content": content
-                    })
+                    result.append({"role": role, "content": content})
                 else:
-                    result.append({
-                        "role": role,
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": content
-                            }
-                        ]
-                    })
-            
+                    result.append({"role": role, "content": [{"type": "text", "text": content}]})
+
             # Parse tool details
             if tool_details:
                 try:
                     tool_details_dict = json.loads(tool_details)
                     tool_id = tool_details_dict.get("id")
                     tool_input = tool_details_dict.get("input")
-                    
+
                     # If we have a message already, append the tool_use to its content
                     if result:
                         if isinstance(result[0]["content"], list):
-                            result[0]["content"].append({
-                                "type": "tool_use",
-                                "id": tool_id,
-                                "name": tool_name,
-                                "input": tool_input
-                            })
+                            result[0]["content"].append(
+                                {"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input}
+                            )
                     # Otherwise create a new message
                     else:
-                        result.append({
-                            "role": role,
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": tool_id,
-                                    "name": tool_name,
-                                    "input": tool_input
-                                }
-                            ]
-                        })
+                        result.append(
+                            {
+                                "role": role,
+                                "content": [{"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input}],
+                            }
+                        )
                 except json.JSONDecodeError:
                     pass
-                    
+
             return result
-            
+
         # Handle regular messages (no tool use)
         else:
             # For text messages from assistant, ensure they have the proper structure
@@ -1029,15 +983,7 @@ class AnsariDB:
                     return [{"role": role, "content": content}]
                 else:
                     # Convert to the expected format with type: text
-                    return [{
-                        "role": role,
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": content
-                            }
-                        ]
-                    }]
+                    return [{"role": role, "content": [{"type": "text", "text": content}]}]
             # For user messages, keep the format simple unless already complex
             else:
                 return [{"role": role, "content": content}]

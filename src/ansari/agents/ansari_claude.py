@@ -193,7 +193,7 @@ class AnsariClaude(Ansari):
         """Process a tool call and return its result as a list."""
         if tool_name not in self.tool_name_to_instance:
             logger.warning(f"Unknown tool name: {tool_name}")
-            return []
+            return ([], [])
 
         try:
             query = tool_args["query"]  # tool_args is now a dict, not a string
@@ -213,12 +213,11 @@ class AnsariClaude(Ansari):
         reference_list = tool_instance.format_as_ref_list(results)
 
         if not reference_list:
-            return ["No results found"]
+            return (tool_result, [])
 
         logger.info(f"Got {len(reference_list)} results from {tool_name}")
 
-        # Add reference list to tool result
-
+        # Return results
         return (tool_result, reference_list)
 
     def process_one_round(self) -> Generator[str, None, None]:
@@ -390,24 +389,15 @@ class AnsariClaude(Ansari):
 
                             logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
 
-                            # Convert reference strings to document objects for Claude
+                            # Check what type of data we're dealing with
                             document_blocks = []
-                            for ref in reference_list:
-                                # Parse out chapter title if available
-                                chapter_title = "Tafsir Reference"
-                                chapter_lines = [line for line in ref.split("\n") if line.startswith("Chapter:")]
-                                if chapter_lines:
-                                    chapter_title = chapter_lines[0].replace("Chapter:", "").strip()
-
-                                document_blocks.append(
-                                    {
-                                        "type": "document",
-                                        "source": {"type": "text", "media_type": "text/plain", "data": ref},
-                                        "title": chapter_title,
-                                        "context": "Retrieved from Encyclopedia of Quranic Interpretation Based on Narrations",
-                                    }
-                                )
-
+                            logger.debug(f"Reference list type: {type(reference_list)}")
+                            if reference_list and len(reference_list) > 0:
+                                logger.debug(f"First reference item type: {type(reference_list[0])}")
+                            
+                            # All references are now dictionaries, so we can directly use them
+                            document_blocks = reference_list
+                            
                             # Add tool result and document blocks in the same message
                             self.message_history.append(
                                 {
@@ -448,9 +438,21 @@ class AnsariClaude(Ansari):
 
         count = 0
 
+        # Check if the last message is a user message and needs to be logged.
+        # This check avoids double-logging the user message which is already logged in the parent Ansari.process_input method
         if len(self.message_history) > 0 and self.message_history[-1]["role"] == "user":
-            # Make sure to log this message
-            self._log_message(self.message_history[-1])
+            # Check if this message was logged by parent class by inspecting if it exists in the logger
+            should_log = True
+            if self.message_logger and hasattr(self.message_logger, 'messages'):
+                # If the last logged message in the logger matches the last message in history, don't log it again
+                if (len(self.message_logger.messages) > 0 and 
+                    self.message_logger.messages[-1]["role"] == "user" and 
+                    self.message_logger.messages[-1]["content"] == self.message_history[-1]["content"]):
+                    should_log = False
+                    
+            if should_log:
+                # Log the message if needed
+                self._log_message(self.message_history[-1])
 
         while self.message_history[-1]["role"] != "assistant":
             logger.info(f"Processing message iteration: {count}")
