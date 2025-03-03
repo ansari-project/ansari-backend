@@ -7,7 +7,7 @@ import requests
 from unittest.mock import patch, MagicMock, Mock
 
 from ansari.tools.search_mawsuah import SearchMawsuah
-from ansari.util.translation import translate_text
+from ansari.util.translation import translate_text, translate_texts_parallel
 from ansari.config import get_settings
 
 settings = get_settings()
@@ -46,7 +46,7 @@ class TestSearchMawsuah:
         assert True
 
     @pytest.mark.asyncio
-    @patch('ansari.tools.search_mawsuah.translate_text')
+    @patch('ansari.util.translation.translate_text')
     async def test_translate_texts_parallel(self, mock_translate):
         """Test the parallel translation of multiple texts."""
         # Configure the mock to return different values based on the input text
@@ -63,7 +63,7 @@ class TestSearchMawsuah:
             
         mock_translate.side_effect = mock_translation
         
-        results = await self.search_tool.translate_texts_parallel(self.arabic_texts)
+        results = await translate_texts_parallel(self.arabic_texts, "en", "ar")
         
         # Verify all texts were translated
         assert len(results) == len(self.arabic_texts)
@@ -177,7 +177,7 @@ class TestSearchMawsuah:
         assert result == "No results found."
     
     @pytest.mark.asyncio
-    @patch('ansari.tools.search_mawsuah.translate_text')
+    @patch('ansari.util.translation.translate_text')
     async def test_parallel_performance(self, mock_translate):
         """Test the performance of parallel translation."""
         # Configure the mock to simulate API delay (0.1 second per call)
@@ -211,7 +211,7 @@ class TestSearchMawsuah:
         
         # Time parallel translation
         start_time = time.time()
-        parallel_results = await self.search_tool.translate_texts_parallel(self.arabic_texts)
+        parallel_results = await translate_texts_parallel(self.arabic_texts, "en", "ar")
         parallel_time = time.time() - start_time
         
         # Log results
