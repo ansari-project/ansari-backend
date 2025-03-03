@@ -10,7 +10,6 @@ from ansari.ansari_db import MessageLogger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.ansari_logger import get_logger
-from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.translation import translate_texts_parallel
 
 # Set up logging
@@ -464,8 +463,21 @@ class AnsariClaude(Ansari):
 
         count = 0
 
-        # User messages are already logged by ApiPresenter through main_api.py
-        # Skip logging here to avoid double-logging
+        # Check if the last message is a user message and needs to be logged.
+        # This check avoids double-logging the user message which is already logged in the parent Ansari.process_input method
+        if len(self.message_history) > 0 and self.message_history[-1]["role"] == "user":
+            # Check if this message was logged by parent class by inspecting if it exists in the logger
+            should_log = True
+            if self.message_logger and hasattr(self.message_logger, 'messages'):
+                # If the last logged message in the logger matches the last message in history, don't log it again
+                if (len(self.message_logger.messages) > 0 and 
+                    self.message_logger.messages[-1]["role"] == "user" and 
+                    self.message_logger.messages[-1]["content"] == self.message_history[-1]["content"]):
+                    should_log = False
+                    
+            if should_log:
+                # Log the message if needed
+                self._log_message(self.message_history[-1])
 
         while self.message_history[-1]["role"] != "assistant":
             logger.info(f"Processing message iteration: {count}")
