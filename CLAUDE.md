@@ -1,10 +1,20 @@
 # Ansari Backend - Developer Guide
 
+## Git Commit Guidelines
+- Do not include "Generated with Claude Code" or "Co-Authored-By: Claude" in commit messages
+- Keep commit messages concise and descriptive
+- Use imperative mood in commit messages (e.g., "Add feature" not "Added feature")
+
 ## Build/Test/Lint Commands
 - Install dependencies: `pip install -r requirements.txt`
 - Run database setup: `python setup_database.py`
 - Run backend service: `uvicorn main_api:app --reload`
-- Run CLI version: `python main_stdio.py`
+- Run CLI version (interactive): 
+  - Claude: `python src/ansari/app/main_stdio.py -a AnsariClaude`
+  - OpenAI: `python src/ansari/app/main_stdio.py -a Ansari`
+- Run CLI with direct input:
+  - `python src/ansari/app/main_stdio.py -i "your question here"` 
+  - `python src/ansari/app/main_stdio.py --input "your question here"`
 - Run tests: `pytest tests/`
 - Run single test: `pytest tests/path/to/test.py::test_function_name`
 - Run tests with specific marker: `pytest -m integration`
