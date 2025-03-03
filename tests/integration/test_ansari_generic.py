@@ -1,11 +1,10 @@
 import pytest
 import json
-from typing import Type, List, Callable
+from typing import Type, List
 
 from ansari.agents.ansari import Ansari
 from ansari.agents.ansari_claude import AnsariClaude
 from ansari.config import Settings
-from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from tests.integration.test_helpers import history_and_log_matches, IntegrationMessageLogger
 
@@ -111,7 +110,6 @@ class AnsariTester:
         
         message_logger = IntegrationMessageLogger()
         message_logger.reset()  # Reset before the test
-=
         agent = self.create_agent(message_logger)
         
         # Test a query that should trigger reference lookups
@@ -213,7 +211,7 @@ class AnsariTester:
         # Test convert_message_llm (DB format to LLM format)
         for i, msg in enumerate(mock_db.get_stored_messages()):
             llm_msgs = mock_db.convert_message_llm(msg)
-            assert len(llm_msgs) >= 1, f"LLM conversion must return at least one message"
+            assert len(llm_msgs) >= 1, "LLM conversion must return at least one message"
             
             for llm_msg in llm_msgs:
                 assert "role" in llm_msg, f"LLM message {i} missing role"

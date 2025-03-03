@@ -1,7 +1,6 @@
 """Helper functions for integration tests."""
 from ansari.ansari_logger import get_logger
 import json
-import inspect
 
 logger = get_logger()
 
@@ -98,7 +97,8 @@ def history_and_log_matches(agent, message_logger):
     logger.debug(f"Logger messages: {message_logger.messages}")
     
     # Compare the messages
-    assert len(history_messages) == len(message_logger.messages), f"Message count mismatch between history ({len(history_messages)}) and logger ({len(message_logger.messages)})"
+    assert len(history_messages) == len(message_logger.messages), \
+        f"Message count mismatch between history ({len(history_messages)}) and logger ({len(message_logger.messages)})"
     
     for i, (hist_msg, log_msg) in enumerate(zip(history_messages, message_logger.messages)):
         # Check that roles match
@@ -106,13 +106,16 @@ def history_and_log_matches(agent, message_logger):
         
         # For content, we need to handle various formats based on the agent type
         if isinstance(hist_msg["content"], str) and isinstance(log_msg["content"], str):
-            assert hist_msg["content"] == log_msg["content"], f"Message {i} content mismatch: {hist_msg['content']} vs {log_msg['content']}"
+            assert hist_msg["content"] == log_msg["content"], \
+                f"Message {i} content mismatch: {hist_msg['content']} vs {log_msg['content']}"
         elif isinstance(hist_msg["content"], list) and isinstance(log_msg["content"], list):
             # For list content, convert to JSON strings for deep comparison
             hist_json = json.dumps(hist_msg["content"], sort_keys=True)
             log_json = json.dumps(log_msg["content"], sort_keys=True)
             assert hist_json == log_json, f"Message {i} content structure mismatch:\nHistory: {hist_json}\nLogger: {log_json}"
-        elif agent_class_name == "Ansari" and isinstance(hist_msg["content"], str) and isinstance(log_msg["content"], (list, dict)):
+        elif (agent_class_name == "Ansari" and 
+              isinstance(hist_msg["content"], str) and 
+              isinstance(log_msg["content"], (list, dict))):
             # For Ansari base class, the message_logger might store structured content for some messages
             # Convert structured content to string for comparison
             log_content_str = json.dumps(log_msg["content"])
@@ -121,7 +124,7 @@ def history_and_log_matches(agent, message_logger):
         else:
             # If types don't match and it's not a known conversion case
             logger.warning(f"Content type mismatch for message {i}: {type(hist_msg['content'])} vs {type(log_msg['content'])}")
-            logger.warning(f"This might be normal for some agent implementations.")
+            logger.warning("This might be normal for some agent implementations.")
             # We don't assert here as different implementations may store content differently
         
         # Compare other fields more loosely

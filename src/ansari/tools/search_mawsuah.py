@@ -1,17 +1,24 @@
 import json
-
+import logging
+import os
 import requests
+from typing import List, Dict, Any, Optional
+from anthropic import Anthropic
 
 VECTARA_BASE_URL = "https://api.vectara.io:443/v1/query"
 TOOL_NAME = "search_mawsuah"
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 
 class SearchMawsuah:
-    def __init__(self, vectara_auth_token, vectara_customer_id, vectara_corpus_id):
+    def __init__(self, vectara_auth_token, vectara_customer_id, vectara_corpus_id, anthropic_api_key=None):
         self.auth_token = vectara_auth_token
         self.customer_id = vectara_customer_id
         self.corpus_id = vectara_corpus_id
         self.base_url = VECTARA_BASE_URL
+        self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
 
     def get_tool_description(self):
         return {
@@ -98,8 +105,155 @@ class SearchMawsuah:
                 results.append(result["text"])
         return results
 
+    def translate_text(self, arabic_text: str) -> str:
+        """
+        Translate Arabic text to English using Anthropic's Claude API.
+        
+        Args:
+            arabic_text: The Arabic text to translate
+            
+        Returns:
+            The English translation of the text
+        """
+        if not self.anthropic_api_key:
+            logger.warning("No Anthropic API key provided, skipping translation")
+            return ""
+            
+        try:
+            client = Anthropic(api_key=self.anthropic_api_key)
+            response = client.messages.create(
+                model="claude-3-7-sonnet-20250219",
+                max_tokens=1000,
+                system="You are a translator specializing in Arabic to English translation. Translate the provided text accurately and fluently, preserving the meaning, tone, and context.",
+                messages=[{"role": "user", "content": f"Translate this Arabic text to English: {arabic_text}"}]
+            )
+            return response.content[0].text
+        except Exception as e:
+            logger.error(f"Translation error: {e}")
+            return ""
+
+    def format_as_ref_list(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Format raw API results as a list of reference documents for Claude.
+        Each reference will include both the original Arabic text and its English translation.
+        
+        Args:
+            response: The raw API response from Vectara
+            
+        Returns:
+            A list of reference documents formatted for Claude with Arabic and English text
+        """
+        if not response.get("responseSet"):
+            return ["No results found."]
+            
+        documents = []
+        for response_item in response.get("responseSet", []):
+            for i, result in enumerate(response_item.get("response", [])):
+                # Get the Arabic text
+                arabic_text = result.get("text", "")
+                
+                # Get English translation
+                english_translation = self.translate_text(arabic_text)
+                
+                # Create citation title and combined text
+                title = f"Encyclopedia of Islamic Jurisprudence, Entry {i+1}"
+                
+                # Combine Arabic and English text
+                combined_text = f"Arabic: {arabic_text}\n\nEnglish: {english_translation}" if english_translation else arabic_text
+                
+                documents.append({
+                    "type": "document",
+                    "source": {
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": combined_text
+                    },
+                    "title": title,
+                    "context": "Retrieved from Encyclopedia of Islamic Jurisprudence",
+                    "citations": {"enabled": True}
+                })
+                
+        return documents
+
+    def format_as_tool_result(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format raw API results as a tool result dictionary for Claude.
+        
+        Args:
+            response: The raw API response from Vectara
+            
+        Returns:
+            A tool result dictionary with formatted results
+        """
+        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
+            return {
+                "type": "text",
+                "text": "No results found."
+            }
+            
+        items = []
+        for response_item in response.get("responseSet", []):
+            for result in response_item.get("response", []):
+                arabic_text = result.get("text", "")
+                english_translation = self.translate_text(arabic_text)
+                
+                formatted_text = f"Arabic Text: {arabic_text}\n\n"
+                if english_translation:
+                    formatted_text += f"English Translation: {english_translation}\n\n"
+                
+                items.append({
+                    "type": "text",
+                    "text": formatted_text
+                })
+        
+        return {
+            "type": "array",
+            "items": items
+        }
+
+    def format_tool_response(self, response: Dict[str, Any]) -> str:
+        """
+        Format the final tool response as a string.
+        
+        Args:
+            response: The raw API response from Vectara
+            
+        Returns:
+            A string message about the search results
+        """
+        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
+            return "No results found for the query in the Encyclopedia of Islamic Jurisprudence."
+            
+        count = 0
+        for response_item in response.get("responseSet", []):
+            count += len(response_item.get("response", []))
+            
+        return f"Found {count} relevant results from the Encyclopedia of Islamic Jurisprudence. Please see the included reference list for details."
+
     def run_as_list(self, query: str, num_results: int = 10):
         return self.pp_response(self.run(query, num_results))
 
     def run_as_json(self, query: str, num_results: int = 10):
         return {"matches": self.pp_response(self.run(query, num_results))}
+        
+    def run_as_string(self, query: str, num_results: int = 10) -> str:
+        """Return results as a human-readable string with both Arabic and English."""
+        response = self.run(query, num_results)
+        
+        if not response.get("responseSet") or not response["responseSet"][0].get("response"):
+            return "No results found."
+            
+        results = []
+        for response_item in response.get("responseSet", []):
+            for i, result in enumerate(response_item.get("response", [])):
+                arabic_text = result.get("text", "")
+                english_translation = self.translate_text(arabic_text)
+                
+                entry = f"Entry {i+1}:\n"
+                entry += f"Arabic Text: {arabic_text}\n"
+                if english_translation:
+                    entry += f"English Translation: {english_translation}\n"
+                
+                results.append(entry)
+                
+        return "\n\n".join(results)
