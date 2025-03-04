@@ -51,46 +51,32 @@ class SearchUsul(BaseSearchTool):
                             references for citations.
                             """,
                         },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Maximum number of results to return (1-50). Defaults to 10.",
-                        },
-                        "page": {
-                            "type": "integer",
-                            "description": "Page number for paginated results. Defaults to 1.",
-                        },
-                        "include_chapters": {
-                            "type": "boolean",
-                            "description": "Whether to include chapter details for each result. Defaults to true.",
-                        },
                     },
                     "required": ["query"],
                 },
             },
         }
 
-    def run(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = False) -> Dict[str, Any]:
-        """Execute the search and return raw results.
+    def run(self, query: str, limit: int = 10, include_chapters: bool = True) -> Dict[str, Any]:
+        """Execute the search and return raw results, automatically fetching all available pages.
 
         Args:
             query: The search query in any language
-            limit: Maximum number of results (1-50)
-            page: Page number for pagination
-            include_chapters: Whether to include chapter details
+            limit: Maximum number of results per page (1-50)
+            include_chapters: Whether to include chapter details (defaults to True)
 
         Returns:
-            Dict containing raw search results
+            Dict containing raw search results with all pages combined
         """
         headers = {"Authorization": f"Bearer {self.api_token}"}
         params = {
             "q": query,
             "limit": min(max(1, limit), 50),  # Ensure limit is between 1-50
-            "page": max(1, page),  # Ensure page is at least 1
+            "page": 1,  # Always start with page 1
+            "include_chapters": "true" if include_chapters else "false",
         }
 
-        if include_chapters:
-            params["include_chapters"] = "true"
-
+        # Get the first page of results
         response = requests.get(self.base_url, headers=headers, params=params)
 
         if response.status_code != 200:
@@ -99,7 +85,40 @@ class SearchUsul(BaseSearchTool):
             )
             response.raise_for_status()
 
-        return response.json()
+        results = response.json()
+        
+        # If there's only one page, return the results
+        if not results.get("hasNextPage", False):
+            return results
+            
+        # Otherwise, fetch all remaining pages and merge the results
+        all_results = results.get("results", [])
+        current_page = results.get("currentPage", 1)
+        total_pages = results.get("totalPages", 1)
+        
+        # Fetch remaining pages
+        while current_page < total_pages:
+            current_page += 1
+            params["page"] = current_page
+            
+            response = requests.get(self.base_url, headers=headers, params=params)
+            
+            if response.status_code != 200:
+                print(
+                    f"Query for page {current_page} failed with code {response.status_code}, reason {response.reason}",
+                )
+                break
+                
+            page_results = response.json()
+            all_results.extend(page_results.get("results", []))
+            
+        # Create a new result object with just the combined results
+        final_results = {
+            "results": all_results,
+            "total": len(all_results)
+        }
+        
+        return final_results
 
     def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Format raw results as a list of reference documents for Claude.
@@ -260,38 +279,36 @@ class SearchUsul(BaseSearchTool):
 
         return {"type": "array", "items": formatted_results}
 
-    def run_as_list(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = True) -> List[str]:
+    def run_as_list(self, query: str, limit: int = 10, include_chapters: bool = True) -> List[str]:
         """Run search and return results as a list of strings.
 
         Args:
             query: The search query
-            limit: Maximum number of results
-            page: Page number for pagination
-            include_chapters: Whether to include chapter details
+            limit: Maximum number of results per page
+            include_chapters: Whether to include chapter details (defaults to True)
 
         Returns:
             List of formatted result strings
         """
         print(f'Searching Usul.ai for "{query}"')
-        results = self.run(query, limit, page, include_chapters)
+        results = self.run(query, limit, include_chapters)
         ref_docs = self.format_as_ref_list(results)
         
         # Convert document objects to strings using the base class helper
         return [self.format_document_as_string(doc) for doc in ref_docs]
 
-    def run_as_string(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = True) -> str:
+    def run_as_string(self, query: str, limit: int = 10, include_chapters: bool = True) -> str:
         """Run search and return results as a single string.
 
         Args:
             query: The search query
-            limit: Maximum number of results
-            page: Page number for pagination
-            include_chapters: Whether to include chapter details
+            limit: Maximum number of results per page
+            include_chapters: Whether to include chapter details (defaults to True)
 
         Returns:
             String of formatted results
         """
-        results = self.run(query, limit, page, include_chapters)
+        results = self.run(query, limit, include_chapters)
         ref_docs = self.format_as_ref_list(results)
         
         # Format documents as strings using the base class helper and join
