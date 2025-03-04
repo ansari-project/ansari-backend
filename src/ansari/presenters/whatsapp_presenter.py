@@ -293,7 +293,7 @@ class WhatsAppPresenter:
             )
 
             # Append the user's message to the history retrieved from the DB
-            user_msg = db.convert_message_llm(["user", incoming_txt_msg])[0]
+            user_msg = db.convert_message_llm(["user", incoming_txt_msg, None, None, None])[0]
             msg_history.append(user_msg)
 
             # Setup `MessageLogger` for Ansari, so it can log user's/Ansari's message to DB

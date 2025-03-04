@@ -1,6 +1,5 @@
 import requests
 import logging
-import json
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -69,29 +68,9 @@ class SearchHadith:
         """Format raw API results as a list of strings."""
         return [self.pp_hadith(r) for r in results]
 
-    def format_as_tool_result(self, results):
-        """Format raw API results as a tool result dictionary."""
-        formatted_results = []
-        for result in results:
-            formatted_results.append({
-                "text": result.get("en_text", ""),
-                "grade": result.get("grade_en", "").strip(),
-                "source_book": result.get("source_book", ""),
-                "chapter_number": result.get("chapter_number", ""),
-                "hadith_number": result.get("hadith_number", ""),
-                "id": result.get("id", ""),
-                "reference": f"{result.get('source_book', '')} {result.get('chapter_number', '')}:{result.get('hadith_number', '')}"
-            })
-        
-        return {
-            "results": formatted_results,
-            "tool_name": self.get_tool_name()
-        }
-
-    def format_as_reference_list(self, results):
+    def format_as_ref_list(self, results):
         """Format raw API results as a list of reference documents for Claude."""
         documents = []
-        logger.info(f"!!!! Formatting as reference list:\n{json.dumps(results, indent=2)}")
         for result in results:
             source_book = result.get("source_book", "")
             chapter = result.get("chapter_number", "")
@@ -103,30 +82,49 @@ class SearchHadith:
             text = result.get("en_text", "")
             ar_text = result.get("ar_text", "")
             grade = result.get("grade_en", "").strip()
-            
+
             # Create citation title
-            title = f"{source_book} - Chapter {chapter}: {chapter_name}, Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
-            
-            # Combine text and grade
-            content = f"Arabic Text: {ar_text}\nEnglish Text: {text}"
+            title = (
+                f"{source_book} - Chapter {chapter}: {chapter_name}, "
+                f"Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
+            )
+
+            # Complete text of hadith with grade
+            data = f"English Text: {text}"
+            if ar_text:
+                data = f"Arabic Text: {ar_text}\n\n{data}"
             if grade:
-                content += f"\nGrade: {grade}"
-            
-            documents.append({
+                data = f"{data}\n\nGrade: {grade}"
+
+            document = {
                 "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": content
-                },
+                "source": {"type": "text", "media_type": "text/plain", "data": data},
                 "title": title,
-                "context": "Retrieved from Hadith collection",
-                "citations": {"enabled": True}
-            })
-            
+                "context": "Retrieved from hadith collections",
+                "citations": {"enabled": True},
+            }
+            documents.append(document)
+
         return documents
 
-    def run_as_list(self, query: str, num_results: int = 3):
+    def format_as_tool_result(self, results):
+        """Format raw API results as a tool result dictionary."""
+        formatted_results = []
+        for result in results:
+            formatted_results.append(
+                {
+                    "type": "text",
+                    "text": f"""
+                Hadith: {result.get("en_text", "")} \n\n
+                Source: {result.get("source_book", "")}, Hadith {result.get("hadith_number", "")}\n\n
+                Grade: {result.get("grade_en", "")}\n
+                """,
+                }
+            )
+
+        return formatted_results
+
+    def run_as_list(self, query: str, num_results: int = 10):
         print(f'Searching hadith for "{query}"')
         results = self.run(query, num_results)
         return self.format_as_list(results)

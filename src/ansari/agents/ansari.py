@@ -10,7 +10,6 @@ import copy
 import json
 import time
 import traceback
-from datetime import datetime
 
 import litellm
 
@@ -19,7 +18,9 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
+from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
 from ansari.tools.search_vectara import SearchVectara
+from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.prompt_mgr import PromptMgr
 
 # previous logger name: __name__ + ".Ansari"
@@ -32,36 +33,34 @@ class Ansari:
         self.settings = settings
         self.json_format = json_format
         self.message_logger = message_logger
-        
+
         # Initialize tools
         self.tool_name_to_instance = self._initialize_tools()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
-        
+
         # Initialize prompt manager and system message
         self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         self.sys_msg = self.pm.bind(settings.SYSTEM_PROMPT_FILE_NAME).render()
-        
+
         # Initialize message history with system message
         self.message_history = [{"role": "system", "content": self.sys_msg}]
-        
+
         self.model = settings.MODEL
 
     def _initialize_tools(self):
         """Initialize tool instances. Can be overridden by subclasses."""
         sq = SearchQuran(self.settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(self.settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchVectara(
+        sm = SearchMawsuah(
             self.settings.VECTARA_API_KEY.get_secret_value(),
             self.settings.MAWSUAH_VECTARA_CORPUS_KEY,
-            self.settings.MAWSUAH_FN_NAME,
-            self.settings.MAWSUAH_FN_DESCRIPTION,
-            self.settings.MAWSUAH_TOOL_PARAMS,
-            self.settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
+        ste = SearchTafsirEncyc(self.settings.USUL_API_TOKEN.get_secret_value())
         return {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
             sm.get_tool_name(): sm,
+            ste.get_tool_name(): ste,
         }
 
     def set_message_logger(self, message_logger: MessageLogger):
@@ -72,11 +71,30 @@ class Ansari:
         return self.greeting.render()
 
     def process_input(self, user_input: str):
-        # Append user's message to the message history
-        self.message_history.append({"role": "user", "content": user_input})
+        """Process user input and generate a response."""
+        logger.debug(f"Processing input: {user_input}")
 
-        # Process the message history, which will internally return/yield Ansari's response
-        return self.process_message_history()
+        # Add user message to history
+        self.message_history.append({"role": "user", "content": user_input})
+        logger.debug("Added user message to history")
+
+        if self.message_logger:
+            self.message_logger.log(role="user", content=user_input)
+            logger.debug("Logged user message")
+
+        # Process initial message with tools
+        for m in self.process_message_history(use_tool=True):
+            if m:
+                yield m
+                
+        # Ensure we always get a final response (like AnsariClaude)
+        if len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant":
+            logger.debug("Last message is not from assistant, making a follow-up call")
+            
+            # Search tool will have been used by now, so generate a final response
+            for m in self.process_one_round(use_tool=False):
+                if m:
+                    yield m
 
     def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
@@ -328,12 +346,35 @@ class Ansari:
             logger.warning(f"Unknown tool name: {tool_name}")
             return
         try:
-            query: str = json.loads(tool_args)["query"]
+            logger.debug(f"Tool args: {tool_args}")
+            args_dict = json.loads(tool_args)
+            logger.debug(f"Parsed tool args: {args_dict}")
+            query: str = args_dict["query"]
+            logger.debug(f"Extracted query: {query}")
         except json.JSONDecodeError:
+            logger.error(f"JSON decode error for tool args: {tool_args}")
             raise json.JSONDecodeError
+        except KeyError as e:
+            logger.error(f"Missing key in tool args: {e} - Tool args: {tool_args}")
+            query = "" 
 
-        tool_instance: SearchQuran | SearchHadith = self.tool_name_to_instance[tool_name]
-        results = tool_instance.run_as_list(query)
+        tool_instance = self.tool_name_to_instance[tool_name]
+        logger.debug(f"Running {tool_name} with query: {query}")
+        try:
+            # Get raw results directly using run() instead of run_as_list()
+            raw_results = tool_instance.run(query)
+            logger.debug(f"Raw results type: {type(raw_results)}")
+            
+            # Format the results as a list of strings
+            results = tool_instance.format_as_list(raw_results)
+            logger.debug(f"Formatted results type: {type(results)}")
+            logger.debug(f"Results sample: {str(results)[:200] if results else 'Empty results'}")
+        except Exception as e:
+            import traceback
+            logger.error(f"Error running {tool_name}: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Return an error message as results
+            results = [f"Error running {tool_name}: {str(e)}"]
 
         tool_definition = {
             "name": tool_name,
@@ -350,6 +391,11 @@ class Ansari:
             ],
         }
         self.message_history.append(internal_msg)
+        
+        # Log the assistant's tool call message
+        if self.message_logger is not None:
+            self.message_logger.log("assistant", "", tool_name, 
+                {"function": tool_definition, "id": tool_id, "type": "function"})
 
         if len(results) == 0:
             # corner case where the api returns no results
@@ -364,7 +410,21 @@ class Ansari:
 
         # Now we have to pass the results back in
         # NOTE: "citation" == ayah/hadith/etc. (based on the called tool)
-        results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
+        try:
+            # Ensure results is a list of strings
+            if not isinstance(results, list):
+                logger.error(f"Results is not a list: {type(results)}")
+                results = [str(results)]
+            elif not all(isinstance(item, str) for item in results):
+                logger.warning("Not all results are strings, converting to strings")
+                results = [str(item) for item in results]
+            
+            results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
+        except Exception as e:
+            logger.error(f"Error joining results: {str(e)}")
+            logger.error(f"Results that caused error: {results}")
+            results_str = f"Error processing results: {str(e)}"
+        
         msg_generated_from_tool = {
             "role": "tool",
             "content": results_str,

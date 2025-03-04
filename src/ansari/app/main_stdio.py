@@ -50,10 +50,13 @@ def main(
 
     if input:
         # Process single input and exit
-        for word in agent_instance.process_input(input):
-            if word is not None:
-                print(word, end="", flush=True)
-        print()
+        result = agent_instance.process_input(input)
+        # Handle the result which could be either a generator or other iterable
+        if result:
+            for word in result:
+                if word is not None:
+                    print(word, end="", flush=True)
+            print()
     else:
         # No input provided, start interactive mode
         presenter = StdioPresenter(agent_instance, skip_greeting=True)
