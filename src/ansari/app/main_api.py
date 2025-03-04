@@ -103,7 +103,7 @@ cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 # Include the WhatsApp router
 app.include_router(whatsapp_router)
 
-if __name__ == "__main__" and get_settings().DEBUG_MODE:
+if __name__ == "__main__" and get_settings().DEV_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     #   I.e., just run:
     #   `python src/ansari/app/main_api.py`

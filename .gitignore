@@ -1,3 +1,4 @@
+# Folders
 .conda/
 .venv/
 .vscode/
@@ -5,7 +6,7 @@ abandoned/
 bin/
 datasources/
 diskcache_dir/
-docs/recordings/00_chapters.txt
+docs/recordings/*
 etc/
 example_projects/
 lib/
@@ -14,6 +15,8 @@ src/ansari_backend.egg-info/*
 tmp/
 dist/
 
+# Files
+.__atomic-write*
 .env
 .history
 *.pyc

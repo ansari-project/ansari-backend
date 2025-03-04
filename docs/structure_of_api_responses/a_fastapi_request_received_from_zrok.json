@@ -25,11 +25,11 @@
 			["content-type", "application/json"],
 			["sec-ch-ua-mobile", "?0"],
 			["accept", "*/*"],
-			["origin", "http://localhost:3000"],
+			["origin", "http://localhost:8081"],
 			["sec-fetch-site", "same-site"],
 			["sec-fetch-mode", "cors"],
 			["sec-fetch-dest", "empty"],
-			["referer", "http://localhost:3000/"],
+			["referer", "http://localhost:8081/"],
 			["accept-encoding", "gzip, deflate, br, zstd"],
 			["accept-language", "en-GB,en;q=0.9,ar-EG;q=0.8,ar;q=0.7,en-US;q=0.6"]
 		],

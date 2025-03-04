@@ -63,9 +63,7 @@ jobs:
           WHATSAPP_BUSINESS_PHONE_NUMBER_ID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-business-phone-number-id') }}
           WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-verify-token-for-webhook') }}
 
-          WHATSAPP_RECIPIENT_WAID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-recipient-waid') }}
           WHATSAPP_API_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-api-version') }}
-          WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-test-business-phone-number-id') }}
           ZROK_SHARE_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'zrok-share-token') }}
           USUL_API_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'usul-api-token') }}
 
@@ -99,9 +97,7 @@ jobs:
             WHATSAPP_BUSINESS_PHONE_NUMBER_ID
             WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK
 
-            WHATSAPP_RECIPIENT_WAID
             WHATSAPP_API_VERSION
-            WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID
             ZROK_SHARE_TOKEN
             USUL_API_TOKEN
           instance-role-arn: ${{ secrets.INSTANCE_ROLE_ARN }}

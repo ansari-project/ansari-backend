@@ -26,11 +26,7 @@ router = APIRouter()
 
 # Initialize the Ansari agent
 ansari = Ansari(get_settings())
-chosen_whatsapp_biz_num = (
-    get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
-    if not get_settings().DEBUG_MODE
-    else get_settings().WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
-)
+chosen_whatsapp_biz_num = get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
 
 # Initialize the presenter with the agent and credentials
 presenter = WhatsAppPresenter(
@@ -140,9 +136,9 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
     # Rest of the code below is for processing text messages sent by the whatsapp user
     incoming_msg_text = incoming_msg_body["body"]
 
-    # # Send acknowledgment message (only in DEBUG_MODE)
+    # # Send acknowledgment message (only when DEV_MODE)
     # # and if dev. doesn't need it, comment it out :]
-    # if get_settings().DEBUG_MODE:
+    # if get_settings().DEV_MODE:
     #     await presenter.send_whatsapp_message(
     #         from_whatsapp_number,
     #         f"Ack: {incoming_msg_text}",
