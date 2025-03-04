@@ -1,21 +1,6 @@
 # This file aims to test the main API endpoints of the app (i.e., `main_api.py`) using pytest and FastAPI's TestClient.
-# Steps:
-#    1. Import necessary modules and configure logging.
-#    2. Define test data and fixtures for user registration, login, and thread creation.
-#    3. Implement tests for :
-#           user registration with valid and invalid credentials.
-#           user login with valid and invalid credentials.
-#           logging in from multiple devices and handling concurrent sessions.
-#           user logout and token invalidation.
-#           refreshing tokens and handling concurrent refresh requests.
-#           creating, deleting, and sharing threads.
-#           accessing threads with different user tokens.
-#           CORS validation.
-#           adding feedback to messages.
-#    4. Implement integration tests for answering ayah questions and storing responses in the database.
-# NOTE: TestClient internally uses httpx and allows you to make requests to your FastAPI application
+# Explanatory NOTE: TestClient internally uses httpx and allows you to make requests to your FastAPI application
 #           as if you were interacting with it over the network, but without actually starting a server.
-
 # OPTIONAL READ: The following notes explain pytest's syntax:
 # * Fixtures are functions that provide a fixed baseline for tests by setting up some state or context.
 #       They can be used to provide test data / database connection / other setup tasks.

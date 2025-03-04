@@ -1,6 +1,7 @@
 # This file aims to process input from standard input and generate answers using a specified LLM model.
 
 import logging
+import typer
 from typing import Optional
 
 import typer
