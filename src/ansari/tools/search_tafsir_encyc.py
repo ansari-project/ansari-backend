@@ -1,9 +1,9 @@
 from ansari.tools.search_usul import SearchUsul
 from ansari.config import get_settings
 from typing import Dict, Any, List
-import logging
+from ansari.ansari_logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 settings = get_settings()
 
 
@@ -31,27 +31,35 @@ class SearchTafsirEncyc(SearchUsul):
 
     def get_tool_description(self):
         """Override the base tool description to provide encyclopedia-specific details."""
-        base_description = super().get_tool_description()
-
-        # Update the description to be specific to the Tafsir Encyclopedia
-        function_dict = base_description["function"]
-        function_dict["description"] = """
-        Search and retrieve relevant passages from the Encyclopedia of Quranic Interpretation Based on Narrations 
-        (موسوعة التفسير بالمأثور), a comprehensive collection of Quranic commentary 
-        derived from traditional sources and narrations.
-        Returns multiple passages when applicable.
-        """
-
-        # Update the query description
-        function_dict["parameters"]["properties"]["query"]["description"] = """
-        Topic, verse, or subject matter to search for within the Encyclopedia of Quranic Interpretation
-        Based on Narrations. Make this as specific as possible.
-        Can be in any language, but Arabic queries may yield better results.
-        
-        Returns results both as tool results and as references for citations.
-        """
-
-        return base_description
+        # We'll create a completely new description rather than inheriting from super()
+        return {
+            "type": "function",
+            "function": {
+                "name": self.get_tool_name(),
+                "description": """
+                Search and retrieve relevant passages from the Encyclopedia of Quranic Interpretation Based on Narrations 
+                (موسوعة التفسير بالمأثور), a comprehensive collection of Quranic commentary 
+                derived from traditional sources and narrations.
+                Returns multiple passages when applicable.
+                """,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": """
+                            Topic, verse, or subject matter to search for within the Encyclopedia of Quranic Interpretation
+                            Based on Narrations. Make this as specific as possible.
+                            Can be in any language, but Arabic queries may yield better results.
+                            
+                            Returns results both as tool results and as references for citations.
+                            """,
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+        }
         
     def format_as_list(self, results: Dict[str, Any]) -> List[str]:
         """Format raw results as a list of strings.
@@ -139,6 +147,9 @@ class SearchTafsirEncyc(SearchUsul):
 
         documents = []
         for result in results.get("results", []):
+            # Extract score if available
+            score = result.get("score", None)
+            
             # Extract data from the result
             if "node" in result:
                 node = result["node"]
@@ -180,18 +191,21 @@ class SearchTafsirEncyc(SearchUsul):
             title_parts.append("Encyclopedia of Quranic Interpretation")
             if volume_info:
                 title_parts.append(f"Volume {volume_info}")
-            if page_info:
+            if page_info and page_info != "Unknown":
                 title_parts.append(f"Page {page_info}")
-            if node_id:
-                title_parts.append(f"ID: {node_id}")
+            # Add chapter info to the title if available
+            if chapter_info:
+                title_parts.append(f"Chapter: {chapter_info}")
                 
             title = ", ".join(title_parts)
             
-            # Add chapter info to the data if available
-            if chapter_info:
-                data = f"Chapter: {chapter_info}\n\n{text}"
-            else:
-                data = text
+            # Content is just the text
+            data = text
+
+            # Create the context string including relevance score if available
+            context = "Retrieved from the Encyclopedia of Quranic Interpretation Based on Narrations"
+            if score is not None:
+                context += f" (Relevance score: {score:.2f})"
 
             # Create the document object
             documents.append({
@@ -202,7 +216,7 @@ class SearchTafsirEncyc(SearchUsul):
                     "data": data
                 },
                 "title": title,
-                "context": "Retrieved from the Encyclopedia of Quranic Interpretation Based on Narrations",
+                "context": context,
                 "citations": {"enabled": True}
             })
 

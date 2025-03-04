@@ -1,7 +1,7 @@
 import requests
 from ansari.ansari_logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
 TOOL_NAME = "search_quran"
 
