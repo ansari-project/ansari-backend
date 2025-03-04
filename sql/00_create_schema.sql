@@ -1,14 +1,14 @@
 -- Side note (tip): While developing locally, if you use a tool like DBeaver, and encounter a scope-related error, 
 -- you can append each table name with `public.` to fix the error, as `public` is the default schema name in PostgreSQL.
 
--- Extensions (from 05_create_share_table.sql)
+-- Extensions 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Type definitions (from 04_create_feedback_table.sql)
+-- Type definitions 
 CREATE TYPE feedback_class AS ENUM ('thumbsup', 'thumbsdown', 'redflag');
 
 -- Core tables
--- Users table (from 01_create_tables.sql, with UUID from 12_alter_user_id_to_uuid.sql)
+-- Users table 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(100) UNIQUE, -- Can be null if it is a guest account
@@ -21,7 +21,7 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- WhatsApp users table (from 10_create_whatsapp_tables.sql, with UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- WhatsApp users table 
 CREATE TABLE users_whatsapp (
     id SERIAL PRIMARY KEY,
     user_id UUID, -- Left here in case we want to get whatsapp context into Ansari's main website
@@ -36,10 +36,10 @@ CREATE TABLE users_whatsapp (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- Index on WhatsApp users (from 10_create_whatsapp_tables.sql)
+-- Index on WhatsApp users 
 CREATE INDEX idx_users_whatsapp_phone_num ON users_whatsapp (phone_num);
 
--- Preferences table (from 01_create_tables.sql, with UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Preferences table 
 CREATE TABLE preferences (
     id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE preferences (
 );
 
 -- Thread tables
--- Threads table (from 01_create_tables.sql, with UUID from 08_alter_chat_id_to_uuid.sql and UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Threads table 
 CREATE TABLE threads (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100),
@@ -62,7 +62,7 @@ CREATE TABLE threads (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- WhatsApp threads table (from 10_create_whatsapp_tables.sql)
+-- WhatsApp threads table 
 CREATE TABLE threads_whatsapp (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id_whatsapp INTEGER NOT NULL,
@@ -72,11 +72,11 @@ CREATE TABLE threads_whatsapp (
     FOREIGN KEY (user_id_whatsapp) REFERENCES users_whatsapp(id)
 );
 
--- WhatsApp threads index (from 10_create_whatsapp_tables.sql)
+-- WhatsApp threads index 
 CREATE INDEX idx_threads_whatsapp_updated_at ON threads_whatsapp (updated_at);
 
 -- Authentication and tokens
--- Access tokens table (from 02_create_user_tokens.sql, renamed in 06_alter_user_tokens.sql, with UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Access tokens table 
 CREATE TABLE access_tokens (
     id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE access_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Refresh tokens table (from 07_create_refresh_tokens.sql, with UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Refresh tokens table 
 CREATE TABLE refresh_tokens (
     id SERIAL PRIMARY KEY,
     access_token_id INTEGER NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE refresh_tokens (
     FOREIGN KEY (access_token_id) REFERENCES access_tokens(id) ON DELETE CASCADE
 );
 
--- Reset tokens table (from 03_create_reset_tokens.sql, with UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Reset tokens table 
 CREATE TABLE reset_tokens (
     user_id UUID PRIMARY KEY,
     token VARCHAR(255) NOT NULL, 
@@ -102,7 +102,7 @@ CREATE TABLE reset_tokens (
 );
 
 -- Content tables
--- Messages table (from 01_create_tables.sql, with UUID thread_id from 08_alter_chat_id_to_uuid.sql, 
+-- Messages table 
 -- tool fields from 11_alter_tool_logic.sql, UUID user_id from 12_alter_user_id_to_uuid.sql, 
 -- and ref_list from 13_add_ref_list_column.sql)
 CREATE TABLE messages (
@@ -121,11 +121,10 @@ CREATE TABLE messages (
     FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
 );
 
--- Add comment to explain the ref_list column (from 13_add_ref_list_column.sql)
+-- Add comment to explain the ref_list column 
 COMMENT ON COLUMN messages.ref_list IS 'JSON array containing reference list data for tool responses';
 
--- WhatsApp messages table (from 10_create_whatsapp_tables.sql with tool fields from 11_alter_tool_logic.sql
--- and ref_list from 13_add_ref_list_column.sql)
+-- WhatsApp messages table 
 CREATE TABLE messages_whatsapp (
     id SERIAL PRIMARY KEY,
     user_id_whatsapp INTEGER NOT NULL,
@@ -142,11 +141,10 @@ CREATE TABLE messages_whatsapp (
     FOREIGN KEY (thread_id) REFERENCES threads_whatsapp(id)
 );
 
--- Add comment to explain the ref_list column (from 13_add_ref_list_column.sql)
+-- Add comment to explain the ref_list column 
 COMMENT ON COLUMN messages_whatsapp.ref_list IS 'JSON array containing reference list data for tool responses';
 
--- Feedback table (from 04_create_feedback_table.sql, with UUID thread_id from 08_alter_chat_id_to_uuid.sql
--- and UUID user_id from 12_alter_user_id_to_uuid.sql)
+-- Feedback table 
 CREATE TABLE feedback (
     id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL,
@@ -161,13 +159,13 @@ CREATE TABLE feedback (
     FOREIGN KEY (message_id) REFERENCES messages(id)
 );
 
--- Share table (from 05_create_share_table.sql)
+-- Share table 
 CREATE TABLE share (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     content TEXT
 );
 
--- Quran review tables (from 09_create_quran_answer_tables.sql)
+-- Quran review tables 
 CREATE TABLE reviewers ( 
     id SERIAL PRIMARY KEY, 
     name VARCHAR(255) NOT NULL 
