@@ -32,7 +32,7 @@ from ansari.config import get_settings
 # TODO(anyone): Proper documentation on the the libraries/general-methedology
 # used to create the test_*.py files
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 client = TestClient(app)
 

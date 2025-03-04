@@ -4,7 +4,6 @@ import logging
 import typer
 from typing import Optional
 
-import typer
 
 from ansari.agents import Ansari
 from ansari.agents.ansari_claude import AnsariClaude
@@ -12,7 +11,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.stdio_presenter import StdioPresenter
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 app = typer.Typer()
 

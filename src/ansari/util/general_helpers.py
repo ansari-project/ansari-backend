@@ -10,7 +10,7 @@ from langdetect import detect
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def get_extended_origins(settings: Settings = Depends(get_settings)):

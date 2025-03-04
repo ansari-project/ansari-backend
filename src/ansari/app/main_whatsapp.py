@@ -19,7 +19,7 @@ from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
 from ansari.util.general_helpers import validate_cors
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Create a router in order to make the FastAPI functions here an extension of the main FastAPI app
 router = APIRouter()
