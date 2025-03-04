@@ -1,0 +1,109 @@
+    def process_message_history(self, use_tool=True, stream=True):
+        """
+        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
+        """
+        common_params = {
+            "model": self.model,
+            "messages": self.message_history,
+            "stream": stream,
+            "stream_options": {"include_usage": True},
+            "timeout": 30.0,
+            "temperature": 0.0,
+            "metadata": {"generation-name": "ansari"},
+            "num_retries": 1,
+        }
+
+        failures = 0
+        response = None
+
+        while not response:
+            try:
+                params = {
+                    **common_params,
+                    **({"tools": self.tools, "tool_choice": "auto"} if use_tool else {}),
+                    **({"response_format": {"type": "json_object"}} if self.json_format else {}),
+                }
+                response = self.get_completion(**params)
+
+            except Exception as e:
+                failures += 1
+                logger.warning(
+                    f"Exception occurred in process_message_history function: \n{e}\n",
+                )
+                logger.warning(traceback.format_exc())
+                logger.warning("Retrying in 5 seconds...")
+                time.sleep(5)
+                if failures >= self.settings.MAX_FAILURES:
+                    logger.error("Too many failures, aborting")
+                    raise Exception("Too many failures") from e
+
+        words = ""
+        tool_calls = []
+        response_mode = ""
+
+        for chunk in response:
+            delta = chunk.choices[0].delta
+
+            if delta.content is not None:
+                # content chunk
+                words += delta.content
+                yield delta.content
+                response_mode = "words"
+
+            elif delta.tool_calls:
+                response_mode = "tool"
+                tcchunklist = delta.tool_calls
+                for tcchunk in tcchunklist:
+                    if len(tool_calls) <= tcchunk.index:
+                        tool_calls.append(
+                            {
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            },
+                        )
+                    tc = tool_calls[tcchunk.index]
+
+                    if tcchunk.id:
+                        tc["id"] += tcchunk.id
+                    if tcchunk.function.name:
+                        tc["function"]["name"] += tcchunk.function.name
+                    if tcchunk.function.arguments:
+                        tc["function"]["arguments"] += tcchunk.function.arguments
+
+        if response_mode == "words":
+            self.message_history.append({"role": "assistant", "content": words})
+
+            # Log the assistant's response to the user's current thread in the DB
+            if self.message_logger is not None:
+                self.message_logger.log("assistant", words)
+
+        # Run the "function" corresponding to each tool call, and internally store its result(s) in the message history
+        # NOTE 1: see `self.tool_name_to_instance` to understand possible "functions" which can get called
+        # NOTE 2: even though there's a for loop below,
+        #   it's usually just one tool call per user query,
+        #   where Ansari determines that this "user query" requires a tool call
+        elif response_mode == "tool":
+            succ = True
+            for tc in tool_calls:
+                try:
+                    tool_name = tc["function"]["name"]
+                    tool_args = tc["function"]["arguments"]
+                    tool_id = tc["id"]
+
+                    tool_output_str, internal_msg, tool_msg = self.process_tool_call(tool_name, tool_args, tool_id)
+
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to process tool call: {tool_args}")
+                    succ = False
+
+            # Log the tool's response to the user's current thread in the DB
+            if succ and self.message_logger is not None:
+                tool_details = {
+                    "internal_message": internal_msg,
+                    "tool_message": tool_msg,
+                }
+                self.message_logger.log("tool", tool_output_str, tool_name, tool_details)
+
+        else:
+            raise Exception("Invalid response mode: " + response_mode)

@@ -8,7 +8,7 @@ from ansari.config import get_settings
 # NOTE: This file could only be used (by you, locally) to create missing tables
 # in your local database (check `get_settings().DATABASE_URL` for the address)
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def import_sql_files(directory, db_url):

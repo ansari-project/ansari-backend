@@ -19,12 +19,11 @@ from ansari.config import Settings
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
-from ansari.tools.search_vectara import SearchVectara
 from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.prompt_mgr import PromptMgr
 
 # previous logger name: __name__ + ".Ansari"
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class Ansari:

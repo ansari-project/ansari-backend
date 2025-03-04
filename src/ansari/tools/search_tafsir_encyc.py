@@ -154,7 +154,6 @@ class SearchTafsirEncyc(SearchUsul):
             if "node" in result:
                 node = result["node"]
                 text = node.get("text", "")
-                node_id = "Unknown"
                 page_info = "Unknown"
                 volume_info = ""
                 chapter_info = ""
@@ -162,7 +161,7 @@ class SearchTafsirEncyc(SearchUsul):
                 # Extract metadata if available
                 if "metadata" in node:
                     metadata = node["metadata"]
-                    node_id = metadata.get("bookId", "Unknown")
+                    metadata.get("bookId", "Unknown")
                     
                     # Extract page and volume information
                     if "pages" in metadata and len(metadata["pages"]) > 0:
@@ -177,7 +176,7 @@ class SearchTafsirEncyc(SearchUsul):
             else:
                 # Fallback to original structure if "node" is not present
                 text = result.get("text", "")
-                node_id = result.get("nodeId", "Unknown")
+                result.get("nodeId", "Unknown")
                 page_info = result.get("page", "Unknown")
                 volume_info = ""
                 

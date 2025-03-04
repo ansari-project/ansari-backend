@@ -1,9 +1,7 @@
 # This file provides a standard Python logging instance for the caller file (e.g., main_api.py, etc.).
 
 import logging
-import os
 import sys
-from typing import Optional
 
 from ansari.config import get_settings
 
