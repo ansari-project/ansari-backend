@@ -1,5 +1,6 @@
 import json
 import time
+import asyncio
 from typing import Generator
 
 import anthropic
@@ -9,6 +10,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.ansari_logger import get_logger
+from ansari.util.translation import translate_texts_parallel
 
 # Set up logging
 logger = get_logger()
@@ -143,7 +145,7 @@ class AnsariClaude(Ansari):
             ref_list=ref_list,
         )
 
-    def replace_message_history(self, message_history: list[dict]):
+    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -151,7 +153,7 @@ class AnsariClaude(Ansari):
         # AnsariClaude doesn't use system message, so we don't need to prefix it
         self.message_history = message_history
 
-        for m in self.process_message_history():
+        for m in self.process_message_history(use_tool, stream):
             if m:
                 yield m
 
@@ -348,10 +350,24 @@ class AnsariClaude(Ansari):
                 if self.citations:
                     citations_text = "\n\n**Citations**:\n"
                     logger.debug(f"Full Citations: {self.citations}")
-                    for i, citation in enumerate(self.citations, 1):
+                    
+                    # Collect all Arabic texts that need translation
+                    arabic_texts = []
+                    
+                    for citation in self.citations:
                         text = getattr(citation, "cited_text", "")
+                        arabic_texts.append(text)
+                    
+                    # Translate all cited texts in one batch using asyncio.gather to maintain order
+                    english_translations = []
+                    if arabic_texts:
+                        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
+                    
+                    # Format citations with both Arabic and English
+                    for i, (citation, english_translation) in enumerate(zip(self.citations, english_translations), 1):
+                        arabic_text = getattr(citation, "cited_text", "")
                         title = getattr(citation, "document_title", "")
-                        citations_text += f"[{i}] {title}:\n {text}\n"
+                        citations_text += f"[{i}] {title}:\n Arabic: {arabic_text}\n English: {english_translation}\n"
                     assistant_text += citations_text
                     yield citations_text
 
@@ -366,13 +382,18 @@ class AnsariClaude(Ansari):
                 if assistant_text.strip():
                     content_blocks.append({"type": "text", "text": assistant_text.strip()})
 
-                # Create the message content based on whether we have content blocks or tool calls
+                # Always include tool_calls in content blocks if present
+                # This ensures the tool use call is saved in the message history
+                if tool_calls:
+                    content_blocks.extend(tool_calls)
+
+                # Create the message content based on whether we have content blocks
                 message_content = None
-                if content_blocks or tool_calls:
-                    message_content = content_blocks + tool_calls
+                if content_blocks:
+                    message_content = content_blocks
                 else:
-                    # If no content blocks or tool calls, use a single empty text element
-                    message_content = content_blocks[0].text
+                    # If no content blocks, use a single empty text element
+                    message_content = [{"type": "text", "text": ""}]
 
                 self.message_history.append({"role": "assistant", "content": message_content})
                 # Append the message to the message logger
@@ -433,7 +454,7 @@ class AnsariClaude(Ansari):
                             # Log the error message
                             self._log_message(self.message_history[-1])
 
-    def process_message_history(self):
+    def process_message_history(self, use_tool=True, stream=True):
         """
         This is the main loop that processes the message history.
         It yields from the process_one_round method until the last message is an assistant message.

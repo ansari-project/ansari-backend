@@ -53,6 +53,77 @@ class SearchTafsirEncyc(SearchUsul):
 
         return base_description
         
+    def format_as_list(self, results: Dict[str, Any]) -> List[str]:
+        """Format raw results as a list of strings.
+
+        Args:
+            results: Raw results from run()
+
+        Returns:
+            List of strings formatted for search results
+        """
+        # Check for empty results in different ways:
+        if not results or "results" not in results or not results.get("results", []):
+            return ["No results found."]
+
+        formatted_results = []
+        for result in results.get("results", []):
+            # Extract data from the result
+            if "node" in result:
+                node = result["node"]
+                text = node.get("text", "")
+                node_id = "Unknown"
+                page_info = "Unknown"
+                volume_info = ""
+                chapter_info = ""
+
+                # Extract metadata if available
+                if "metadata" in node:
+                    metadata = node["metadata"]
+                    node_id = metadata.get("bookId", "Unknown")
+                    
+                    # Extract page and volume information
+                    if "pages" in metadata and len(metadata["pages"]) > 0:
+                        page = metadata["pages"][0]
+                        page_info = page.get("page", "Unknown")
+                        volume_info = page.get("volume", "")
+                        
+                    # Extract chapter information
+                    if "chapters" in metadata and len(metadata["chapters"]) > 0:
+                        chapter = metadata["chapters"][0]
+                        chapter_info = chapter.get("title", "")
+            else:
+                # Fallback to original structure if "node" is not present
+                text = result.get("text", "")
+                node_id = result.get("nodeId", "Unknown")
+                page_info = result.get("page", "Unknown")
+                volume_info = ""
+                
+                if "chapter" in result:
+                    chapter_info = result["chapter"].get("title", "")
+                else:
+                    chapter_info = ""
+
+            # Create formatted string with available information
+            parts = ["Encyclopedia of Quranic Interpretation"]
+            if volume_info:
+                parts.append(f"Volume: {volume_info}")
+            if page_info:
+                parts.append(f"Page: {page_info}")
+            if node_id:
+                parts.append(f"ID: {node_id}")
+            
+            header = ", ".join(parts)
+            
+            if chapter_info:
+                formatted_text = f"{header}\nChapter: {chapter_info}\n\n{text}"
+            else:
+                formatted_text = f"{header}\n\n{text}"
+                
+            formatted_results.append(formatted_text)
+
+        return formatted_results if formatted_results else ["No results found."]
+    
     def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Format raw results as a list of reference documents for Claude.
 

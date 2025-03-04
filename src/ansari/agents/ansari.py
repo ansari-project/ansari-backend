@@ -20,6 +20,7 @@ from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
 from ansari.tools.search_vectara import SearchVectara
+from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.prompt_mgr import PromptMgr
 
 # previous logger name: __name__ + ".Ansari"
@@ -50,13 +51,9 @@ class Ansari:
         """Initialize tool instances. Can be overridden by subclasses."""
         sq = SearchQuran(self.settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(self.settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchVectara(
+        sm = SearchMawsuah(
             self.settings.VECTARA_API_KEY.get_secret_value(),
             self.settings.MAWSUAH_VECTARA_CORPUS_KEY,
-            self.settings.MAWSUAH_FN_NAME,
-            self.settings.MAWSUAH_FN_DESCRIPTION,
-            self.settings.MAWSUAH_TOOL_PARAMS,
-            self.settings.MAWSUAH_TOOL_REQUIRED_PARAMS,
         )
         ste = SearchTafsirEncyc(self.settings.USUL_API_TOKEN.get_secret_value())
         return {
@@ -85,9 +82,19 @@ class Ansari:
             self.message_logger.log(role="user", content=user_input)
             logger.debug("Logged user message")
 
-        for m in self.process_message_history():
+        # Process initial message with tools
+        for m in self.process_message_history(use_tool=True):
             if m:
                 yield m
+                
+        # Ensure we always get a final response (like AnsariClaude)
+        if len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant":
+            logger.debug("Last message is not from assistant, making a follow-up call")
+            
+            # Search tool will have been used by now, so generate a final response
+            for m in self.process_one_round(use_tool=False):
+                if m:
+                    yield m
 
     def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
@@ -384,6 +391,11 @@ class Ansari:
             ],
         }
         self.message_history.append(internal_msg)
+        
+        # Log the assistant's tool call message
+        if self.message_logger is not None:
+            self.message_logger.log("assistant", "", tool_name, 
+                {"function": tool_definition, "id": tool_id, "type": "function"})
 
         if len(results) == 0:
             # corner case where the api returns no results

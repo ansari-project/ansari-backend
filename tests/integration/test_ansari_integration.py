@@ -3,9 +3,8 @@ import json
 
 from ansari.agents.ansari import Ansari
 from ansari.config import Settings
-from ansari.ansari_db import MessageLogger, AnsariDB
+from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
-from tests.integration.test_helpers import history_and_log_matches
 from tests.integration.test_ansari_generic import AnsariTester, IntegrationMessageLogger, MockDatabase
 
 logger = get_logger()
