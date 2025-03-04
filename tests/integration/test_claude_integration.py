@@ -6,7 +6,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from tests.integration.test_ansari_generic import AnsariTester
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Import the generic tester class to reuse test logic
 from tests.integration.test_ansari_generic import IntegrationMessageLogger, MockDatabase

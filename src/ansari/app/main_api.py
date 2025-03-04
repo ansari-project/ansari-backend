@@ -43,7 +43,7 @@ from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import get_extended_origins, validate_cors
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Register the UUID type globally
 # Details: Read the SO question then the answer referenced below:

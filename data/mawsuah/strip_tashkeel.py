@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 
 from ansari.ansari_logger import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def strip_tashkeel_from_doc(input_file, output_file):
