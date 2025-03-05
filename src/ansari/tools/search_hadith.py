@@ -1,5 +1,6 @@
 import requests
 import logging
+from ansari.util.translation import format_multilingual_data
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -83,22 +84,27 @@ class SearchHadith:
             ar_text = result.get("ar_text", "")
             grade = result.get("grade_en", "").strip()
 
-            # Create citation title
+            # Create citation title (including grade if available)
             title = (
                 f"{source_book} - Chapter {chapter}: {chapter_name}, "
                 f"Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
             )
-
-            # Complete text of hadith with grade
-            data = f"English Text: {text}"
-            if ar_text:
-                data = f"Arabic Text: {ar_text}\n\n{data}"
             if grade:
-                data = f"{data}\n\nGrade: {grade}"
+                title += f" (Grade: {grade})"
+
+            # Prepare multilingual data for hadith content
+            text_entries = {}
+            if ar_text:
+                text_entries["ar"] = ar_text
+            if text:
+                text_entries["en"] = text
+
+            # Convert to JSON format for multilingual support
+            multilingual_data = format_multilingual_data(text_entries)
 
             document = {
                 "type": "document",
-                "source": {"type": "text", "media_type": "text/plain", "data": data},
+                "source": {"type": "text", "media_type": "text/plain", "data": multilingual_data},
                 "title": title,
                 "context": "Retrieved from hadith collections",
                 "citations": {"enabled": True},
