@@ -119,9 +119,10 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
 
     # Check if the incoming message is a location
     if incoming_msg_type == "location":
-        await presenter.handle_location_message(
+        # NOTE: Currently, will not handle location messages
+        await presenter.handle_unsupported_message(
             from_whatsapp_number,
-            incoming_msg_body,
+            incoming_msg_type,
         )
         return
 

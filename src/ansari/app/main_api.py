@@ -36,7 +36,7 @@ from zxcvbn import zxcvbn
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
-from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
@@ -83,7 +83,7 @@ def add_app_middleware():
 
 
 add_app_middleware()
-db = AnsariDB(get_settings())
+db = AnsariDB(get_settings(), source=SourceType.WEBPAGE)
 
 agent_type = get_settings().AGENT
 
@@ -165,7 +165,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
     )
     try:
         # Check if account exists
-        if db.account_exists(req.email):
+        if db.account_exists(email=req.email):
             raise HTTPException(status_code=403, detail="Account already exists")
 
         # zxcvbn is a password strength checker (named after last row of keys in a keyboard :])
@@ -178,7 +178,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
                 status_code=400,
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
-        return db.register(req.email, req.first_name, req.last_name, password_hash)
+        return db.register(email=req.email, first_name=req.first_name, last_name=req.last_name, password_hash=password_hash)
     except psycopg2.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
@@ -202,10 +202,10 @@ async def login_user(
     if not cors_ok:
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
-    if not db.account_exists(req.email):
+    if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
-    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(req.email)
+    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(email=req.email)
 
     if not db.check_password(req.password, existing_hash):
         raise HTTPException(status_code=403, detail="Invalid username or password")
@@ -584,7 +584,7 @@ def get_snapshot(
     share_uuid = uuid.UUID(share_uuid_str)
     try:
         content = db.get_snapshot(share_uuid)
-        
+
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:
             filtered_messages = []
@@ -594,7 +594,7 @@ def get_snapshot(
                 if filtered_msg is not None:
                     filtered_messages.append(filtered_msg)
             content["messages"] = filtered_messages
-            
+
         return {"status": "success", "content": content}
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -607,11 +607,11 @@ def filter_message_content(message):
     """
     filtered_msg = message.copy()
     content = message.get("content")
-    
+
     # User messages are typically strings, keep them as is
     if message.get("role") == "user" and isinstance(content, str):
         return filtered_msg
-    
+
     # Filter list content (typical for assistant messages)
     if isinstance(content, list):
         filtered_content = []
@@ -621,7 +621,7 @@ def filter_message_content(message):
                 if item.get("type") == "text" and item.get("text"):
                     filtered_content.append(item)
                 # Skip tool_use, tool_result, and document blocks
-        
+
         # If we found any text blocks, use them
         if filtered_content:
             filtered_msg["content"] = filtered_content
@@ -629,11 +629,11 @@ def filter_message_content(message):
         # Otherwise return None to completely remove this message
         else:
             return None
-    
+
     # If content is empty or None, return None to remove the message
     if not content:
         return None
-    
+
     return filtered_msg
 
 
@@ -766,8 +766,8 @@ async def request_password_reset(
         raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Request received to reset {req.email}")
-    if db.account_exists(req.email):
-        user_id, _, _, _ = db.retrieve_user_info(req.email)
+    if db.account_exists(email=req.email):
+        user_id, _, _, _ = db.retrieve_user_info(email=req.email)
         reset_token = db.generate_token(user_id, "reset")
         db.save_reset_token(user_id, reset_token)
         # shall we also revoke login and refresh tokens?
