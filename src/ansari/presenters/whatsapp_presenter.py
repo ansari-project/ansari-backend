@@ -8,7 +8,7 @@ from typing import Any, Literal, Optional
 import httpx
 
 from ansari.agents.ansari import Ansari
-from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_direction_from_text, get_language_from_text
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 # Initialize the DB and agent
 # TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
 #    instead of duplicating `db` instances? Will this cost more resources?
-db = AnsariDB(get_settings(), source="whatsapp")
+db = AnsariDB(get_settings(), source=SourceType.WHATSAPP)
 
 
 class WhatsAppPresenter:
@@ -128,9 +128,9 @@ class WhatsAppPresenter:
             # instead of hardcoding "en" in below code
             user_lang = "en"
 
-        status: Literal["success", "failure"] = db.register(
-            phone_num=user_whatsapp_number, preferred_language=user_lang, source="whatsapp"
-        )["status"]
+        status: Literal["success", "failure"] = db.register(phone_num=user_whatsapp_number, preferred_language=user_lang)[
+            "status"
+        ]
 
         if status == "success":
             logger.info(f"Registered new whatsapp user (lang: {user_lang})!: {user_whatsapp_number}")
@@ -355,6 +355,8 @@ class WhatsAppPresenter:
                 "An unexpected error occurred while processing your message. Please try again later.",
             )
 
+    # NOTE: This function assumes `loc_lat` and `loc_long` columns are in `users` DB table
+    #   If alternative columns are used (e.g., city), the function should be updated accordingly
     async def handle_location_message(
         self,
         user_whatsapp_number: str,

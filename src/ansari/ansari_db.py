@@ -4,6 +4,7 @@ import logging
 import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import Iterable, Literal, Optional, Union
 from uuid import UUID
 
@@ -20,12 +21,19 @@ from ansari.config import Settings, get_settings
 logger = get_logger("DEBUG")
 
 
+class SourceType(str, Enum):
+    ANDROID = "android"
+    IOS = "ios"
+    WEBPAGE = "webpage"
+    WHATSAPP = "whatsapp"
+
+
 class MessageLogger:
     """A simplified interface to AnsariDB so that we can log messages
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", user_id: UUID, thread_id: UUID, source: str = "ansari.chat") -> None:
+    def __init__(self, db: "AnsariDB", user_id: UUID, thread_id: UUID, source: SourceType = SourceType.WEBPAGE) -> None:
         self.user_id = user_id
         self.thread_id = thread_id
         self.source = source
@@ -46,7 +54,7 @@ class MessageLogger:
 class AnsariDB:
     """Handles all database interactions."""
 
-    def __init__(self, settings: Settings, source: str) -> None:
+    def __init__(self, settings: Settings, source: SourceType) -> None:
         self.db_url = str(settings.DATABASE_URL)
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
         self.ALGORITHM = settings.ALGORITHM
@@ -280,11 +288,12 @@ class AnsariDB:
                 ("last_name", last_name),
                 ("password_hash", password_hash),
                 ("phone_num", phone_num),
+                ("preferred_language", preferred_language),
             ]:
                 if value is not None:
                     insert_values[field] = value
 
-            insert_values["source"] = self.source
+            insert_values["initial_source"] = self.source
 
             # Construct the insert SQL dynamically
             columns = ", ".join(insert_values.keys())
@@ -370,32 +379,32 @@ class AnsariDB:
             email (str, optional): The user's email address.
             phone_num (str, optional): The user's phone number.
             db_cols (Union[list, str], optional): Specific column(s) to retrieve.
-                If None, returns id, password_hash, first_name, last_name for ansari.chat users,
+                If None, returns id, password_hash, first_name, last_name for non-whatsapp users,
                 or just id for whatsapp users.
 
         Returns:
             Optional[Tuple]: A tuple containing the requested fields.
-                For ansari.chat source: Returns (id, password_hash, first_name, last_name) by default
+                For non-whatsapp source: Returns (id, password_hash, first_name, last_name) by default
                 For whatsapp source: Returns (id,) by default
                 Returns tuple of None values if no user is found.
 
         Raises:
             ValueError: If neither email nor phone_num is provided for their respective sources.
-                    ansari.chat source requires email
+                    non-whatsapp source requires email
                     whatsapp source requires phone number
         """
         try:
-            if self.source == "ansari.chat" and not email:
-                raise ValueError("Source 'ansari.chat' requires email based auth")
-            if self.source == "whatsapp" and not phone_num:
-                raise ValueError("Source 'whatsapp' requires phone number based auth")
+            if self.source == SourceType.WEBPAGE and not email:
+                raise ValueError("Selected sourse requires email based auth")
+            if self.source == SourceType.WHATSAPP and not phone_num:
+                raise ValueError("Selected source requires phone number based auth")
 
-            if self.source == "ansari.chat":
+            if self.source == SourceType.WEBPAGE:
                 identifier_col = "email"
                 param = email.strip().lower()
                 if not db_cols:
                     db_cols = ["id", "password_hash", "first_name", "last_name"]
-            elif self.source == "whatsapp":
+            elif self.source == SourceType.WHATSAPP:
                 identifier_col = "phone_num"
                 param = phone_num
                 if not db_cols:
@@ -445,9 +454,9 @@ class AnsariDB:
             dict: Dictionary with thread_id and status
         """
         try:
-            # Use the unified threads table with the source field
+            # Use the unified threads table with the initial_source field
             insert_cmd = """
-            INSERT INTO threads (user_id, name, source)
+            INSERT INTO threads (user_id, name, initial_source)
             VALUES (%s, %s, %s)
             RETURNING id;
             """
@@ -515,7 +524,7 @@ class AnsariDB:
             ref_list: Optional list of reference documents
         """
         try:
-            if self.source != "whatsapp":
+            if self.source != SourceType.WHATSAPP:
                 # Standardize content format based on message type
                 if role == "assistant" and not isinstance(content, list):
                     # Convert simple assistant messages to expected format
@@ -535,7 +544,7 @@ class AnsariDB:
 
             # Insert into database
             query = """
-                INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list, source)
+                INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list, initial_source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
 
@@ -583,12 +592,12 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            select_cmd_1 = """SELECT name FROM threads WHERE id = %s AND user_id = %s AND source = %s;"""
+            select_cmd_1 = """SELECT name FROM threads WHERE id = %s AND user_id = %s AND initial_source = %s;"""
 
-            order_by_col = "updated_at" if self.source == "whatsapp" else "timestamp"
+            order_by_col = "updated_at" if self.source == SourceType.WHATSAPP else "timestamp"
             select_cmd_2 = (
                 "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
-                + f"WHERE thread_id = %s AND user_id = %s AND source = %s ORDER BY {order_by_col};"
+                + f"WHERE thread_id = %s AND user_id = %s AND initial_source = %s ORDER BY {order_by_col};"
             )
 
             params = (thread_id, user_id, self.source)
@@ -631,15 +640,15 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            # Updated query to use the unified threads table with source filter
+            # Updated query to use the unified threads table with initial_source filter
             select_cmd = """
             SELECT id, updated_at
             FROM threads 
-            WHERE user_id = %s AND source = 'whatsapp'
+            WHERE user_id = %s AND initial_source = %s
             ORDER BY updated_at DESC
             LIMIT 1;
             """
-            result = self._execute_query(select_cmd, (user_id,), "one")[0]
+            result = self._execute_query(select_cmd, (user_id, self.source), "one")[0]
             if result:
                 return result[0], result[1]
             return None, None
@@ -812,8 +821,8 @@ class AnsariDB:
                 raise ValueError("At least one field must be provided to update.")
             set_clause = ", ".join([f"{key} = %s" for key in fields])
 
-            # Update the users table with source='whatsapp' filter
-            update_cmd = f"UPDATE users SET {set_clause} WHERE phone_num = %s AND source = %s;"
+            # Update the users table with initial_source=SourceType.WHATSAPP filter
+            update_cmd = f"UPDATE users SET {set_clause} WHERE phone_num = %s AND initial_source = %s;"
 
             # Execute the query with the values and the original phone_num
             self._execute_query(update_cmd, (*db_cols_to_vals.values(), phone_num, self.source))
@@ -898,7 +907,7 @@ class AnsariDB:
         elif role == "assistant":
             # For assistant messages, always use block format
             content_blocks = []
-            
+
             # Add text block
             if isinstance(content, str):
                 content_blocks.append({"type": "text", "text": content})
@@ -908,7 +917,7 @@ class AnsariDB:
             else:
                 # Convert to text block
                 content_blocks.append({"type": "text", "text": str(content)})
-            
+
             # If there's tool info, add tool use block
             if tool_name and tool_details:
                 try:
@@ -917,17 +926,12 @@ class AnsariDB:
                     tool_input = tool_details_dict.get("args")
                     # Add tool use block only if we have valid information
                     if tool_id and tool_name:
-                        content_blocks.append({
-                            "type": "tool_use", 
-                            "id": tool_id, 
-                            "name": tool_name, 
-                            "input": tool_input
-                        })
+                        content_blocks.append({"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input})
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse tool details JSON: {tool_details}")
-            
+
             return [{"role": role, "content": content_blocks}]
-            
+
         # Handle regular user messages without tool use
         else:
             # For simple user messages, use simple format

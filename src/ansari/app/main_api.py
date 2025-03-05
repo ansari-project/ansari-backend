@@ -36,7 +36,7 @@ from zxcvbn import zxcvbn
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
-from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
@@ -83,7 +83,7 @@ def add_app_middleware():
 
 
 add_app_middleware()
-db = AnsariDB(get_settings(), source="ansari.chat")
+db = AnsariDB(get_settings(), source=SourceType.WEBPAGE)
 
 agent_type = get_settings().AGENT
 
@@ -584,7 +584,7 @@ def get_snapshot(
     share_uuid = uuid.UUID(share_uuid_str)
     try:
         content = db.get_snapshot(share_uuid)
-        
+
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:
             filtered_messages = []
@@ -594,7 +594,7 @@ def get_snapshot(
                 if filtered_msg is not None:
                     filtered_messages.append(filtered_msg)
             content["messages"] = filtered_messages
-            
+
         return {"status": "success", "content": content}
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -607,11 +607,11 @@ def filter_message_content(message):
     """
     filtered_msg = message.copy()
     content = message.get("content")
-    
+
     # User messages are typically strings, keep them as is
     if message.get("role") == "user" and isinstance(content, str):
         return filtered_msg
-    
+
     # Filter list content (typical for assistant messages)
     if isinstance(content, list):
         filtered_content = []
@@ -621,7 +621,7 @@ def filter_message_content(message):
                 if item.get("type") == "text" and item.get("text"):
                     filtered_content.append(item)
                 # Skip tool_use, tool_result, and document blocks
-        
+
         # If we found any text blocks, use them
         if filtered_content:
             filtered_msg["content"] = filtered_content
@@ -629,11 +629,11 @@ def filter_message_content(message):
         # Otherwise return None to completely remove this message
         else:
             return None
-    
+
     # If content is empty or None, return None to remove the message
     if not content:
         return None
-    
+
     return filtered_msg
 
 

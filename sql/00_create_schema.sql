@@ -6,6 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Type definitions 
 CREATE TYPE feedback_class AS ENUM ('thumbsup', 'thumbsdown', 'redflag');
+CREATE TYPE source_type AS ENUM ('ios', 'android', 'webpage', 'whatsapp');
 
 ------------------------------------ Core tables ------------------------------------
 
@@ -18,10 +19,8 @@ CREATE TABLE users (
     last_name VARCHAR(50),
     preferred_language VARCHAR(10) DEFAULT 'en',
     is_guest BOOLEAN NOT NULL DEFAULT FALSE,
-    source VARCHAR(20) NOT NULL DEFAULT 'ansari.chat',
+    initial_source source_type NOT NULL,
     phone_num VARCHAR(20) UNIQUE,
-    loc_lat FLOAT,
-    loc_long FLOAT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -48,7 +47,7 @@ CREATE TABLE threads (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100),
     user_id UUID NOT NULL,
-    source VARCHAR(20) NOT NULL DEFAULT 'ansari.chat',
+    initial_source source_type NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -97,7 +96,7 @@ CREATE TABLE messages (
     ref_list JSONB,
     content TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    source VARCHAR(20) NOT NULL DEFAULT 'ansari.chat',
+    initial_source source_type NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
