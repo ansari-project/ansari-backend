@@ -31,3 +31,6 @@
 - **Logging**: Use the logger from `ansari.ansari_logger.get_logger()`
 - **Documentation**: Add docstrings to functions, especially complex ones
 - **Testing**: Create unit tests in `tests/unit/` and integration tests in `tests/integration/`
+
+## File Management
+- **Temporary files**: Always place temporary files in the `tmp/` folder, which is in `.gitignore`
