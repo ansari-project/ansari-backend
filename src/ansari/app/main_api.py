@@ -33,6 +33,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
+import sentry_sdk
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
@@ -44,6 +45,7 @@ from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import get_extended_origins, validate_cors
 
 logger = get_logger(__name__)
+environment = get_settings().ENVIRONMENT
 
 # Register the UUID type globally
 # Details: Read the SO question then the answer referenced below:
@@ -51,6 +53,21 @@ logger = get_logger(__name__)
 # More details (optional):
 #   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
 psycopg2.extras.register_uuid()
+
+sentry_sdk.init(
+    dsn="https://bcf62c891248dc36347d3d5d6a27ac23@o4508852781973504.ingest.us.sentry.io/4508926693474304",
+    environment=environment,
+    # Add data like request headers and IP for users, if applicable;
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=False,
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for tracing.
+    traces_sample_rate=0.2 if environment == "production" else 1.0,
+    # Set profiles_sample_rate to 1.0 to profile 100%
+    # of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=0.2 if environment == "production" else 1.0,
+)
 
 app = FastAPI()
 
@@ -584,7 +601,7 @@ def get_snapshot(
     share_uuid = uuid.UUID(share_uuid_str)
     try:
         content = db.get_snapshot(share_uuid)
-        
+
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:
             filtered_messages = []
@@ -594,7 +611,7 @@ def get_snapshot(
                 if filtered_msg is not None:
                     filtered_messages.append(filtered_msg)
             content["messages"] = filtered_messages
-            
+
         return {"status": "success", "content": content}
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -607,11 +624,11 @@ def filter_message_content(message):
     """
     filtered_msg = message.copy()
     content = message.get("content")
-    
+
     # User messages are typically strings, keep them as is
     if message.get("role") == "user" and isinstance(content, str):
         return filtered_msg
-    
+
     # Filter list content (typical for assistant messages)
     if isinstance(content, list):
         filtered_content = []
@@ -621,7 +638,7 @@ def filter_message_content(message):
                 if item.get("type") == "text" and item.get("text"):
                     filtered_content.append(item)
                 # Skip tool_use, tool_result, and document blocks
-        
+
         # If we found any text blocks, use them
         if filtered_content:
             filtered_msg["content"] = filtered_content
@@ -629,11 +646,11 @@ def filter_message_content(message):
         # Otherwise return None to completely remove this message
         else:
             return None
-    
+
     # If content is empty or None, return None to remove the message
     if not content:
         return None
-    
+
     return filtered_msg
 
 

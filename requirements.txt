@@ -18,6 +18,7 @@ pytest-asyncio
 pytest-mock
 rich
 sendgrid
+sentry-sdk[fastapi]
 setuptools
 tenacity
 tiktoken

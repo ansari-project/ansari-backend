@@ -40,6 +40,8 @@ class Settings(BaseSettings):
         path = resources_dir / filename
         return path
 
+    ENVIRONMENT: str = Field(default="development")
+
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari",
     )
