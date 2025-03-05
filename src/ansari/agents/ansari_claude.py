@@ -13,7 +13,7 @@ from ansari.ansari_logger import get_logger
 from ansari.util.translation import translate_texts_parallel
 
 # Set up logging
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 class AnsariClaude(Ansari):
@@ -131,16 +131,37 @@ class AnsariClaude(Ansari):
         content = message["content"]
         tool_details = []
         ref_list = []
+        tool_name = message.get("tool_name", None)
+        
         # Handle different message content formats
         if isinstance(content, list):
             ref_list = [block for block in content if block.get("type") == "document"]
-            tool_details = [block for block in content if block.get("type") == "tool_result"]
+            
+            # Extract tool details from content for assistant messages
+            if message["role"] == "assistant":
+                tool_use_blocks = [block for block in content if block.get("type") == "tool_use"]
+                # If we have tool use blocks, properly extract and format their details
+                if tool_use_blocks:
+                    tool_name = tool_use_blocks[0].get("name")
+                    tool_details = {
+                        "id": tool_use_blocks[0].get("id"),
+                        "type": "function",
+                        "function": {
+                            "name": tool_use_blocks[0].get("name"),
+                            "arguments": json.dumps(tool_use_blocks[0].get("input", {}))
+                        }
+                    }
+            # Extract tool result details for user messages
+            elif message["role"] == "user":
+                tool_result_blocks = [block for block in content if block.get("type") == "tool_result"]
+                if tool_result_blocks:
+                    tool_details = tool_result_blocks
 
         # Log the message with appropriate structure
         self.message_logger.log(
             role=message["role"],
             content=content,
-            tool_name=message.get("tool_name", None),
+            tool_name=tool_name,
             tool_details=tool_details,
             ref_list=ref_list,
         )
@@ -394,10 +415,23 @@ class AnsariClaude(Ansari):
                 else:
                     # If no content blocks, use a single empty text element
                     message_content = [{"type": "text", "text": ""}]
-
-                self.message_history.append({"role": "assistant", "content": message_content})
-                # Append the message to the message logger
-                self._log_message(self.message_history[-1])
+                    
+                # Create the assistant message for the message history
+                # Don't include tool_name in the message sent to Claude API
+                assistant_message = {"role": "assistant", "content": message_content}
+                
+                # Add to message history
+                self.message_history.append(assistant_message)
+                
+                # For logging, create a copy with tool_name for database storage
+                if tool_calls:
+                    log_message = assistant_message.copy()
+                    log_message["tool_name"] = tool_calls[0]["name"]
+                    # Log the message with tool_name for database
+                    self._log_message(log_message)
+                else:
+                    # Log the regular message
+                    self._log_message(self.message_history[-1])
 
                 # Process any accumulated tool calls
                 # Note: We only create a user message if there were tool calls?
@@ -419,6 +453,10 @@ class AnsariClaude(Ansari):
                             # All references are now dictionaries, so we can directly use them
                             document_blocks = reference_list
                             
+                            # Store the tool call details in the assistant message for proper reconstruction
+                            # This ensures the database has the tool_use data needed for replay
+                            # We'll use these values directly when needed
+                            
                             # Add tool result and document blocks in the same message
                             self.message_history.append(
                                 {
@@ -433,7 +471,7 @@ class AnsariClaude(Ansari):
                                     + document_blocks,
                                 }
                             )
-                            # Log the tool result message
+                            # Log the tool result message with tool details to ensure proper saving
                             self._log_message(self.message_history[-1])
 
                         except Exception as e:
@@ -462,6 +500,73 @@ class AnsariClaude(Ansari):
         """
 
         count = 0
+
+        # Track tool_use_ids to ensure tool_result blocks have matching tool_use blocks
+        tool_use_ids = set()
+        
+        # First pass: collect all tool_use IDs
+        for msg in self.message_history:
+            if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_use" and "id" in block:
+                        tool_use_ids.add(block["id"])
+                        logger.debug(f"Found tool_use block with ID: {block['id']}")
+        
+        logger.debug(f"Found tool_use_ids: {tool_use_ids}")
+        
+        # Second pass: ensure all messages have proper format for the API
+        for i in range(len(self.message_history)):
+            msg = self.message_history[i]
+            
+            # All assistant messages must use the block format
+            if msg.get("role") == "assistant":
+                if isinstance(msg.get("content"), str):
+                    # Convert string to text block
+                    self.message_history[i]["content"] = [{"type": "text", "text": msg["content"]}]
+                elif isinstance(msg.get("content"), list):
+                    # Check if content is already in correct format with blocks having "type" field
+                    has_valid_blocks = all(isinstance(item, dict) and "type" in item for item in msg["content"])
+                    if not has_valid_blocks:
+                        # If not blocks, convert the whole list to a text block
+                        logger.warning(f"Fixing assistant message with improper content format: {msg['content']}")
+                        self.message_history[i]["content"] = [{"type": "text", "text": str(msg["content"])}]
+                else:
+                    # Convert any other content type to text block
+                    self.message_history[i]["content"] = [{"type": "text", "text": str(msg["content"])}]
+            
+            # User messages with tool_result need to have matching tool_use blocks
+            elif msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                fixed_content = []
+                has_invalid_tool_result = False
+                
+                for block in msg["content"]:
+                    # Check if this is a tool_result block
+                    is_tool_result = (isinstance(block, dict) and 
+                                     (block.get("type") == "tool_result" or "tool_use_id" in block))
+                    
+                    if is_tool_result:
+                        # Ensure it has type field
+                        if "type" not in block:
+                            block["type"] = "tool_result"
+                            logger.warning("Added missing 'type': 'tool_result' to block")
+                            
+                        # Check if the tool_use_id exists in our collected IDs
+                        if "tool_use_id" in block and block["tool_use_id"] not in tool_use_ids:
+                            has_invalid_tool_result = True
+                            logger.warning(f"Found tool_result with ID {block['tool_use_id']} but no matching tool_use block")
+                            # Skip this block - it has no matching tool_use
+                            continue
+                    
+                    # Keep this block
+                    fixed_content.append(block)
+                
+                # If we had to remove invalid tool_result blocks and now have an empty list,
+                # replace with a simple text message
+                if has_invalid_tool_result:
+                    if not fixed_content:
+                        self.message_history[i]["content"] = "Tool result (missing matching tool_use)"
+                    else:
+                        self.message_history[i]["content"] = fixed_content
 
         # Check if the last message is a user message and needs to be logged.
         # This check avoids double-logging the user message which is already logged in the parent Ansari.process_input method

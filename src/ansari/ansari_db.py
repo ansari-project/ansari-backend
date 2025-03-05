@@ -894,56 +894,48 @@ class AnsariDB:
 
             return [{"role": role, "content": result_content}]
 
-        # Handle assistant messages with tool use
-        elif role == "assistant" and tool_name:
-            # Create a properly structured assistant message with tool use
-            result = []
-
-            # First add the regular content message
-            if content:
-                if isinstance(content, list):
-                    result.append({"role": role, "content": content})
-                else:
-                    result.append({"role": role, "content": [{"type": "text", "text": content}]})
-
-            # Parse tool details
-            if tool_details:
+        # Handle all assistant messages (with or without tool use)
+        elif role == "assistant":
+            # For assistant messages, always use block format
+            content_blocks = []
+            
+            # Add text block
+            if isinstance(content, str):
+                content_blocks.append({"type": "text", "text": content})
+            elif isinstance(content, list) and all(isinstance(block, dict) and "type" in block for block in content):
+                # Content is already in block format
+                content_blocks = content
+            else:
+                # Convert to text block
+                content_blocks.append({"type": "text", "text": str(content)})
+            
+            # If there's tool info, add tool use block
+            if tool_name and tool_details:
                 try:
                     tool_details_dict = json.loads(tool_details)
                     tool_id = tool_details_dict.get("id")
-                    tool_input = tool_details_dict.get("input")
-
-                    # If we have a message already, append the tool_use to its content
-                    if result:
-                        if isinstance(result[0]["content"], list):
-                            result[0]["content"].append(
-                                {"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input}
-                            )
-                    # Otherwise create a new message
-                    else:
-                        result.append(
-                            {
-                                "role": role,
-                                "content": [{"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input}],
-                            }
-                        )
+                    tool_input = tool_details_dict.get("args")
+                    # Add tool use block only if we have valid information
+                    if tool_id and tool_name:
+                        content_blocks.append({
+                            "type": "tool_use", 
+                            "id": tool_id, 
+                            "name": tool_name, 
+                            "input": tool_input
+                        })
                 except json.JSONDecodeError:
-                    pass
-
-            return result
-
-        # Handle regular messages (no tool use)
+                    logger.warning(f"Failed to parse tool details JSON: {tool_details}")
+            
+            return [{"role": role, "content": content_blocks}]
+            
+        # Handle regular user messages without tool use
         else:
-            # For text messages from assistant, ensure they have the proper structure
-            if role == "assistant":
-                if isinstance(content, list):
-                    # Already in the right format
-                    return [{"role": role, "content": content}]
-                else:
-                    # Convert to the expected format with type: text
-                    return [{"role": role, "content": [{"type": "text", "text": content}]}]
-            # For user messages, keep the format simple unless already complex
+            # For simple user messages, use simple format
+            if isinstance(content, str):
+                # Simple text content
+                return [{"role": role, "content": content}]
             else:
+                # Content is already structured (list or dict)
                 return [{"role": role, "content": content}]
 
     def store_quran_answer(

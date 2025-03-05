@@ -8,7 +8,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_from_text
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def translate_text(
@@ -52,7 +52,10 @@ def translate_text(
             model=model,
             max_tokens=1024,
             temperature=0.0,
-            system="You are a professional translator. Translate the text accurately while preserving meaning, tone, and formatting. Only return the translation, nothing else.",
+            system=(
+                "You are a professional translator. Translate the text accurately while preserving meaning, tone, "
+                "and formatting. Only return the translation, nothing else."
+            ),
             messages=[
                 {
                     "role": "user", 

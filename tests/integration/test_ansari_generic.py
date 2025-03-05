@@ -8,8 +8,8 @@ from ansari.config import Settings
 from ansari.ansari_logger import get_logger
 from tests.integration.test_helpers import history_and_log_matches, IntegrationMessageLogger
 
-# Set logging level explicitly to DEBUG
-logger = get_logger(logging_level="DEBUG")
+# Set logging level for this module
+logger = get_logger(__name__)
 
 # Mock database implementation for testing reconstruction
 class MockDatabase:

@@ -13,7 +13,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_direction_from_text, get_language_from_text
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Initialize the DB and agent
 # TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?

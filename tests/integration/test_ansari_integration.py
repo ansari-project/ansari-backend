@@ -7,7 +7,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from tests.integration.test_ansari_generic import AnsariTester, IntegrationMessageLogger, MockDatabase
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 @pytest.fixture
 def settings():
