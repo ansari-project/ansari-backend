@@ -10,7 +10,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.ansari_logger import get_logger
-from ansari.util.translation import translate_texts_parallel
+from ansari.util.translation import translate_texts_parallel, parse_multilingual_data
 
 # Set up logging
 logger = get_logger(__name__)
@@ -132,11 +132,11 @@ class AnsariClaude(Ansari):
         tool_details = []
         ref_list = []
         tool_name = message.get("tool_name", None)
-        
+
         # Handle different message content formats
         if isinstance(content, list):
             ref_list = [block for block in content if block.get("type") == "document"]
-            
+
             # Extract tool details from content for assistant messages
             if message["role"] == "assistant":
                 tool_use_blocks = [block for block in content if block.get("type") == "tool_use"]
@@ -148,8 +148,8 @@ class AnsariClaude(Ansari):
                         "type": "function",
                         "function": {
                             "name": tool_use_blocks[0].get("name"),
-                            "arguments": json.dumps(tool_use_blocks[0].get("input", {}))
-                        }
+                            "arguments": json.dumps(tool_use_blocks[0].get("input", {})),
+                        },
                     }
             # Extract tool result details for user messages
             elif message["role"] == "user":
@@ -371,24 +371,47 @@ class AnsariClaude(Ansari):
                 if self.citations:
                     citations_text = "\n\n**Citations**:\n"
                     logger.debug(f"Full Citations: {self.citations}")
-                    
-                    # Collect all Arabic texts that need translation
-                    arabic_texts = []
-                    
-                    for citation in self.citations:
-                        text = getattr(citation, "cited_text", "")
-                        arabic_texts.append(text)
-                    
-                    # Translate all cited texts in one batch using asyncio.gather to maintain order
-                    english_translations = []
-                    if arabic_texts:
-                        english_translations = asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
-                    
-                    # Format citations with both Arabic and English
-                    for i, (citation, english_translation) in enumerate(zip(self.citations, english_translations), 1):
-                        arabic_text = getattr(citation, "cited_text", "")
+
+                    # Process each citation
+                    for i, citation in enumerate(self.citations, 1):
+                        cited_text = getattr(citation, "cited_text", "")
                         title = getattr(citation, "document_title", "")
-                        citations_text += f"[{i}] {title}:\n Arabic: {arabic_text}\n English: {english_translation}\n"
+                        citations_text += f"[{i}] {title}:\n"
+
+                        # Check if the cited text is a JSON string with language-text pairs
+                        try:
+                            # Use the parse_multilingual_data helper to extract texts by language
+                            texts_by_lang = parse_multilingual_data(cited_text)
+
+                            # Add Arabic text if present
+                            if "ar" in texts_by_lang:
+                                citations_text += f" Arabic: {texts_by_lang['ar']}\n"
+
+                            # Add or generate English translation
+                            if "en" in texts_by_lang:
+                                # Use existing English translation
+                                citations_text += f" English: {texts_by_lang['en']}\n"
+                            elif "ar" in texts_by_lang:
+                                # Translate Arabic to English
+                                english_translation = asyncio.run(translate_texts_parallel([texts_by_lang["ar"]], "en", "ar"))[
+                                    0
+                                ]
+                                citations_text += f" English: {english_translation}\n"
+
+                            # Continue with the next citation
+                            continue
+
+                        except (json.JSONDecodeError, ValueError):
+                            # Not a valid JSON string or not in our expected format,
+                            # continue with normal processing
+                            pass
+
+                        # Legacy format (plain text) - assume it's Arabic and translate
+                        arabic_text = cited_text
+                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+
+                        citations_text += f" Arabic: {arabic_text}\n English: {english_translation}\n"
+
                     assistant_text += citations_text
                     yield citations_text
 
@@ -415,14 +438,14 @@ class AnsariClaude(Ansari):
                 else:
                     # If no content blocks, use a single empty text element
                     message_content = [{"type": "text", "text": ""}]
-                    
+
                 # Create the assistant message for the message history
                 # Don't include tool_name in the message sent to Claude API
                 assistant_message = {"role": "assistant", "content": message_content}
-                
+
                 # Add to message history
                 self.message_history.append(assistant_message)
-                
+
                 # For logging, create a copy with tool_name for database storage
                 if tool_calls:
                     log_message = assistant_message.copy()
@@ -449,14 +472,14 @@ class AnsariClaude(Ansari):
                             logger.debug(f"Reference list type: {type(reference_list)}")
                             if reference_list and len(reference_list) > 0:
                                 logger.debug(f"First reference item type: {type(reference_list[0])}")
-                            
+
                             # All references are now dictionaries, so we can directly use them
                             document_blocks = reference_list
-                            
+
                             # Store the tool call details in the assistant message for proper reconstruction
                             # This ensures the database has the tool_use data needed for replay
                             # We'll use these values directly when needed
-                            
+
                             # Add tool result and document blocks in the same message
                             self.message_history.append(
                                 {
@@ -503,7 +526,7 @@ class AnsariClaude(Ansari):
 
         # Track tool_use_ids to ensure tool_result blocks have matching tool_use blocks
         tool_use_ids = set()
-        
+
         # First pass: collect all tool_use IDs
         for msg in self.message_history:
             if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
@@ -511,13 +534,13 @@ class AnsariClaude(Ansari):
                     if isinstance(block, dict) and block.get("type") == "tool_use" and "id" in block:
                         tool_use_ids.add(block["id"])
                         logger.debug(f"Found tool_use block with ID: {block['id']}")
-        
+
         logger.debug(f"Found tool_use_ids: {tool_use_ids}")
-        
+
         # Second pass: ensure all messages have proper format for the API
         for i in range(len(self.message_history)):
             msg = self.message_history[i]
-            
+
             # All assistant messages must use the block format
             if msg.get("role") == "assistant":
                 if isinstance(msg.get("content"), str):
@@ -533,33 +556,32 @@ class AnsariClaude(Ansari):
                 else:
                     # Convert any other content type to text block
                     self.message_history[i]["content"] = [{"type": "text", "text": str(msg["content"])}]
-            
+
             # User messages with tool_result need to have matching tool_use blocks
             elif msg.get("role") == "user" and isinstance(msg.get("content"), list):
                 fixed_content = []
                 has_invalid_tool_result = False
-                
+
                 for block in msg["content"]:
                     # Check if this is a tool_result block
-                    is_tool_result = (isinstance(block, dict) and 
-                                     (block.get("type") == "tool_result" or "tool_use_id" in block))
-                    
+                    is_tool_result = isinstance(block, dict) and (block.get("type") == "tool_result" or "tool_use_id" in block)
+
                     if is_tool_result:
                         # Ensure it has type field
                         if "type" not in block:
                             block["type"] = "tool_result"
                             logger.warning("Added missing 'type': 'tool_result' to block")
-                            
+
                         # Check if the tool_use_id exists in our collected IDs
                         if "tool_use_id" in block and block["tool_use_id"] not in tool_use_ids:
                             has_invalid_tool_result = True
                             logger.warning(f"Found tool_result with ID {block['tool_use_id']} but no matching tool_use block")
                             # Skip this block - it has no matching tool_use
                             continue
-                    
+
                     # Keep this block
                     fixed_content.append(block)
-                
+
                 # If we had to remove invalid tool_result blocks and now have an empty list,
                 # replace with a simple text message
                 if has_invalid_tool_result:
@@ -573,13 +595,15 @@ class AnsariClaude(Ansari):
         if len(self.message_history) > 0 and self.message_history[-1]["role"] == "user":
             # Check if this message was logged by parent class by inspecting if it exists in the logger
             should_log = True
-            if self.message_logger and hasattr(self.message_logger, 'messages'):
+            if self.message_logger and hasattr(self.message_logger, "messages"):
                 # If the last logged message in the logger matches the last message in history, don't log it again
-                if (len(self.message_logger.messages) > 0 and 
-                    self.message_logger.messages[-1]["role"] == "user" and 
-                    self.message_logger.messages[-1]["content"] == self.message_history[-1]["content"]):
+                if (
+                    len(self.message_logger.messages) > 0
+                    and self.message_logger.messages[-1]["role"] == "user"
+                    and self.message_logger.messages[-1]["content"] == self.message_history[-1]["content"]
+                ):
                     should_log = False
-                    
+
             if should_log:
                 # Log the message if needed
                 self._log_message(self.message_history[-1])

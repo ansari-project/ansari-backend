@@ -5,7 +5,7 @@ from ansari.util.translation import translate_text
 
 # Set up logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 class TestTranslation:
@@ -15,7 +15,7 @@ class TestTranslation:
         """Test translating the Basmalah from Arabic to English."""
         basmalah = "بسم الله الرحمن الرحيم"
         result = translate_text(basmalah, "en", "ar")
-        
+
         logger.info(f"Basmalah translation: '{result}'")
         assert result, "Translation should not be empty"
 
@@ -24,7 +24,7 @@ class TestTranslation:
         # No API call made when languages match
         text = "Hello world"
         result = translate_text(text, "en", "en")
-        
+
         # Should return the original text unchanged
         assert result == text
 
@@ -32,7 +32,7 @@ class TestTranslation:
         """Test translating empty text."""
         # No API call made for empty text
         result = translate_text("", "ar", "en")
-        
+
         # Should return empty string
         assert result == ""
 

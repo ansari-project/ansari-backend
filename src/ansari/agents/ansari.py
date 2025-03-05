@@ -85,11 +85,11 @@ class Ansari:
         for m in self.process_message_history(use_tool=True):
             if m:
                 yield m
-                
+
         # Ensure we always get a final response (like AnsariClaude)
         if len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant":
             logger.debug("Last message is not from assistant, making a follow-up call")
-            
+
             # Search tool will have been used by now, so generate a final response
             for m in self.process_one_round(use_tool=False):
                 if m:
@@ -355,7 +355,7 @@ class Ansari:
             raise json.JSONDecodeError
         except KeyError as e:
             logger.error(f"Missing key in tool args: {e} - Tool args: {tool_args}")
-            query = "" 
+            query = ""
 
         tool_instance = self.tool_name_to_instance[tool_name]
         logger.debug(f"Running {tool_name} with query: {query}")
@@ -363,13 +363,14 @@ class Ansari:
             # Get raw results directly using run() instead of run_as_list()
             raw_results = tool_instance.run(query)
             logger.debug(f"Raw results type: {type(raw_results)}")
-            
+
             # Format the results as a list of strings
             results = tool_instance.format_as_list(raw_results)
             logger.debug(f"Formatted results type: {type(results)}")
             logger.debug(f"Results sample: {str(results)[:200] if results else 'Empty results'}")
         except Exception as e:
             import traceback
+
             logger.error(f"Error running {tool_name}: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             # Return an error message as results
@@ -390,11 +391,12 @@ class Ansari:
             ],
         }
         self.message_history.append(internal_msg)
-        
+
         # Log the assistant's tool call message
         if self.message_logger is not None:
-            self.message_logger.log("assistant", "", tool_name, 
-                {"function": tool_definition, "id": tool_id, "type": "function"})
+            self.message_logger.log(
+                "assistant", "", tool_name, {"function": tool_definition, "id": tool_id, "type": "function"}
+            )
 
         if len(results) == 0:
             # corner case where the api returns no results
@@ -417,13 +419,13 @@ class Ansari:
             elif not all(isinstance(item, str) for item in results):
                 logger.warning("Not all results are strings, converting to strings")
                 results = [str(item) for item in results]
-            
+
             results_str = msg_prefix + "\nAnother relevant citation:\n".join(results)
         except Exception as e:
             logger.error(f"Error joining results: {str(e)}")
             logger.error(f"Results that caused error: {results}")
             results_str = f"Error processing results: {str(e)}"
-        
+
         msg_generated_from_tool = {
             "role": "tool",
             "content": results_str,
