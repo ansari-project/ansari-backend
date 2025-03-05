@@ -17,6 +17,7 @@ from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.tools.search_quran import SearchQuran
 from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
+
 # Remove usul import
 # Remove vectara import
 from ansari.ansari_logger import get_logger
@@ -29,6 +30,7 @@ app = typer.Typer(help="Ansari search tools result printer")
 
 class OutputFormat(str, Enum):
     """Output format options for search results."""
+
     RAW = "raw"
     STRING = "string"
     LIST = "list"
@@ -69,17 +71,9 @@ def pretty_print_results(results: Any, output_format: str) -> None:
             console.print_json(json.dumps(results))
     else:
         if isinstance(results, dict) and "tool_result" in results:
-            console.print(Panel(
-                format_json(results["tool_result"]), 
-                title="Tool Result", 
-                border_style="green"
-            ))
+            console.print(Panel(format_json(results["tool_result"]), title="Tool Result", border_style="green"))
             if "response_message" in results:
-                console.print(Panel(
-                    results["response_message"], 
-                    title="Response Message", 
-                    border_style="yellow"
-                ))
+                console.print(Panel(results["response_message"], title="Response Message", border_style="yellow"))
         else:
             console.print(results)
 
@@ -89,15 +83,12 @@ def create_search_tool(tool_name: str) -> Any:
     tools = {
         "hadith": lambda: SearchHadith(),
         "mawsuah": lambda: SearchMawsuah(
-            vectara_api_key=settings.VECTARA_API_KEY.get_secret_value(),
-            vectara_corpus_key=settings.MAWSUAH_CORPUS_ID
+            vectara_api_key=settings.VECTARA_API_KEY.get_secret_value(), vectara_corpus_key=settings.MAWSUAH_CORPUS_ID
         ),
         "quran": lambda: SearchQuran(
             kalimat_api_key=settings.KALEMAT_API_KEY.get_secret_value() if hasattr(settings, "KALEMAT_API_KEY") else ""
         ),
-        "tafsir": lambda: SearchTafsirEncyc(
-            api_token=settings.USUL_API_TOKEN.get_secret_value()
-        ),
+        "tafsir": lambda: SearchTafsirEncyc(api_token=settings.USUL_API_TOKEN.get_secret_value()),
     }
 
     if tool_name.lower() not in tools:
@@ -112,13 +103,8 @@ def create_search_tool(tool_name: str) -> Any:
 @app.command()
 def main(
     query: str = typer.Argument(..., help="The search query to run"),
-    tool_name: str = typer.Option(
-        ..., "--tool", "-t", help="The search tool to use"
-    ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.FORMATTED, "--format", "-f", 
-        help="Output format"
-    ),
+    tool_name: str = typer.Option(..., "--tool", "-t", help="The search tool to use"),
+    output_format: OutputFormat = typer.Option(OutputFormat.FORMATTED, "--format", "-f", help="Output format"),
 ):
     """
     Search using the specified tool and print the results.
@@ -127,10 +113,10 @@ def main(
         with console.status(f"Searching for '{query}' using {tool_name}..."):
             # Create the appropriate search tool
             search_tool = create_search_tool(tool_name)
-            
+
             # Run the search
             raw_results = search_tool.run(query)
-        
+
         # Format based on the specified output format
         if output_format == OutputFormat.RAW:
             results = raw_results
@@ -156,15 +142,12 @@ def main(
             response_message = ""
             if hasattr(search_tool, "format_tool_response"):
                 response_message = search_tool.format_tool_response(raw_results)
-            
-            results = {
-                "tool_result": tool_result,
-                "response_message": response_message
-            }
-        
+
+            results = {"tool_result": tool_result, "response_message": response_message}
+
         # Print the results
         pretty_print_results(results, output_format)
-    
+
     except Exception as e:
         logger.exception(f"Error running search: {e}")
         console.print(f"[bold red]Error:[/bold red] {e}")

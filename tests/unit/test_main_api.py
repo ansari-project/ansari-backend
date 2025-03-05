@@ -241,7 +241,7 @@ async def test_login_from_several_devices(register_user, login_user):
     # the other using the old one
     # Skip the async test calls in this test as we're just testing token refresh
     # If we need to actually test thread creation, this would need to be an async test
-    
+
     # Create a new thread using the old access token..
     # ..after logging out from the new device
     response = client.post(

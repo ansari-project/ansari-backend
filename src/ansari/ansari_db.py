@@ -938,7 +938,7 @@ class AnsariDB:
         elif role == "assistant":
             # For assistant messages, always use block format
             content_blocks = []
-            
+
             # Add text block
             if isinstance(content, str):
                 content_blocks.append({"type": "text", "text": content})
@@ -948,7 +948,7 @@ class AnsariDB:
             else:
                 # Convert to text block
                 content_blocks.append({"type": "text", "text": str(content)})
-            
+
             # If there's tool info, add tool use block
             if tool_name and tool_details:
                 try:
@@ -957,17 +957,12 @@ class AnsariDB:
                     tool_input = tool_details_dict.get("args")
                     # Add tool use block only if we have valid information
                     if tool_id and tool_name:
-                        content_blocks.append({
-                            "type": "tool_use", 
-                            "id": tool_id, 
-                            "name": tool_name, 
-                            "input": tool_input
-                        })
+                        content_blocks.append({"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input})
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse tool details JSON: {tool_details}")
-            
+
             return [{"role": role, "content": content_blocks}]
-            
+
         # Handle regular user messages without tool use
         else:
             # For simple user messages, use simple format

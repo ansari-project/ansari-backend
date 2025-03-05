@@ -86,38 +86,35 @@ class SearchUsul(BaseSearchTool):
             response.raise_for_status()
 
         results = response.json()
-        
+
         # If there's only one page, return the results
         if not results.get("hasNextPage", False):
             return results
-            
+
         # Otherwise, fetch all remaining pages and merge the results
         all_results = results.get("results", [])
         current_page = results.get("currentPage", 1)
         total_pages = results.get("totalPages", 1)
-        
+
         # Fetch remaining pages
         while current_page < total_pages:
             current_page += 1
             params["page"] = current_page
-            
+
             response = requests.get(self.base_url, headers=headers, params=params)
-            
+
             if response.status_code != 200:
                 print(
                     f"Query for page {current_page} failed with code {response.status_code}, reason {response.reason}",
                 )
                 break
-                
+
             page_results = response.json()
             all_results.extend(page_results.get("results", []))
-            
+
         # Create a new result object with just the combined results
-        final_results = {
-            "results": all_results,
-            "total": len(all_results)
-        }
-        
+        final_results = {"results": all_results, "total": len(all_results)}
+
         return final_results
 
     def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -132,7 +129,7 @@ class SearchUsul(BaseSearchTool):
         # Check for empty results in different ways
         if not results or "results" not in results or not results.get("results", []):
             return ["No results found."]
-            
+
         documents = []
         for result in results.get("results", []):
             # Extract data from the result
@@ -148,13 +145,13 @@ class SearchUsul(BaseSearchTool):
                 if "metadata" in node:
                     metadata = node["metadata"]
                     node_id = metadata.get("bookId", "Unknown")
-                    
+
                     # Extract page and volume information
                     if "pages" in metadata and len(metadata["pages"]) > 0:
                         page = metadata["pages"][0]
                         page_info = page.get("page", "Unknown")
                         volume_info = page.get("volume", "")
-                        
+
                     # Extract chapter information
                     if "chapters" in metadata and len(metadata["chapters"]) > 0:
                         chapter = metadata["chapters"][0]
@@ -165,7 +162,7 @@ class SearchUsul(BaseSearchTool):
                 node_id = result.get("nodeId", "Unknown")
                 page_info = result.get("page", "Unknown")
                 volume_info = ""
-                
+
                 if "chapter" in result:
                     chapter_info = result["chapter"].get("title", "")
                 else:
@@ -180,9 +177,9 @@ class SearchUsul(BaseSearchTool):
                 title_parts.append(f"Page {page_info}")
             if node_id and node_id != "Unknown":
                 title_parts.append(f"ID: {node_id}")
-                
+
             title = ", ".join(title_parts)
-            
+
             # Add chapter info to the data if available
             if chapter_info:
                 data = f"Chapter: {chapter_info}\n\n{text}"
@@ -190,18 +187,16 @@ class SearchUsul(BaseSearchTool):
                 data = text
 
             # Create the document object following BaseSearchTool's required format
-            documents.append({
-                "type": "document",
-                "source": {
-                    "type": "text", 
-                    "media_type": "text/plain", 
-                    "data": data
-                },
-                "title": title,
-                "context": "Retrieved from principles of Islamic jurisprudence (usul al-fiqh)",
-                "citations": {"enabled": True}
-            })
-            
+            documents.append(
+                {
+                    "type": "document",
+                    "source": {"type": "text", "media_type": "text/plain", "data": data},
+                    "title": title,
+                    "context": "Retrieved from principles of Islamic jurisprudence (usul al-fiqh)",
+                    "citations": {"enabled": True},
+                }
+            )
+
         return documents
 
     def format_as_tool_result(self, results: Dict[str, Any]) -> Dict[str, Any]:
@@ -293,7 +288,7 @@ class SearchUsul(BaseSearchTool):
         print(f'Searching Usul.ai for "{query}"')
         results = self.run(query, limit, include_chapters)
         ref_docs = self.format_as_ref_list(results)
-        
+
         # Convert document objects to strings using the base class helper
         return [self.format_document_as_string(doc) for doc in ref_docs]
 
@@ -310,7 +305,7 @@ class SearchUsul(BaseSearchTool):
         """
         results = self.run(query, limit, include_chapters)
         ref_docs = self.format_as_ref_list(results)
-        
+
         # Format documents as strings using the base class helper and join
         formatted_strings = [self.format_document_as_string(doc) for doc in ref_docs]
         return "\n\n".join(formatted_strings)
