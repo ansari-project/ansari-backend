@@ -31,3 +31,15 @@
 - **Logging**: Use the logger from `ansari.ansari_logger.get_logger()`
 - **Documentation**: Add docstrings to functions, especially complex ones
 - **Testing**: Create unit tests in `tests/unit/` and integration tests in `tests/integration/`
+- **Test-first development**: Always write tests before shipping features
+  - Write tests that validate both expected behavior and edge cases
+  - When fixing bugs, first write a test that reproduces the issue
+  - Run tests frequently during development to catch regressions
+
+## Testing Best Practices
+- Run tests before committing: `pytest tests/`
+- Run specific test categories: `pytest tests/unit/` or `pytest tests/integration/`
+- Add tests for new functionality in the appropriate directory
+- Use fixture factories to keep tests maintainable
+- Test both happy path and error conditions
+- Keep tests independent (no dependencies between test functions)

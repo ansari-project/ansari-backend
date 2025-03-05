@@ -15,6 +15,7 @@ psycopg2-binary
 pydantic_settings
 pyjwt
 pytest-asyncio
+pytest-mock
 rich
 sendgrid
 setuptools

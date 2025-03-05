@@ -1,5 +1,6 @@
 import requests
 from ansari.ansari_logger import get_logger
+from ansari.util.translation import format_multilingual_data
 
 logger = get_logger(__name__)
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
@@ -65,12 +66,12 @@ class SearchQuran:
         # Added debug logging to understand the ayah structure
         logger.debug(f"Ayah data type: {type(ayah)}")
         logger.debug(f"Ayah content: {str(ayah)[:200]}")
-        
+
         # Handle if ayah is not a dictionary
         if not isinstance(ayah, dict):
             logger.error(f"Expected ayah to be a dict but got {type(ayah)}")
             return f"Error: Invalid ayah format - {str(ayah)[:100]}..."
-            
+
         try:
             ayah_num = ayah["id"]
             ayah_ar = ayah.get("text", "Not retrieved")
@@ -104,13 +105,14 @@ class SearchQuran:
             # Create citation title
             title = f"Quran {id}"
 
-            # Combine Arabic and English text
-            text = f"Arabic: {arabic}\nEnglish: {english}"
+            # Format as multilingual data with both Arabic and English
+            # Note: Quran search results already include both Arabic and English translations
+            multilingual_data = format_multilingual_data({"ar": arabic, "en": english})
 
             documents.append(
                 {
                     "type": "document",
-                    "source": {"type": "text", "media_type": "text/plain", "data": text},
+                    "source": {"type": "text", "media_type": "text/plain", "data": multilingual_data},
                     "title": title,
                     "context": "Retrieved from the Holy Quran",
                     "citations": {"enabled": True},
@@ -139,7 +141,7 @@ class SearchQuran:
     def run_as_list(self, query: str, num_results: int = 10):
         logger.info(f'Searching quran for "{query}"')
         results = self.run(query, num_results)
-        logger.debug(f'Results from API: {type(results)}')
+        logger.debug(f"Results from API: {type(results)}")
         try:
             # Use the direct approach from the original implementation
             formatted_results = []
@@ -149,9 +151,10 @@ class SearchQuran:
             return formatted_results
         except Exception as e:
             import traceback
-            logger.error(f'Error formatting results: {str(e)}')
-            logger.error(f'Full traceback: {traceback.format_exc()}')
-            logger.error(f'Results that caused error: {results}')
+
+            logger.error(f"Error formatting results: {str(e)}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            logger.error(f"Results that caused error: {results}")
             return [f"Error processing results: {str(e)} - {traceback.format_exc()}"]
 
     def run_as_string(self, query: str, num_results: int = 10):
@@ -159,5 +162,5 @@ class SearchQuran:
         try:
             return "\n".join([self.pp_ayah(r) for r in results])
         except Exception as e:
-            logger.error(f'Error formatting results as string: {str(e)}')
+            logger.error(f"Error formatting results as string: {str(e)}")
             return f"Error processing results: {str(e)}"

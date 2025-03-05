@@ -1,3 +1,4 @@
+import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Union
 
@@ -39,13 +40,23 @@ class BaseSearchTool(ABC):
             List of document dictionaries in the format:
             {
                 "type": "document",
-                "source": {"type": "text", "media_type": "text/plain", "data": str},
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": str (JSON string representing language-text pairs)
+                },
                 "title": str,
                 "context": str,
                 "citations": {"enabled": bool},
                 ...
             }
-            
+
+            The data field should contain a JSON string in the format:
+            [
+                {"lang": "ar", "text": "النص العربي"},
+                {"lang": "en", "text": "English translation"} # Optional
+            ]
+
             Or a list containing a single string "No results found." if no results.
         """
         pass
@@ -61,29 +72,58 @@ class BaseSearchTool(ABC):
             Dict containing formatted results for Claude
         """
         pass
-        
+
+    def format_multilingual_data(self, text_entries: Dict[str, str]) -> str:
+        """Convert a dictionary of language-text pairs to a JSON string.
+
+        Args:
+            text_entries: Dictionary mapping language codes to text
+                e.g., {"ar": "النص العربي", "en": "English text"}
+
+        Returns:
+            JSON string representing language-text pairs
+        """
+        result = []
+        for lang, text in text_entries.items():
+            if text:  # Only include non-empty text
+                result.append({"lang": lang, "text": text})
+        return json.dumps(result)
+
     def format_document_as_string(self, document: Dict[str, Any]) -> str:
         """Helper method to format a document object as a string.
-        
+
         Args:
             document: A document dictionary as returned by format_as_ref_list
-            
+
         Returns:
             A string representation of the document
         """
         if isinstance(document, str):
             return document
-            
+
         if document.get("type") != "document" or "source" not in document:
             return str(document)
-            
+
         title = document.get("title", "")
         data = document["source"].get("data", "")
         context = document.get("context", "")
-        
+
         result = f"{title}\n"
         if context:
             result += f"Context: {context}\n"
+
+        # Try to parse data as JSON to extract multilingual content
+        try:
+            lang_entries = json.loads(data)
+            if isinstance(lang_entries, list):
+                for entry in lang_entries:
+                    if isinstance(entry, dict) and "lang" in entry and "text" in entry:
+                        result += f"\n{entry['lang'].upper()}: {entry['text']}"
+                return result
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Fallback to original data if not JSON
         result += f"{data}"
-        
+
         return result
