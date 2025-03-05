@@ -574,6 +574,7 @@ def share_thread(
 def get_snapshot(
     share_uuid_str: str,
     cors_ok: bool = Depends(validate_cors),
+    filter_content: bool = True,
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
     if not cors_ok:
@@ -583,10 +584,57 @@ def get_snapshot(
     share_uuid = uuid.UUID(share_uuid_str)
     try:
         content = db.get_snapshot(share_uuid)
+        
+        # Filter out tool results, documents, and tool uses if requested
+        if filter_content and content and "messages" in content:
+            filtered_messages = []
+            for msg in content["messages"]:
+                filtered_msg = filter_message_content(msg)
+                # Only add messages that have content (not None)
+                if filtered_msg is not None:
+                    filtered_messages.append(filtered_msg)
+            content["messages"] = filtered_messages
+            
         return {"status": "success", "content": content}
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
+
+
+def filter_message_content(message):
+    """Filter out tool results, documents, and tool uses from message content.
+    Returns None if there's no text content to keep (to completely remove the message).
+    """
+    filtered_msg = message.copy()
+    content = message.get("content")
+    
+    # User messages are typically strings, keep them as is
+    if message.get("role") == "user" and isinstance(content, str):
+        return filtered_msg
+    
+    # Filter list content (typical for assistant messages)
+    if isinstance(content, list):
+        filtered_content = []
+        for item in content:
+            if isinstance(item, dict):
+                # Only keep text blocks
+                if item.get("type") == "text" and item.get("text"):
+                    filtered_content.append(item)
+                # Skip tool_use, tool_result, and document blocks
+        
+        # If we found any text blocks, use them
+        if filtered_content:
+            filtered_msg["content"] = filtered_content
+            return filtered_msg
+        # Otherwise return None to completely remove this message
+        else:
+            return None
+    
+    # If content is empty or None, return None to remove the message
+    if not content:
+        return None
+    
+    return filtered_msg
 
 
 @app.get("/api/v2/threads/{thread_id}")
@@ -594,6 +642,7 @@ async def get_thread(
     thread_id: uuid.UUID,
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
+    filter_content: bool = True,
 ):
     if not (cors_ok and token_params):
         raise HTTPException(status_code=403, detail="CORS not permitted")
@@ -604,6 +653,15 @@ async def get_thread(
     try:
         messages = db.get_thread(thread_id, token_params["user_id"])
         if messages:  # return only if the thread exists. else raise 404
+            # Filter out tool results, documents, and tool uses if requested
+            if filter_content and "messages" in messages:
+                filtered_messages = []
+                for msg in messages["messages"]:
+                    filtered_msg = filter_message_content(msg)
+                    # Only add messages that have content (not None)
+                    if filtered_msg is not None:
+                        filtered_messages.append(filtered_msg)
+                messages["messages"] = filtered_messages
             return messages
         raise HTTPException(status_code=404, detail="Thread not found")
     except psycopg2.Error as e:
