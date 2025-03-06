@@ -129,7 +129,48 @@ This starts a service on port 8000. You can check it's up by checking at [http:/
 If you just want to run Ansari on the command line such that it takes input from stdin and outputs on stdout (e.g. for debugging or to feed it text) you can just do: 
 
 ```bash
-% python main_stdio.py
+% python src/ansari/app/main_stdio.py
+```
+
+### Using the CLI tools
+
+The Ansari project includes several command-line tools in the `src/ansari/cli` directory:
+
+#### API Client (query_api.py)
+
+The `query_api.py` tool allows you to interact with the Ansari API directly from the command line:
+
+```bash
+# Interactive mode with user login
+% python src/ansari/cli/query_api.py
+
+# Guest mode (no account needed)
+% python src/ansari/cli/query_api.py --guest
+
+# Single query mode
+% python src/ansari/cli/query_api.py --guest --input "What does the Quran say about kindness?"
+```
+
+#### Search Tool Explorer (use_tools.py)
+
+The `use_tools.py` tool provides direct access to Ansari's individual search tools. This is particularly useful for:
+- Debugging search functionality
+- Understanding how new tools work
+- Testing tool responses without running the full Ansari system
+- Developing and refining new search tools
+
+Examples:
+
+```bash
+# Search the Quran
+% python src/ansari/cli/use_tools.py "mercy" --tool quran
+
+# Search hadith collections
+% python src/ansari/cli/use_tools.py "fasting" --tool hadith
+
+# Output format options for easier debugging
+% python src/ansari/cli/use_tools.py "zakat" --tool mawsuah --format raw     # Raw API response
+% python src/ansari/cli/use_tools.py "zakat" --tool mawsuah --format list    # Formatted results list
 ```
 
 Side note: If you're contributing to the [main project](https://github.com/ansari-project/ansari-backend), you should style your code with [ruff](https://github.com/astral-sh/ruff).
