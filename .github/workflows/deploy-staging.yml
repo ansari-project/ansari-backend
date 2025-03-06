@@ -44,7 +44,7 @@ jobs:
         id: deploy-apprunner
         uses: awslabs/amazon-app-runner-deploy@main
         env:
-          ENVIRONMENT: staging
+          DEPLOYMENT_TYPE: staging
           DATABASE_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'database-url') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
           ORIGINS:  ${{ format('{0}{1}', secrets.SSM_ROOT, 'origins') }}
@@ -66,6 +66,8 @@ jobs:
           WHATSAPP_API_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-api-version') }}
           ZROK_SHARE_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'zrok-share-token') }}
           USUL_API_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'usul-api-token') }}
+
+          SENTRY_DSN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sentry-dsn') }}
 
         with:
           service: ansari-staging-backend
