@@ -45,7 +45,7 @@ from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import get_extended_origins, validate_cors
 
 logger = get_logger(__name__)
-environment = get_settings().ENVIRONMENT
+deployment_type = get_settings().DEPLOYMENT_TYPE
 
 # Register the UUID type globally
 # Details: Read the SO question then the answer referenced below:
@@ -54,20 +54,21 @@ environment = get_settings().ENVIRONMENT
 #   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
 psycopg2.extras.register_uuid()
 
-sentry_sdk.init(
-    dsn="https://bcf62c891248dc36347d3d5d6a27ac23@o4508852781973504.ingest.us.sentry.io/4508926693474304",
-    environment=environment,
-    # Add data like request headers and IP for users, if applicable;
-    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-    send_default_pii=False,
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of transactions for tracing.
-    traces_sample_rate=0.2 if environment == "production" else 1.0,
-    # Set profiles_sample_rate to 1.0 to profile 100%
-    # of sampled transactions.
-    # We recommend adjusting this value in production.
-    profiles_sample_rate=0.2 if environment == "production" else 1.0,
-)
+if get_settings().SENTRY_DSN and deployment_type != "development":
+    sentry_sdk.init(
+        dsn=get_settings().SENTRY_DSN,
+        environment=deployment_type,
+        # Add data like request headers and IP for users, if applicable;
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=False,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=0.2 if deployment_type == "production" else 1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100%
+        # of sampled transactions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=0.2 if deployment_type == "production" else 1.0,
+    )
 
 app = FastAPI()
 

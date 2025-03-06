@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
+from pydantic import DirectoryPath, Field, HttpUrl, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Can't use get_logger() here due to circular import
@@ -40,7 +40,8 @@ class Settings(BaseSettings):
         path = resources_dir / filename
         return path
 
-    ENVIRONMENT: str = Field(default="development")
+    DEPLOYMENT_TYPE: str = Field(default="development")
+    SENTRY_DSN: HttpUrl | None = None
 
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari",
