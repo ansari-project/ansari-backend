@@ -79,7 +79,7 @@ jobs:
           port: 8000
           wait-for-service-stability-seconds: 1200
           copy-env-vars: |
-            ENVIRONMENT
+            DEPLOYMENT_TYPE
           copy-secret-env-vars: |
             DATABASE_URL
             SECRET_KEY
@@ -102,6 +102,7 @@ jobs:
             WHATSAPP_API_VERSION
             ZROK_SHARE_TOKEN
             USUL_API_TOKEN
+            SENTRY_DSN
           instance-role-arn: ${{ secrets.INSTANCE_ROLE_ARN }}
 
       - name: App Runner URL
