@@ -24,7 +24,7 @@ logger = get_logger("DEBUG")
 class SourceType(str, Enum):
     ANDROID = "android"
     IOS = "ios"
-    WEBPAGE = "webpage"
+    WEB = "web"
     WHATSAPP = "whatsapp"
 
 
@@ -33,7 +33,7 @@ class MessageLogger:
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", user_id: UUID, thread_id: UUID, source: SourceType = SourceType.WEBPAGE) -> None:
+    def __init__(self, db: "AnsariDB", user_id: UUID, thread_id: UUID, source: SourceType = SourceType.WEB) -> None:
         self.user_id = user_id
         self.thread_id = thread_id
         self.source = source
@@ -48,18 +48,17 @@ class MessageLogger:
         tool_details: dict[str, dict] = None,
         ref_list: list = None,
     ) -> None:
-        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
+        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list, self.source)
 
 
 class AnsariDB:
     """Handles all database interactions."""
 
-    def __init__(self, settings: Settings, source: SourceType) -> None:
+    def __init__(self, settings: Settings) -> None:
         self.db_url = str(settings.DATABASE_URL)
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
-        self.source = source
         self.db_connection_pool = psycopg2.pool.SimpleConnectionPool(
             minconn=1,
             maxconn=10,
@@ -260,7 +259,14 @@ class AnsariDB:
         return payload
 
     def register(
-        self, email=None, first_name=None, last_name=None, password_hash=None, phone_num=None, preferred_language=None
+        self,
+        email=None,
+        first_name=None,
+        last_name=None,
+        password_hash=None,
+        phone_num=None,
+        preferred_language=None,
+        source: SourceType = SourceType.WEB,
     ):
         """
         Register a new user in the users table. Can be used for both web and WhatsApp users.
@@ -289,11 +295,10 @@ class AnsariDB:
                 ("password_hash", password_hash),
                 ("phone_num", phone_num),
                 ("preferred_language", preferred_language),
+                ("source", source),
             ]:
                 if value is not None:
                     insert_values[field] = value
-
-            insert_values["initial_source"] = self.source
 
             # Construct the insert SQL dynamically
             columns = ", ".join(insert_values.keys())
@@ -371,11 +376,12 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def retrieve_user_info(self, email=None, phone_num=None, db_cols=None):
+    def retrieve_user_info(self, email=None, phone_num=None, db_cols=None, source: SourceType = SourceType.WEB):
         """
         Retrieves user information from the users table by email or phone number.
 
         Args:
+            source (SourceType, optional): Source type (WEB, WHATSAPP, etc). Defaults to SourceType.WEB.
             email (str, optional): The user's email address.
             phone_num (str, optional): The user's phone number.
             db_cols (Union[list, str], optional): Specific column(s) to retrieve.
@@ -394,17 +400,17 @@ class AnsariDB:
                     whatsapp source requires phone number
         """
         try:
-            if self.source == SourceType.WEBPAGE and not email:
-                raise ValueError("Selected sourse requires email based auth")
-            if self.source == SourceType.WHATSAPP and not phone_num:
+            if source == SourceType.WEB and not email:
+                raise ValueError("Selected source requires email based auth")
+            if source == SourceType.WHATSAPP and not phone_num:
                 raise ValueError("Selected source requires phone number based auth")
 
-            if self.source == SourceType.WEBPAGE:
+            if source == SourceType.WEB:
                 identifier_col = "email"
                 param = email.strip().lower()
                 if not db_cols:
                     db_cols = ["id", "password_hash", "first_name", "last_name"]
-            elif self.source == SourceType.WHATSAPP:
+            elif source == SourceType.WHATSAPP:
                 identifier_col = "phone_num"
                 param = phone_num
                 if not db_cols:
@@ -442,7 +448,7 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def create_thread(self, user_id: UUID, thread_name=None):
+    def create_thread(self, user_id: UUID, thread_name=None, source: SourceType = SourceType.WEB) -> dict:
         """
         Creates a new thread with appropriate source.
 
@@ -461,7 +467,7 @@ class AnsariDB:
             RETURNING id;
             """
             name = thread_name if thread_name else None
-            result = self._execute_query(insert_cmd, (user_id, name, self.source), "one")[0]
+            result = self._execute_query(insert_cmd, (user_id, name, source), "one")[0]
             thread_id = result[0] if result else None
 
             return {"status": "success", "thread_id": thread_id}
@@ -470,10 +476,18 @@ class AnsariDB:
             logger.warning(f"Thread creation error: {e}")
             return {"status": "failure", "error": str(e)}
 
-    def get_all_threads(self, user_id):
+    def get_all_threads(self, user_id, source: Optional[SourceType] = None):
         try:
-            select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
-            result = self._execute_query(select_cmd, (user_id,), "all")[0]
+            if source is None:
+                select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
+                result = self._execute_query(select_cmd, (user_id,), "all")[0]
+            else:
+                # This source logic is added here mainly for WhatsApp, as it's disconnected from the rest of the sources
+                # NOTE: Currently, this isn't used by Whatsapp though, but it's implemented in case in the future
+                #   we want the model to have a context of the user's entire conversation
+                #   (e.g., last 3 conversations instead of 1, etc.)
+                select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s and initial_source = %s;"""
+                result = self._execute_query(select_cmd, (user_id, source), "all")[0]
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result] if result else []
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -507,6 +521,7 @@ class AnsariDB:
         tool_name: str = None,
         tool_details: dict[str, dict] = None,
         ref_list: list = None,
+        source: SourceType = SourceType.WEB,
     ) -> None:
         """Append a message to the given thread.
 
@@ -524,7 +539,7 @@ class AnsariDB:
             ref_list: Optional list of reference documents
         """
         try:
-            if self.source != SourceType.WHATSAPP:
+            if source != SourceType.WHATSAPP:
                 # Standardize content format based on message type
                 if role == "assistant" and not isinstance(content, list):
                     # Convert simple assistant messages to expected format
@@ -539,12 +554,12 @@ class AnsariDB:
                 tool_name,
                 json.dumps(tool_details) if tool_details is not None else None,
                 json.dumps(ref_list) if ref_list is not None else None,
-                self.source,
+                source,
             )
 
             # Insert into database
             query = """
-                INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list, initial_source)
+                INSERT INTO messages (user_id, thread_id, role, content, tool_name, tool_details, ref_list, source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
 
@@ -592,15 +607,14 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            select_cmd_1 = """SELECT name FROM threads WHERE id = %s AND user_id = %s AND initial_source = %s;"""
+            select_cmd_1 = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
 
-            order_by_col = "updated_at" if self.source == SourceType.WHATSAPP else "timestamp"
             select_cmd_2 = (
                 "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
-                + f"WHERE thread_id = %s AND user_id = %s AND initial_source = %s ORDER BY {order_by_col};"
+                + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
 
-            params = (thread_id, user_id, self.source)
+            params = (thread_id, user_id)
 
             thread_name_result, result = self._execute_query([select_cmd_1, select_cmd_2], [params, params], ["one", "all"])
 
@@ -628,19 +642,24 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {}
 
-    def get_last_message_time_whatsapp(self, user_id: UUID) -> tuple[Optional[UUID], Optional[datetime]]:
+    def get_last_message_time_whatsapp(
+        self, user_id: UUID, source: SourceType = SourceType.WHATSAPP
+    ) -> tuple[Optional[UUID], Optional[datetime]]:
         """
         Retrieves the thread ID and the last message time for the latest updated thread of a WhatsApp user.
 
         Args:
             user_id (UUID): The ID of the WhatsApp user.
+            source (SourceType, optional): Source type. Defaults to SourceType.WHATSAPP.
 
         Returns:
             tuple[Optional[UUID], Optional[datetime]]: A tuple containing the thread ID and the last message time.
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            # Updated query to use the unified threads table with initial_source filter
+            # This source logic is added here mainly for WhatsApp, as it's disconnected from the rest of the sources
+            # NOTE: Adding source logic here as a safety net, since a user "A" should have a
+            #   different user_id anyways for whatsapp vs web/mobile/etc,
             select_cmd = """
             SELECT id, updated_at
             FROM threads 
@@ -648,7 +667,7 @@ class AnsariDB:
             ORDER BY updated_at DESC
             LIMIT 1;
             """
-            result = self._execute_query(select_cmd, (user_id, self.source), "one")[0]
+            result = self._execute_query(select_cmd, (user_id, source), "one")[0]
             if result:
                 return result[0], result[1]
             return None, None
@@ -798,9 +817,9 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def update_user_whatsapp(self, phone_num: str, db_cols_to_vals: dict) -> dict:
+    def update_user_by_phone_num(self, phone_num: str, db_cols_to_vals: dict) -> dict:
         """
-        Updates WhatsApp user information in the users table.
+        Updates a user's information in the users table.
 
         Args:
             phone_num (str): The phone number of the user to identify the record to update.
@@ -821,11 +840,11 @@ class AnsariDB:
                 raise ValueError("At least one field must be provided to update.")
             set_clause = ", ".join([f"{key} = %s" for key in fields])
 
-            # Update the users table with initial_source=SourceType.WHATSAPP filter
-            update_cmd = f"UPDATE users SET {set_clause} WHERE phone_num = %s AND initial_source = %s;"
+            # Update the users table with source filter
+            update_cmd = f"UPDATE users SET {set_clause} WHERE phone_num = %s;"
 
             # Execute the query with the values and the original phone_num
-            self._execute_query(update_cmd, (*db_cols_to_vals.values(), phone_num, self.source))
+            self._execute_query(update_cmd, (*db_cols_to_vals.values(), phone_num))
 
             return {"status": "success"}
         except Exception as e:

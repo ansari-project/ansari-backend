@@ -6,9 +6,9 @@ BEGIN;
 -- Create the source_type enum with all four values matching schema
 CREATE TYPE source_type AS ENUM ('ios', 'android', 'webpage', 'whatsapp');
 
--- Step 1: Modify the users table to include WhatsApp fields and use initial_source
+-- Step 1: Modify the users table to include WhatsApp fields and use source
 ALTER TABLE users 
-    ADD COLUMN initial_source source_type NOT NULL DEFAULT 'webpage',
+    ADD COLUMN source source_type NOT NULL DEFAULT 'web',
     ADD COLUMN phone_num VARCHAR(20) UNIQUE;
 
 -- Create index for phone number lookup
@@ -22,7 +22,7 @@ FROM users_whatsapp;
 -- Step 3: Migrate WhatsApp users to the main users table
 INSERT INTO users (
     id, email, first_name, last_name, preferred_language, 
-    is_guest, created_at, updated_at, initial_source, phone_num
+    is_guest, created_at, updated_at, source, phone_num
 )
 SELECT 
     wum.new_uuid, NULL, uw.first_name, uw.last_name, uw.preferred_language,
@@ -32,7 +32,7 @@ JOIN whatsapp_user_mapping wum ON uw.id = wum.old_id
 ON CONFLICT (phone_num) DO NOTHING;
 
 -- Step 4: Modify threads table to include initial_source
-ALTER TABLE threads ADD COLUMN initial_source source_type NOT NULL DEFAULT 'webpage';
+ALTER TABLE threads ADD COLUMN initial_source source_type NOT NULL DEFAULT 'web';
 
 -- Step 5: Migrate WhatsApp threads to main threads table
 INSERT INTO threads (
@@ -46,13 +46,13 @@ SELECT
     tw.created_at, tw.updated_at, 'whatsapp'
 FROM threads_whatsapp tw;
 
--- Step 6: Modify messages table to include initial_source
-ALTER TABLE messages ADD COLUMN initial_source source_type NOT NULL DEFAULT 'webpage';
+-- Step 6: Modify messages table to include source
+ALTER TABLE messages ADD COLUMN source source_type NOT NULL DEFAULT 'web';
 
 -- Step 7: Migrate WhatsApp messages to main messages table
 INSERT INTO messages (
     user_id, thread_id, role, tool_name, tool_details, 
-    ref_list, content, timestamp, created_at, updated_at, initial_source
+    ref_list, content, timestamp, created_at, updated_at, source
 )
 SELECT 
     (SELECT u.id FROM users u WHERE u.phone_num = 

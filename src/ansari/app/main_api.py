@@ -23,8 +23,10 @@ import uuid
 
 import psycopg2
 import psycopg2.extras
+import sentry_sdk  # type: ignore
 from diskcache import FanoutCache, Lock
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
@@ -33,7 +35,6 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
-import sentry_sdk
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
@@ -79,10 +80,23 @@ app = FastAPI()
 #   contrary to what's mentioned in the above URL.
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc: HTTPException):
-    logger.error(f"{exc}")
+    logger.error(f"HTTP exception: {exc}")
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
+    )
+
+
+# Add this new handler specifically for validation errors
+#   (like when someone sends ?source=web instead of ?source=WEB)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    errors = exc.errors()
+    logger.error(f"Validation errors: {errors}")
+
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
     )
 
 
@@ -101,7 +115,7 @@ def add_app_middleware():
 
 
 add_app_middleware()
-db = AnsariDB(get_settings(), source=SourceType.WEBPAGE)
+db = AnsariDB(get_settings())
 
 agent_type = get_settings().AGENT
 
@@ -154,6 +168,7 @@ class RegisterRequest(BaseModel):
     password: str
     first_name: str
     last_name: str
+    source: SourceType = SourceType.WEB
 
 
 # NOTE 1: Check `docs/structure_of_api_responses/*_request_received_*.json` to visualize the structure of the requests
@@ -196,7 +211,13 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
                 status_code=400,
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
-        return db.register(email=req.email, first_name=req.first_name, last_name=req.last_name, password_hash=password_hash)
+        return db.register(
+            email=req.email,
+            first_name=req.first_name,
+            last_name=req.last_name,
+            password_hash=password_hash,
+            source=req.source,
+        )
     except psycopg2.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
@@ -205,6 +226,7 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/users/login")
@@ -223,7 +245,7 @@ async def login_user(
     if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
-    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(email=req.email)
+    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(email=req.email, source=req.source)
 
     if not db.check_password(req.password, existing_hash):
         raise HTTPException(status_code=403, detail="Invalid username or password")
@@ -460,9 +482,13 @@ async def add_feedback(
         raise HTTPException(status_code=500, detail="Database error")
 
 
+class CreateThreadRequest(BaseModel):
+    source: SourceType = SourceType.WEB
+
+
 @app.post("/api/v2/threads")
 async def create_thread(
-    request: Request,
+    req: CreateThreadRequest = CreateThreadRequest(),
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -471,7 +497,7 @@ async def create_thread(
 
     logger.info(f"Token_params is {token_params}")
     try:
-        thread_id = db.create_thread(token_params["user_id"])
+        thread_id = db.create_thread(token_params["user_id"], req.source)
         logger.debug(f"Created thread {thread_id}")
         return thread_id
     except psycopg2.Error as e:
@@ -481,7 +507,7 @@ async def create_thread(
 
 @app.get("/api/v2/threads")
 async def get_all_threads(
-    request: Request,
+    source: SourceType | None = Query(None, description="If not provided, returns threads from all sources"),
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -491,7 +517,13 @@ async def get_all_threads(
 
     logger.info(f"Token_params is {token_params}")
     try:
-        threads = db.get_all_threads(token_params["user_id"])
+        # NOTE: "Returning all sources" is what we want in case user is logging from web/mobile because:
+        #   1. we want threads defined in web to be shown in mobile, and vice verse
+        #   2. We know that a user_id is uniquely defined per independent platform
+        #       (i.e., web/mobile have same user_id ,
+        #       while whatsapp is an independent platform with its own threads,
+        #       so user_id will be different there)
+        threads = db.get_all_threads(token_params["user_id"], source=source)
         return threads
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -501,6 +533,7 @@ async def get_all_threads(
 class AddMessageRequest(BaseModel):
     role: str
     content: str
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/threads/{thread_id}")
@@ -560,6 +593,7 @@ def add_message(
                 db,
                 token_params["user_id"],
                 thread_id,
+                req.source,
             ),
         )
     except psycopg2.Error as e:
@@ -785,7 +819,7 @@ async def request_password_reset(
 
     logger.info(f"Request received to reset {req.email}")
     if db.account_exists(email=req.email):
-        user_id, _, _, _ = db.retrieve_user_info(email=req.email)
+        user_id, _, _, _ = db.retrieve_user_info(email=req.email, source=req.source)
         reset_token = db.generate_token(user_id, "reset")
         db.save_reset_token(user_id, reset_token)
         # shall we also revoke login and refresh tokens?

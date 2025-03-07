@@ -1,10 +1,11 @@
-import pytest
 import json
 
+import pytest
+
 from ansari.agents.ansari import Ansari
-from ansari.config import Settings
-from ansari.ansari_db import MessageLogger
+from ansari.ansari_db import MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
+from ansari.config import Settings
 from tests.integration.test_ansari_generic import AnsariTester, IntegrationMessageLogger, MockDatabase
 
 logger = get_logger(__name__)
@@ -62,7 +63,7 @@ class TestMessageReconstruction:
         logger.info("Testing full message reconstruction cycle")
 
         # Create logger that uses our mock database
-        message_logger = MessageLogger(mock_db, 1, 1)
+        message_logger = MessageLogger(mock_db, 1, 1, source=SourceType.WEB)
 
         # Create the agent
         agent = Ansari(settings=settings, message_logger=message_logger)
