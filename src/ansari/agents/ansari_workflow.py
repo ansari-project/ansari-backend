@@ -86,7 +86,7 @@ class AnsariWorkflow:
             st.get_tool_name(): st,
         }
         self.model = settings.MODEL
-        self.pm = PromptMgr()
+        self.pm = PromptMgr(src_dir=settings.PROMPT_PATH)
         prompt_file = system_prompt_file or settings.SYSTEM_PROMPT_FILE_NAME
         self.sys_msg = self.pm.bind(prompt_file).render()
         self.tools = [x.get_tool_description() for x in self.tool_name_to_instance.values()]
@@ -144,6 +144,8 @@ class AnsariWorkflow:
                 [prev_outputs[i] for i in step_params["search_results_indices"]],
             )
         prompt = f""" Consider the following question: '{step_params["input"]}'
+        With specific reference to the ayah being discussed: **{step_params["ayah_being_asked_about"]}**
+        And for relevant context, the adjacent ayat are: **{step_params["surrounding_ayat"]}**
         
             Using the excerpts from tafsirs below, compose a response that:
             1. Directly answers the query of the user

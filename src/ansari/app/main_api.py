@@ -41,6 +41,7 @@ from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import get_extended_origins, validate_cors
+from ansari.util.quran_api import get_ayah_and_rub_hizb_text
 
 logger = get_logger()
 
@@ -791,7 +792,8 @@ async def answer_ayah_question(
             stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
             if stored_answer:
                 return {"response": stored_answer}
-
+        # Get the ayah and rub-hizb text
+        ayah, rub_hizb = get_ayah_and_rub_hizb_text(f"{req.surah}:{req.ayah}")
         # Define the workflow steps
         workflow_steps = [
             (
@@ -803,7 +805,15 @@ async def answer_ayah_question(
                 },
             ),
             ("gen_query", {"input": req.question, "target_corpus": "tafsir"}),
-            ("gen_answer", {"input": req.question, "search_results_indices": [0]}),
+            (
+                "gen_answer",
+                {
+                    "input": req.question,
+                    "search_results_indices": [0],
+                    "ayah_being_asked_about": ayah,
+                    "surrounding_ayat": rub_hizb,
+                },
+            ),
         ]
         # If augment_question is False, skip the query generation step to use
         # the original question directly
