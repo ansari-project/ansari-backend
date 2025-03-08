@@ -13,7 +13,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from ansari.agents import Ansari
+from ansari.agents import Ansari, AnsariClaude
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
@@ -25,7 +25,15 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # Initialize the Ansari agent
-ansari = Ansari(get_settings())
+agent_type = get_settings().AGENT
+
+if agent_type == "Ansari":
+    ansari = Ansari(get_settings())
+elif agent_type == "AnsariClaude":
+    ansari = AnsariClaude(get_settings())
+else:
+    raise ValueError(f"Unknown agent type: {agent_type}. Must be one of: Ansari, AnsariClaude")
+
 chosen_whatsapp_biz_num = get_settings().WHATSAPP_BUSINESS_PHONE_NUMBER_ID.get_secret_value()
 
 # Initialize the presenter with the agent and credentials
