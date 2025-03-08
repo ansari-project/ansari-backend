@@ -71,7 +71,7 @@ class TestMessageReconstruction:
         logger.info("Testing full message reconstruction cycle")
 
         # Create logger that uses our mock database
-        message_logger = MessageLogger(mock_db, 1, 1, source=SourceType.WEB)
+        message_logger = MessageLogger(mock_db, SourceType.WEB, 1, 1)
 
         # Create the agent
         agent = AnsariClaude(settings=settings, message_logger=message_logger)

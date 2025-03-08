@@ -23,9 +23,9 @@ import uuid
 
 import psycopg2
 import psycopg2.extras
-import sentry_sdk  # type: ignore
+import sentry_sdk
 from diskcache import FanoutCache, Lock
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -88,7 +88,7 @@ async def http_exception_handler(request, exc: HTTPException):
 
 
 # Add this new handler specifically for validation errors
-#   (like when someone sends ?source=web instead of ?source=WEB)
+#   (like an invalid query parameter type, etc.)
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     errors = exc.errors()
@@ -168,6 +168,8 @@ class RegisterRequest(BaseModel):
     password: str
     first_name: str
     last_name: str
+    # Left as an optional field for now to avoid breaking the frontend
+    #   (I.e., the frontend doesn't send this field yet)
     source: SourceType = SourceType.WEB
 
 
@@ -212,11 +214,11 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
         return db.register(
+            source=req.source,
             email=req.email,
             first_name=req.first_name,
             last_name=req.last_name,
             password_hash=password_hash,
-            source=req.source,
         )
     except psycopg2.Error as e:
         print(f"Error: {e}")
@@ -245,7 +247,7 @@ async def login_user(
     if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
-    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(email=req.email, source=req.source)
+    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(source=req.source, email=req.email)
 
     if not db.check_password(req.password, existing_hash):
         raise HTTPException(status_code=403, detail="Invalid username or password")
@@ -497,7 +499,7 @@ async def create_thread(
 
     logger.info(f"Token_params is {token_params}")
     try:
-        thread_id = db.create_thread(token_params["user_id"], req.source)
+        thread_id = db.create_thread(req.source, token_params["user_id"])
         logger.debug(f"Created thread {thread_id}")
         return thread_id
     except psycopg2.Error as e:
@@ -507,7 +509,6 @@ async def create_thread(
 
 @app.get("/api/v2/threads")
 async def get_all_threads(
-    source: SourceType | None = Query(None, description="If not provided, returns threads from all sources"),
     cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
@@ -523,7 +524,7 @@ async def get_all_threads(
         #       (i.e., web/mobile have same user_id ,
         #       while whatsapp is an independent platform with its own threads,
         #       so user_id will be different there)
-        threads = db.get_all_threads(token_params["user_id"], source=source)
+        threads = db.get_all_threads(token_params["user_id"])
         return threads
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
@@ -591,9 +592,9 @@ def add_message(
             history,
             message_logger=MessageLogger(
                 db,
+                req.source,
                 token_params["user_id"],
                 thread_id,
-                req.source,
             ),
         )
     except psycopg2.Error as e:
@@ -806,6 +807,7 @@ async def get_prefs(
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/request_password_reset")
@@ -819,7 +821,7 @@ async def request_password_reset(
 
     logger.info(f"Request received to reset {req.email}")
     if db.account_exists(email=req.email):
-        user_id, _, _, _ = db.retrieve_user_info(email=req.email, source=req.source)
+        user_id, _, _, _ = db.retrieve_user_info(source=req.source, email=req.email)
         reset_token = db.generate_token(user_id, "reset")
         db.save_reset_token(user_id, reset_token)
         # shall we also revoke login and refresh tokens?

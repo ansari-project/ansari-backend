@@ -33,12 +33,13 @@ class MessageLogger:
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", user_id: UUID, thread_id: UUID, source: SourceType = SourceType.WEB) -> None:
+    def __init__(self, db: "AnsariDB", source: SourceType, user_id: UUID, thread_id: UUID) -> None:
+        self.db = db
+        self.source = source
         self.user_id = user_id
         self.thread_id = thread_id
-        self.source = source
+
         logger.debug(f"DB is {db}")
-        self.db = db
 
     def log(
         self,
@@ -48,7 +49,7 @@ class MessageLogger:
         tool_details: dict[str, dict] = None,
         ref_list: list = None,
     ) -> None:
-        self.db.append_message(self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list, self.source)
+        self.db.append_message(self.source, self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
 
 
 class AnsariDB:
@@ -168,6 +169,13 @@ class AnsariDB:
         Raises:
             ValueError: If an invalid fetch type is provided.
         """
+
+        if not (isinstance(params, tuple) or isinstance(params, list)):
+            try:
+                params = tuple(params)
+            except Exception:
+                raise ValueError("Invalid params type")
+
         # If query is a single string, we assume that params and which_fetch are also non-list values
         if isinstance(query, str):
             query = [query]
@@ -260,30 +268,33 @@ class AnsariDB:
 
     def register(
         self,
+        source: SourceType,
         email=None,
         first_name=None,
         last_name=None,
         password_hash=None,
         phone_num=None,
         preferred_language=None,
-        source: SourceType = SourceType.WEB,
     ):
         """
-        Register a new user in the users table. Can be used for both web and WhatsApp users.
-
-        For web users: Provide email, first_name, last_name, and password_hash
-        For WhatsApp users: Provide phone_num and any additional fields as kwargs
-
+        Register a new user in the database.
+        This method creates a new user record in the users table with the provided information.
+        All parameters are optional except for the source.
         Args:
-            email (str, optional): User's email address.
+            email (str, optional): User's email address. Will be stored in lowercase if provided.
             first_name (str, optional): User's first name.
             last_name (str, optional): User's last name.
-            password_hash (str, optional): Hashed password for web users.
-            phone_num (str, optional): Phone number for WhatsApp users.
-            **kwargs: Additional fields to store in the users table.
-
+            password_hash (str, optional): Hashed version of user's password.
+            phone_num (str, optional): User's phone number.
+            preferred_language (str, optional): User's preferred language.
+            source (SourceType): Source of user registration. Required.
         Returns:
-            dict: A dictionary with the status of the operation.
+            dict: A dictionary containing the registration status.
+                - If successful: {"status": "success"}
+                - If failed: {"status": "failure", "error": <error_message>}
+        Raises:
+            ValueError: If source is not provided.
+            Exception: Any database or execution errors will be caught and returned as failure status.
         """
         try:
             insert_values = {}
@@ -376,54 +387,53 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def retrieve_user_info(self, email=None, phone_num=None, db_cols=None, source: SourceType = SourceType.WEB):
+    def retrieve_user_info(self, source: SourceType, email=None, phone_num=None, db_cols=None):
         """
         Retrieves user information from the users table by email or phone number.
 
         Args:
-            source (SourceType, optional): Source type (WEB, WHATSAPP, etc). Defaults to SourceType.WEB.
+            source (SourceType): Source type (WEB, WHATSAPP, etc).
             email (str, optional): The user's email address.
             phone_num (str, optional): The user's phone number.
             db_cols (Union[list, str], optional): Specific column(s) to retrieve.
-                If None, returns id, password_hash, first_name, last_name for non-whatsapp users,
-                or just id for whatsapp users.
 
         Returns:
-            Optional[Tuple]: A tuple containing the requested fields.
-                For non-whatsapp source: Returns (id, password_hash, first_name, last_name) by default
-                For whatsapp source: Returns (id,) by default
-                Returns tuple of None values if no user is found.
+            Optional[Tuple]: A tuple containing the requested fields or None values if no user is found.
 
         Raises:
-            ValueError: If neither email nor phone_num is provided for their respective sources.
-                    non-whatsapp source requires email
-                    whatsapp source requires phone number
+            ValueError: If required identifier is missing for the specified source.
         """
         try:
-            if source == SourceType.WEB and not email:
-                raise ValueError("Selected source requires email based auth")
-            if source == SourceType.WHATSAPP and not phone_num:
-                raise ValueError("Selected source requires phone number based auth")
+            # Set default columns and determine identifier based on source
+            is_whatsapp = source == SourceType.WHATSAPP
+            db_cols = db_cols or (["id"] if is_whatsapp else ["id", "password_hash", "first_name", "last_name"])
 
-            if source == SourceType.WEB:
-                identifier_col = "email"
-                param = email.strip().lower()
-                if not db_cols:
-                    db_cols = ["id", "password_hash", "first_name", "last_name"]
-            elif source == SourceType.WHATSAPP:
+            # Determine identifier column and parameter
+            if is_whatsapp:
+                if not phone_num:
+                    raise ValueError("WhatsApp source requires phone number based auth")
                 identifier_col = "phone_num"
                 param = phone_num
-                if not db_cols:
-                    db_cols = ["id"]
+            else:
+                identifier_col = "email" if email else "phone_num"
+                param = email.strip().lower() if email else phone_num
 
-            select_cmd = f"SELECT {', '.join(db_cols)} FROM users WHERE {identifier_col} = %s;"
-            result = self._execute_query(select_cmd, (param,), "one")[0]
+            # Build initial query
+            select_cmd = f"SELECT {', '.join(db_cols)} FROM users WHERE {identifier_col} = %s"
 
-            return result
+            # Possibly continue query by adding source for WhatsApp users
+            if is_whatsapp:
+                select_cmd += " AND initial_source = %s;"
+                param = (param, source)
+            else:
+                select_cmd += ";"
+
+            # Execute query and return result
+            return self._execute_query(select_cmd, (param,), "one")[0]
 
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
-            return tuple(None for _ in range(len(db_cols) if db_cols else 4))
+            return tuple(None for _ in range(len(db_cols) if db_cols else (1 if is_whatsapp else 4)))
 
     def retrieve_user_info_by_user_id(self, id):
         try:
@@ -448,7 +458,7 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def create_thread(self, user_id: UUID, thread_name=None, source: SourceType = SourceType.WEB) -> dict:
+    def create_thread(self, source: SourceType, user_id: UUID, thread_name=None) -> dict:
         """
         Creates a new thread with appropriate source.
 
@@ -476,18 +486,10 @@ class AnsariDB:
             logger.warning(f"Thread creation error: {e}")
             return {"status": "failure", "error": str(e)}
 
-    def get_all_threads(self, user_id, source: Optional[SourceType] = None):
+    def get_all_threads(self, user_id):
         try:
-            if source is None:
-                select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
-                result = self._execute_query(select_cmd, (user_id,), "all")[0]
-            else:
-                # This source logic is added here mainly for WhatsApp, as it's disconnected from the rest of the sources
-                # NOTE: Currently, this isn't used by Whatsapp though, but it's implemented in case in the future
-                #   we want the model to have a context of the user's entire conversation
-                #   (e.g., last 3 conversations instead of 1, etc.)
-                select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s and initial_source = %s;"""
-                result = self._execute_query(select_cmd, (user_id, source), "all")[0]
+            select_cmd = """SELECT id, name, updated_at FROM threads WHERE user_id = %s;"""
+            result = self._execute_query(select_cmd, (user_id,), "all")[0]
             return [{"thread_id": x[0], "thread_name": x[1], "updated_at": x[2]} for x in result] if result else []
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -514,6 +516,7 @@ class AnsariDB:
 
     def append_message(
         self,
+        source: SourceType,
         user_id: UUID,
         thread_id: UUID,
         role: str,
@@ -521,7 +524,6 @@ class AnsariDB:
         tool_name: str = None,
         tool_details: dict[str, dict] = None,
         ref_list: list = None,
-        source: SourceType = SourceType.WEB,
     ) -> None:
         """Append a message to the given thread.
 
@@ -642,32 +644,26 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {}
 
-    def get_last_message_time_whatsapp(
-        self, user_id: UUID, source: SourceType = SourceType.WHATSAPP
-    ) -> tuple[Optional[UUID], Optional[datetime]]:
+    def get_last_message_time_whatsapp(self, user_id: UUID) -> tuple[Optional[UUID], Optional[datetime]]:
         """
         Retrieves the thread ID and the last message time for the latest updated thread of a WhatsApp user.
 
         Args:
             user_id (UUID): The ID of the WhatsApp user.
-            source (SourceType, optional): Source type. Defaults to SourceType.WHATSAPP.
 
         Returns:
             tuple[Optional[UUID], Optional[datetime]]: A tuple containing the thread ID and the last message time.
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            # This source logic is added here mainly for WhatsApp, as it's disconnected from the rest of the sources
-            # NOTE: Adding source logic here as a safety net, since a user "A" should have a
-            #   different user_id anyways for whatsapp vs web/mobile/etc,
             select_cmd = """
             SELECT id, updated_at
             FROM threads 
-            WHERE user_id = %s AND initial_source = %s
+            WHERE user_id = %s
             ORDER BY updated_at DESC
             LIMIT 1;
             """
-            result = self._execute_query(select_cmd, (user_id, source), "one")[0]
+            result = self._execute_query(select_cmd, (user_id,), "one")[0]
             if result:
                 return result[0], result[1]
             return None, None
