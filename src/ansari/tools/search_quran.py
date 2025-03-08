@@ -105,14 +105,12 @@ class SearchQuran:
             # Create citation title
             title = f"Quran {id}"
 
-            # Format as multilingual data with both Arabic and English
-            # Note: Quran search results already include both Arabic and English translations
-            multilingual_data = format_multilingual_data({"ar": arabic, "en": english})
-
+            # Only include Arabic text in the document data that Claude will see and cite
+            # We'll handle translation in the citation processing code
             documents.append(
                 {
                     "type": "document",
-                    "source": {"type": "text", "media_type": "text/plain", "data": multilingual_data},
+                    "source": {"type": "text", "media_type": "text/plain", "data": arabic},
                     "title": title,
                     "context": "Retrieved from the Holy Quran",
                     "citations": {"enabled": True},
