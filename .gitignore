@@ -5,13 +5,15 @@ abandoned/
 bin/
 datasources/
 diskcache_dir/
-docs/recordings/00_chapters.txt
+docs/recordings/*
 etc/
 example_projects/
 lib/
 share/
+tmp/*
 src/ansari_backend.egg-info/*
 
+.__atomic-write*
 .env
 .history
 *.pyc

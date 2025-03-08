@@ -616,11 +616,11 @@ class AnsariDB:
             ORDER BY timestamp;
             """
             result = self._execute_query(select_cmd, (thread_id, user_id_whatsapp), "all")[0]
-            return (
-                [{"role": x[0], "content": x[1], "name": x[2]} if x[2] else {"role": x[0], "content": x[1]} for x in result]
-                if result
-                else []
-            )
+            msgs = []
+            for db_row in result:
+                msgs.extend(self.convert_message_llm(db_row))
+
+            return msgs
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return []
