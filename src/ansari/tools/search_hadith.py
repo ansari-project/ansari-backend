@@ -92,19 +92,14 @@ class SearchHadith:
             if grade:
                 title += f" (Grade: {grade})"
 
-            # Prepare multilingual data for hadith content
-            text_entries = {}
-            if ar_text:
-                text_entries["ar"] = ar_text
-            if text:
-                text_entries["en"] = text
-
-            # Convert to JSON format for multilingual support
-            multilingual_data = format_multilingual_data(text_entries)
-
+            # Only include text (Arabic preferred, English as fallback) in the document data
+            # We'll handle translation in the citation processing code
+            # Use Arabic text if available, otherwise fallback to English text
+            doc_text = ar_text if ar_text else text
+            
             document = {
                 "type": "document",
-                "source": {"type": "text", "media_type": "text/plain", "data": multilingual_data},
+                "source": {"type": "text", "media_type": "text/plain", "data": doc_text},
                 "title": title,
                 "context": "Retrieved from hadith collections",
                 "citations": {"enabled": True},

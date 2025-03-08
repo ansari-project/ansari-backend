@@ -105,12 +105,15 @@ class SearchQuran:
             # Create citation title
             title = f"Quran {id}"
 
-            # Only include Arabic text in the document data that Claude will see and cite
+            # Only include text (Arabic preferred, English as fallback) in the document data
             # We'll handle translation in the citation processing code
+            # Use Arabic text if available, otherwise fallback to English text
+            doc_text = arabic if arabic else english
+            
             documents.append(
                 {
                     "type": "document",
-                    "source": {"type": "text", "media_type": "text/plain", "data": arabic},
+                    "source": {"type": "text", "media_type": "text/plain", "data": doc_text},
                     "title": title,
                     "context": "Retrieved from the Holy Quran",
                     "citations": {"enabled": True},
