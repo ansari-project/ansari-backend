@@ -8,7 +8,7 @@ from ansari.ansari_db import MessageLogger
 
 
 class ApiPresenter:
-    def __init__(self, app, agent: Ansari):
+    def __init__(self, app, agent: Ansari | AnsariClaude):
         self.app = app
         self.settings = agent.settings
 
