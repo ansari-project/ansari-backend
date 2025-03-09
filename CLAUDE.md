@@ -1,5 +1,11 @@
 # Ansari Backend - Developer Guide
 
+## Repository Organization
+- Keep the root directory clean and organized
+- Place temporary files, debug scripts, and other non-production artifacts in the `tmp/` directory
+- The `tmp/` directory is gitignored, making it perfect for development-only files
+- Make sure scripts and tools intended for the repository are placed in appropriate subdirectories
+
 ## Git Commit and PR Guidelines
 - Do not include "Generated with Claude Code" or "Co-Authored-By: Claude" in commit messages
 - Do not include "Generated with Claude Code" in PR descriptions or anywhere else
