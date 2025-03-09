@@ -45,6 +45,7 @@ jobs:
         uses: awslabs/amazon-app-runner-deploy@main
         env:
           DEPLOYMENT_TYPE: staging
+          LOGGING_LEVEL: DEBUG
           DATABASE_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'database-url') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
           ORIGINS:  ${{ format('{0}{1}', secrets.SSM_ROOT, 'origins') }}
@@ -80,6 +81,7 @@ jobs:
           wait-for-service-stability-seconds: 1200
           copy-env-vars: |
             DEPLOYMENT_TYPE
+            LOGGING_LEVEL
           copy-secret-env-vars: |
             DATABASE_URL
             SECRET_KEY
