@@ -81,7 +81,9 @@ def pretty_print_results(results: Any, output_format: str) -> None:
 def create_search_tool(tool_name: str) -> Any:
     """Create and return the appropriate search tool instance based on the tool name."""
     tools = {
-        "hadith": lambda: SearchHadith(),
+        "hadith": lambda: SearchHadith(
+            kalimat_api_key=settings.KALEMAT_API_KEY.get_secret_value() if hasattr(settings, "KALEMAT_API_KEY") else ""
+        ),
         "mawsuah": lambda: SearchMawsuah(
             vectara_api_key=settings.VECTARA_API_KEY.get_secret_value(), vectara_corpus_key=settings.MAWSUAH_CORPUS_ID
         ),

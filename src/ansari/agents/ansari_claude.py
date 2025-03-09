@@ -378,39 +378,22 @@ class AnsariClaude(Ansari):
                         title = getattr(citation, "document_title", "")
                         citations_text += f"[{i}] {title}:\n"
 
-                        # Check if the cited text is a JSON string with language-text pairs
-                        try:
-                            # Use the parse_multilingual_data helper to extract texts by language
-                            texts_by_lang = parse_multilingual_data(cited_text)
-
-                            # Add Arabic text if present
-                            if "ar" in texts_by_lang:
-                                citations_text += f" Arabic: {texts_by_lang['ar']}\n"
-
-                            # Add or generate English translation
-                            if "en" in texts_by_lang:
-                                # Use existing English translation
-                                citations_text += f" English: {texts_by_lang['en']}\n"
-                            elif "ar" in texts_by_lang:
-                                # Translate Arabic to English
-                                english_translation = asyncio.run(translate_texts_parallel([texts_by_lang["ar"]], "en", "ar"))[
-                                    0
-                                ]
-                                citations_text += f" English: {english_translation}\n"
-
-                            # Continue with the next citation
-                            continue
-
-                        except (json.JSONDecodeError, ValueError):
-                            # Not a valid JSON string or not in our expected format,
-                            # continue with normal processing
-                            pass
-
-                        # Legacy format (plain text) - assume it's Arabic and translate
+                        # Since we're now storing only Arabic text in the document data,
+                        # we can directly use the cited text as Arabic and translate it
                         arabic_text = cited_text
-                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-
-                        citations_text += f" Arabic: {arabic_text}\n English: {english_translation}\n"
+                        
+                        try:
+                            # Translate the Arabic text to English
+                            english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                            
+                            # Add both Arabic and English to the citations with extra newlines
+                            citations_text += f" Arabic: {arabic_text}\n\n"
+                            citations_text += f" English: {english_translation}\n"
+                        except Exception as e:
+                            # If translation fails, log the error and just show the Arabic text
+                            logger.error(f"Translation failed: {e}")
+                            citations_text += f" Arabic: {arabic_text}\n\n"
+                            citations_text += f" English: [Translation unavailable]\n"
 
                     assistant_text += citations_text
                     yield citations_text
