@@ -4,7 +4,7 @@
 BEGIN;
 
 -- Create the source_type enum with all four values matching schema
-CREATE TYPE source_type AS ENUM ('ios', 'android', 'webpage', 'whatsapp');
+CREATE TYPE source_type AS ENUM ('ios', 'android', 'web', 'whatsapp');
 
 -- Step 1: Modify the users table to include WhatsApp fields and use source
 ALTER TABLE users 

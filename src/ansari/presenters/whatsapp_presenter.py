@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 # Initialize the DB and agent
 # TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
 #    instead of duplicating `db` instances? Will this cost more resources?
-db = AnsariDB(get_settings(), source=SourceType.WHATSAPP)
+db = AnsariDB(get_settings())
 
 
 class WhatsAppPresenter:
