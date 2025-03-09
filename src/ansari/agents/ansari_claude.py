@@ -364,6 +364,7 @@ class AnsariClaude(Ansari):
         # Variables to accumulate complete messages before adding to history
         assistant_text = ""
         tool_calls = []
+        response_finished = False
 
         # Variables for processing the streaming response
         current_tool = None
@@ -460,12 +461,16 @@ class AnsariClaude(Ansari):
                     if chunk.delta.stop_reason == "tool_use":
                         logger.debug("Message stopped for tool use")
                     elif chunk.delta.stop_reason == "end_turn":
-                        logger.info("Message delta has stop_reason end_turn - finishing response")
-                        # The same finishing logic as message_stop will happen here
-                        # This handles the production case where message_stop isn't sent
-                        citations_text = self._finish_response(assistant_text, tool_calls)
-                        if citations_text:
-                            yield citations_text
+                        if response_finished:
+                            logger.warning("Received end_turn stop_reason but response already finished - skipping")
+                        else:
+                            logger.info("Message delta has stop_reason end_turn - finishing response")
+                            # The same finishing logic as message_stop will happen here
+                            # This handles the production case where message_stop isn't sent
+                            citations_text = self._finish_response(assistant_text, tool_calls)
+                            response_finished = True
+                            if citations_text:
+                                yield citations_text
                 elif hasattr(chunk.delta, "text"):
                     text = chunk.delta.text
                     assistant_text += text
@@ -475,11 +480,15 @@ class AnsariClaude(Ansari):
                     logger.debug(f"Unhandled message_delta: {chunk.delta}")
                     
             elif chunk.type == "message_stop":
-                logger.info("Message_stop chunk received - finishing response")
-                # Call the extracted method to handle message completion
-                citations_text = self._finish_response(assistant_text, tool_calls)
-                if citations_text:
-                    yield citations_text
+                if response_finished:
+                    logger.warning("Received message_stop but response already finished - skipping")
+                else:
+                    logger.info("Message_stop chunk received - finishing response")
+                    # Call the extracted method to handle message completion
+                    citations_text = self._finish_response(assistant_text, tool_calls)
+                    response_finished = True
+                    if citations_text:
+                        yield citations_text
 
     def _finish_response(self, assistant_text, tool_calls):
         """Handle the completion of a response, adding citations and processing tool calls.
