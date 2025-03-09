@@ -11,6 +11,18 @@
 - Do not include "Generated with Claude Code" in PR descriptions or anywhere else
 - Keep commit messages concise and descriptive
 - Use imperative mood in commit messages (e.g., "Add feature" not "Added feature")
+- Always run `ruff check` and `ruff format` before committing changes
+- Fix all linting errors - clean code is maintainable code
+- All PRs should target the `develop` branch, not `main`
+
+## Branch Management
+- Consider a merged branch "done" - do not add new changes to it
+- If you have changes after a branch was merged:
+  - Create a new branch from the latest develop branch
+  - Apply your new changes there
+  - Create a new PR with a descriptive name
+- For related but separate features, use separate branches and PRs
+- Delete branches after they're merged to keep the repository clean
 
 ## Build/Test/Lint Commands
 - Install dependencies: `pip install -r requirements.txt`
