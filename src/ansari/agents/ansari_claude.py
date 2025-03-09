@@ -30,11 +30,36 @@ class AnsariClaude(Ansari):
         # Call parent initialization
         super().__init__(settings, message_logger, json_format)
 
+        # Log environment information for debugging
+        try:
+            import anthropic
+            import sys
+            import platform
+            
+            logger.info(f"Python version: {sys.version}")
+            logger.info(f"Platform: {platform.platform()}")
+            logger.info(f"Anthropic client version: {anthropic.__version__}")
+            
+            # Log API key configuration (safely)
+            api_key_status = "Set" if hasattr(settings, "ANTHROPIC_API_KEY") and settings.ANTHROPIC_API_KEY else "Not set"
+            logger.info(f"ANTHROPIC_API_KEY status: {api_key_status}")
+            
+            # Log model configuration
+            logger.info(f"Using model: {settings.ANTHROPIC_MODEL}")
+        except Exception as e:
+            logger.error(f"Error logging environment info: {str(e)}")
+
         # Initialize Claude-specific client
-        self.client = anthropic.Anthropic()
+        try:
+            self.client = anthropic.Anthropic()
+            logger.debug("Successfully initialized Anthropic client")
+        except Exception as e:
+            logger.error(f"Error initializing Anthropic client: {str(e)}")
+            raise
 
         # Convert tool descriptions to Claude format
         self.tools = [self._convert_tool_format(x) for x in self.tools]
+        logger.debug(f"Converted {len(self.tools)} tools to Claude format")
 
         # Initialize empty message history for Claude (no system message)
         self.message_history = []
@@ -55,8 +80,10 @@ class AnsariClaude(Ansari):
         Returns:
             bool: True if the message is valid, False otherwise
         """
+        logger.debug(f"Validating message with role: {message.get('role', 'unknown')}")
+        
         if not isinstance(message, dict):
-            logger.warning("Message must be a dictionary")
+            logger.warning(f"Message must be a dictionary, got {type(message)}")
             return False
 
         if "role" not in message:
@@ -64,53 +91,71 @@ class AnsariClaude(Ansari):
             return False
 
         if "content" not in message:
-            logger.warning("Message must have content")
+            logger.warning(f"Message with role '{message['role']}' must have content")
             return False
 
         role = message["role"]
         content = message["content"]
+        logger.debug(f"Validating {role} message with content type: {type(content)}")
 
         # Assistant messages should have list content with typed blocks
         if role == "assistant":
             if not isinstance(content, list):
-                logger.warning("Assistant message content should be a list")
+                logger.warning(f"Assistant message content should be a list, got {type(content)}")
+                logger.debug(f"Invalid assistant content: {content}")
                 return False
 
             # Check if any block is missing a type
-            for block in content:
-                if not isinstance(block, dict) or "type" not in block:
-                    logger.warning("Assistant message content blocks must have a type")
+            for i, block in enumerate(content):
+                logger.debug(f"Validating assistant content block {i} of type: {type(block)}")
+                
+                if not isinstance(block, dict):
+                    logger.warning(f"Assistant message content block {i} must be a dict, got {type(block)}")
+                    return False
+                    
+                if "type" not in block:
+                    logger.warning(f"Assistant message content block {i} must have a type")
+                    logger.debug(f"Invalid block without type: {block}")
                     return False
 
                 # Text blocks must have text
                 if block["type"] == "text" and "text" not in block:
-                    logger.warning("Text blocks must have text")
+                    logger.warning(f"Text block {i} must have text")
+                    logger.debug(f"Invalid text block: {block}")
                     return False
 
                 # Tool use blocks must have id, name, and input
                 if block["type"] == "tool_use":
                     if "id" not in block:
-                        logger.warning("Tool use blocks must have an id")
+                        logger.warning(f"Tool use block {i} must have an id")
+                        logger.debug(f"Invalid tool use block: {block}")
                         return False
                     if "name" not in block:
-                        logger.warning("Tool use blocks must have a name")
+                        logger.warning(f"Tool use block {i} must have a name")
+                        logger.debug(f"Invalid tool use block: {block}")
                         return False
                     if "input" not in block:
-                        logger.warning("Tool use blocks must have input")
+                        logger.warning(f"Tool use block {i} must have input")
+                        logger.debug(f"Invalid tool use block: {block}")
                         return False
 
         # User messages with tool results should have the right structure
         if role == "user" and isinstance(content, list):
             tool_result_blocks = [b for b in content if b.get("type") == "tool_result"]
+            logger.debug(f"Found {len(tool_result_blocks)} tool result blocks in user message")
+            
             if tool_result_blocks:
-                for block in tool_result_blocks:
+                for i, block in enumerate(tool_result_blocks):
                     if "tool_use_id" not in block:
-                        logger.warning("Tool result blocks must have a tool_use_id")
+                        logger.warning(f"Tool result block {i} must have a tool_use_id")
+                        logger.debug(f"Invalid tool result block: {block}")
                         return False
                     if "content" not in block:
-                        logger.warning("Tool result blocks must have content")
+                        logger.warning(f"Tool result block {i} must have content")
+                        logger.debug(f"Invalid tool result block: {block}")
                         return False
 
+        logger.debug(f"Message validation successful for {role} message")
         return True
 
     def _log_message(self, message):
@@ -119,7 +164,12 @@ class AnsariClaude(Ansari):
         This ensures that the messages logged to the database match what's in the message_history.
         The database will store this in a flattened format which will be reconstructed during retrieval.
         """
+        logger.debug(f"_log_message called with message role: {message.get('role')}, " 
+                   f"content type: {type(message.get('content'))}, "
+                   f"message_history length: {len(self.message_history)}")
+        
         if not self.message_logger:
+            logger.warning("No message_logger available, skipping message logging")
             return
 
         # Validate message structure
@@ -136,10 +186,12 @@ class AnsariClaude(Ansari):
         # Handle different message content formats
         if isinstance(content, list):
             ref_list = [block for block in content if block.get("type") == "document"]
+            logger.debug(f"Found {len(ref_list)} document blocks in message")
 
             # Extract tool details from content for assistant messages
             if message["role"] == "assistant":
                 tool_use_blocks = [block for block in content if block.get("type") == "tool_use"]
+                logger.debug(f"Found {len(tool_use_blocks)} tool_use blocks in assistant message")
                 # If we have tool use blocks, properly extract and format their details
                 if tool_use_blocks:
                     tool_name = tool_use_blocks[0].get("name")
@@ -154,17 +206,23 @@ class AnsariClaude(Ansari):
             # Extract tool result details for user messages
             elif message["role"] == "user":
                 tool_result_blocks = [block for block in content if block.get("type") == "tool_result"]
+                logger.debug(f"Found {len(tool_result_blocks)} tool_result blocks in user message")
                 if tool_result_blocks:
                     tool_details = tool_result_blocks
 
         # Log the message with appropriate structure
-        self.message_logger.log(
-            role=message["role"],
-            content=content,
-            tool_name=tool_name,
-            tool_details=tool_details,
-            ref_list=ref_list,
-        )
+        try:
+            self.message_logger.log(
+                role=message["role"],
+                content=content,
+                tool_name=tool_name,
+                tool_details=tool_details,
+                ref_list=ref_list,
+            )
+            logger.debug(f"Successfully logged message with role: {message['role']}")
+        except Exception as e:
+            logger.error(f"Error logging message: {str(e)}")
+            logger.error(f"Message that failed to log: {message}")
 
     def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
@@ -268,17 +326,32 @@ class AnsariClaude(Ansari):
             "stream": True,  # Always stream
         }
         params["tools"] = self.tools
+        
+        # Log API request parameters (excluding the full message history for brevity)
+        logger_params = params.copy()
+        logger_params["messages"] = f"[{len(self.message_history)} messages]"
+        logger_params["system"] = system_prompt[:100] + "..." if len(system_prompt) > 100 else system_prompt
+        logger.info(f"API request parameters: {logger_params}")
 
         failures = 0
         response = None
+        start_time = time.time()
 
         # Retry loop for API calls
         while not response:
             try:
+                logger.debug("Calling Anthropic API...")
                 response = self.client.messages.create(**params)
+                elapsed = time.time() - start_time
+                logger.info(f"API connection established after {elapsed:.2f}s")
             except Exception as e:
                 failures += 1
-                logger.warning(f"API call failed: {str(e)}")
+                elapsed = time.time() - start_time
+                logger.warning(f"API call failed after {elapsed:.2f}s: {str(e)}")
+                logger.error(f"Error type: {type(e).__name__}")
+                
+                if hasattr(e, "__dict__"):
+                    logger.error(f"Error details: {e.__dict__}")
 
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Max retries exceeded")
@@ -311,11 +384,20 @@ class AnsariClaude(Ansari):
          - If it's tool parameters, accumulate the tool paramters into the current tool.  
 
         """
+        logger.debug(f"Starting to process response stream")
+        chunk_count = 0
+        content_block_count = 0
+        message_delta_count = 0
+        
         for chunk in response:
-            logger.debug(f"Raw chunk: {chunk}")
-
+            chunk_count += 1
+            logger.debug(f"Processing chunk #{chunk_count} of type: {chunk.type}")
+            
             if chunk.type == "content_block_start":
-                if chunk.content_block.type == "tool_use":
+                content_block_count += 1
+                logger.debug(f"Content block #{content_block_count} start: {getattr(chunk.content_block, 'type', 'unknown')}")
+                
+                if hasattr(chunk, 'content_block') and hasattr(chunk.content_block, 'type') and chunk.content_block.type == "tool_use":
                     # Start of a tool call
                     logger.info(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
                     current_tool = {
@@ -324,11 +406,14 @@ class AnsariClaude(Ansari):
                         "name": chunk.content_block.name,
                     }
                     logger.debug(f"Starting tool call: {current_tool}")
+                else:
+                    logger.debug(f"Content block start but not a tool use: {chunk}")
 
             elif chunk.type == "content_block_delta":
                 if hasattr(chunk.delta, "text"):
                     text = chunk.delta.text
                     assistant_text += text
+                    logger.debug(f"Adding text delta: '{text[:20]}...' (truncated)")
                     yield text
                 elif getattr(chunk.delta, "type", None) == "citations_delta":
                     # Process citation delta
@@ -336,18 +421,25 @@ class AnsariClaude(Ansari):
                     self.citations.append(citation)
                     citation_ref = f" [{len(self.citations)}] "
                     assistant_text += citation_ref
+                    logger.debug(f"Adding citation reference: {citation_ref}")
                     yield citation_ref
                 elif hasattr(chunk.delta, "partial_json"):
                     # Accumulate JSON for tool arguments
                     current_json += chunk.delta.partial_json
+                    logger.debug(f"Accumulating JSON for tool, current length: {len(current_json)}")
+                else:
+                    logger.debug(f"Unhandled content_block_delta: {chunk.delta}")
 
             elif chunk.type == "content_block_stop":
+                logger.debug(f"Content block stop received")
                 if current_tool:
                     try:
+                        logger.debug(f"Parsing accumulated JSON for tool: {current_json[:50]}... (truncated)")
                         arguments = json.loads(current_json)
                         logger.debug(f"Tool arguments: {arguments}")
                         current_tool["input"] = arguments
                         tool_calls.append(current_tool)
+                        logger.info(f"Added tool call to queue, total: {len(tool_calls)}")
 
                         # Reset for next tool
                         current_tool = None
@@ -356,17 +448,27 @@ class AnsariClaude(Ansari):
                     except Exception as e:
                         error_msg = f"Tool call failed: {str(e)}"
                         logger.error(error_msg)
+                        logger.error(f"Failed JSON: {current_json}")
                         raise
 
             elif chunk.type == "message_delta":
-                if chunk.delta.stop_reason == "tool_use":
-                    logger.debug("Message stopped for tool use")
+                message_delta_count += 1
+                logger.debug(f"Message delta #{message_delta_count} received")
+                
+                if hasattr(chunk.delta, "stop_reason"):
+                    logger.debug(f"Message delta has stop_reason: {chunk.delta.stop_reason}")
+                    if chunk.delta.stop_reason == "tool_use":
+                        logger.debug("Message stopped for tool use")
                 elif hasattr(chunk.delta, "text"):
                     text = chunk.delta.text
                     assistant_text += text
+                    logger.debug(f"Adding message delta text: '{text[:20]}...' (truncated)")
                     yield text
+                else:
+                    logger.debug(f"Unhandled message_delta: {chunk.delta}")
 
             elif chunk.type == "message_stop":
+                logger.info("Message_stop chunk received - finishing response")
                 # Add citations list at the end if there were any citations
                 if self.citations:
                     citations_text = "\n\n**Citations**:\n"
@@ -425,17 +527,29 @@ class AnsariClaude(Ansari):
                 # Create the assistant message for the message history
                 # Don't include tool_name in the message sent to Claude API
                 assistant_message = {"role": "assistant", "content": message_content}
-
+                
+                logger.debug(f"Adding assistant message to history. Current history length: {len(self.message_history)}")
+                logger.debug(f"Assistant message content blocks: {len(message_content)}")
+                
                 # Add to message history
-                self.message_history.append(assistant_message)
-
+                try:
+                    self.message_history.append(assistant_message)
+                    logger.debug(f"Successfully added assistant message. New history length: {len(self.message_history)}")
+                    logger.debug(f"Last message in history role: {self.message_history[-1]['role']}")
+                except Exception as e:
+                    logger.error(f"Failed to append assistant message to history: {str(e)}")
+                    logger.error(f"assistant_message: {assistant_message}")
+                    logger.error(f"self.message_history type: {type(self.message_history)}")
+                
                 # For logging, create a copy with tool_name for database storage
                 if tool_calls:
+                    logger.debug(f"Logging assistant message with tool_name")
                     log_message = assistant_message.copy()
                     log_message["tool_name"] = tool_calls[0]["name"]
                     # Log the message with tool_name for database
                     self._log_message(log_message)
                 else:
+                    logger.debug(f"Logging regular assistant message")
                     # Log the regular message
                     self._log_message(self.message_history[-1])
 
@@ -504,7 +618,15 @@ class AnsariClaude(Ansari):
         It yields from the process_one_round method until the last message is an assistant message.
         The assumption coming in to this is that it ends with a user message.
         """
-
+        logger.info("Starting process_message_history")
+        logger.debug(f"Initial message history length: {len(self.message_history)}")
+        
+        if len(self.message_history) > 0:
+            logger.debug(f"Last message role: {self.message_history[-1]['role']}")
+            last_role = self.message_history[-1]["role"]
+            if last_role == "assistant":
+                logger.info("Message history already ends with assistant message, no processing needed")
+        
         count = 0
 
         # Track tool_use_ids to ensure tool_result blocks have matching tool_use blocks
@@ -591,15 +713,46 @@ class AnsariClaude(Ansari):
                 # Log the message if needed
                 self._log_message(self.message_history[-1])
 
-        while self.message_history[-1]["role"] != "assistant":
+        logger.debug(f"Starting message processing loop with history length: {len(self.message_history)}")
+        if len(self.message_history) > 0:
+            logger.debug(f"Last message role before loop: {self.message_history[-1]['role']}")
+        else:
+            logger.warning("Message history is empty before processing loop")
+            
+        while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant":
             logger.info(f"Processing message iteration: {count}")
             logger.debug("Current message history:\n" + "-" * 60)
             for i, msg in enumerate(self.message_history):
                 logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
             logger.debug("-" * 60)
+            
             # This is pretty complicated so leaving a comment.
             # We want to yield from so that we can send the sequence through the input
             # Also use tools only if we haven't tried too many times (failure)
             #  and if the last message was not from the tool (success!)
-            yield from self.process_one_round()
+            logger.debug("Calling process_one_round()")
+            
+            try:
+                yield from self.process_one_round()
+                logger.debug(f"After process_one_round(), message history length: {len(self.message_history)}")
+                if len(self.message_history) > 0:
+                    logger.debug(f"Last message role after process_one_round: {self.message_history[-1]['role']}")
+                else:
+                    logger.warning("Message history is empty after process_one_round!")
+            except Exception as e:
+                logger.error(f"Error in process_one_round: {str(e)}")
+                # Don't raise - log and continue to avoid breaking the loop
+            
             count += 1
+            logger.debug(f"Completed iteration {count} of message processing")
+            
+        # Log the final state after processing completes
+        logger.info(f"Finished process_message_history after {count} iterations")
+        logger.debug(f"Final message history length: {len(self.message_history)}")
+        
+        if len(self.message_history) > 0:
+            logger.info(f"Final message role: {self.message_history[-1]['role']}")
+            if self.message_history[-1]["role"] != "assistant":
+                logger.warning("Processing completed but final message is not from assistant!")
+        else:
+            logger.warning("Processing completed but message history is empty!")
