@@ -571,8 +571,9 @@ def share_thread(
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to share this thread")
     try:
         share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
         return {"status": "success", "share_uuid": share_uuid}
@@ -652,8 +653,9 @@ async def get_thread(
 ):
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to access this thread")
     try:
         messages = db.get_thread(thread_id, token_params["user_id"])
         if messages:  # return only if the thread exists. else raise 404
@@ -679,8 +681,9 @@ async def delete_thread(
     token_params: dict = Depends(db.validate_token),
 ):
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to delete this thread")
     try:
         return db.delete_thread(thread_id, token_params["user_id"])
     except psycopg2.Error as e:
@@ -700,8 +703,9 @@ async def set_thread_name(
 ):
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to set the name of this thread")
     try:
         messages = db.set_thread_name(thread_id, token_params["user_id"], req.name)
         return messages
