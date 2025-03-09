@@ -1,9 +1,11 @@
-import pytest
 import json
+
+import pytest
+
 from ansari.agents.ansari_claude import AnsariClaude
-from ansari.config import Settings
-from ansari.ansari_db import MessageLogger
+from ansari.ansari_db import MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
+from ansari.config import Settings
 from tests.integration.test_ansari_generic import AnsariTester
 
 logger = get_logger(__name__)
@@ -69,7 +71,7 @@ class TestMessageReconstruction:
         logger.info("Testing full message reconstruction cycle")
 
         # Create logger that uses our mock database
-        message_logger = MessageLogger(mock_db, 1, 1)
+        message_logger = MessageLogger(mock_db, SourceType.WEB, 1, 1)
 
         # Create the agent
         agent = AnsariClaude(settings=settings, message_logger=message_logger)
@@ -164,9 +166,9 @@ class TestMessageReconstruction:
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "user", "Role should be preserved"
         assert isinstance(reconstructed[0]["content"], list), "Content should be a list"
-        assert any(block.get("type") == "tool_result" for block in reconstructed[0]["content"]), (
-            "Should have tool result block"
-        )
+        assert any(
+            block.get("type") == "tool_result" for block in reconstructed[0]["content"]
+        ), "Should have tool result block"
         assert any(block.get("type") == "document" for block in reconstructed[0]["content"]), "Should have document block"
 
 
