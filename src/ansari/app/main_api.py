@@ -185,15 +185,12 @@ class RegisterRequest(BaseModel):
 #       * "because the logic of my code is based on this returned value"
 #   TL;DR of TL;DR: "I *depend* on running `validate_cors` first to proceed with my logic"
 @app.post("/api/v2/users/register")
-async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_cors)):
+async def register_user(req: RegisterRequest):
     """Register a new user.
     If the user exists, returns 403.
     Returns 200 on success.
     Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     password_hash = db.hash_password(req.password)
     logger.info(
         f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}",
@@ -234,16 +231,12 @@ class LoginRequest(BaseModel):
 @app.post("/api/v2/users/login")
 async def login_user(
     req: LoginRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Logs the user in.
     Returns a token on success.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
@@ -299,7 +292,6 @@ async def login_user(
 @app.post("/api/v2/users/refresh_token")
 async def refresh_token(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Refresh both the access token and the refresh token.
@@ -328,9 +320,6 @@ async def refresh_token(
             - 500 if there is an internal server error during token generation or saving.
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
     token_params = db.decode_token(old_refresh_token)
 
@@ -395,12 +384,8 @@ async def refresh_token(
 
 @app.get("/api/v2/users/me")
 async def get_user_details(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid credentials")
-
     try:
         user_id = token_params["user_id"]
         user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
@@ -417,12 +402,8 @@ async def get_user_details(
 
 @app.delete("/api/v2/users/me")
 async def delete_user(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid credentials")
-
     try:
         db.delete_user(token_params["user_id"])
         return {"status": "success"}
@@ -434,15 +415,14 @@ async def delete_user(
 @app.post("/api/v2/users/logout")
 async def logout_user(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Logs the user out.
     Deletes all tokens.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     try:
         token = request.headers.get("Authorization", "").split(" ")[1]
@@ -463,11 +443,10 @@ class FeedbackRequest(BaseModel):
 @app.post("/api/v2/feedback")
 async def add_feedback(
     req: FeedbackRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -491,11 +470,10 @@ class CreateThreadRequest(BaseModel):
 @app.post("/api/v2/threads")
 async def create_thread(
     req: CreateThreadRequest = CreateThreadRequest(),
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -509,12 +487,11 @@ async def create_thread(
 
 @app.get("/api/v2/threads")
 async def get_all_threads(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Retrieve all threads for the user whose id is included in the token."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -541,15 +518,14 @@ class AddMessageRequest(BaseModel):
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
     settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
     """Adds a message to a thread. If the message is the first message in the thread,
     we set the name of the thread to the content of the message.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
 
@@ -605,13 +581,9 @@ def add_message(
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
     # user_id associated with the thread_id.
@@ -626,13 +598,9 @@ def share_thread(
 @app.get("/api/v2/share/{share_uuid_str}")
 def get_snapshot(
     share_uuid_str: str,
-    cors_ok: bool = Depends(validate_cors),
     filter_content: bool = True,
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
     try:
@@ -693,12 +661,11 @@ def filter_message_content(message):
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
@@ -725,12 +692,8 @@ async def get_thread(
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
     # user_id associated with the thread_id.
@@ -749,11 +712,10 @@ class ThreadNameRequest(BaseModel):
 async def set_thread_name(
     thread_id: uuid.UUID,
     req: ThreadNameRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
@@ -774,11 +736,10 @@ class SetPrefRequest(BaseModel):
 @app.post("/api/v2/preferences")
 async def set_pref(
     req: SetPrefRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -790,11 +751,10 @@ async def set_pref(
 
 @app.get("/api/v2/preferences")
 async def get_prefs(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
+    if not token_params:
+        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -813,12 +773,8 @@ class ResetPasswordRequest(BaseModel):
 @app.post("/api/v2/request_password_reset")
 async def request_password_reset(
     req: ResetPasswordRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Request received to reset {req.email}")
     if db.account_exists(email=req.email):
         user_id, _, _, _ = db.retrieve_user_info(source=req.source, email=req.email)
@@ -854,14 +810,10 @@ async def request_password_reset(
 
 @app.post("/api/v2/update_password")
 async def update_password(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_reset_token),
     password: str = None,
 ):
     """Update the user's password if you have a valid token"""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
-
     logger.info(f"Token_params is {token_params}")
     try:
         password_hash = db.hash_password(password)
@@ -883,11 +835,9 @@ class PasswordReset(BaseModel):
 
 
 @app.post("/api/v2/reset_password")
-async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_cors)):
+async def reset_password(req: PasswordReset):
     """Resets the user's password if you have a reset token."""
     token_params = db.validate_reset_token(req.reset_token)
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="Invalid username or password")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -906,7 +856,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
 
 
 @app.post("/api/v1/complete")
-async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
+async def complete(request: Request):
     """Provides a response to a user's input.
     The input is a list of messages, each with with
     a role and a text field. Roles are typically
@@ -916,9 +866,6 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     It returns a stream of tokens (a token is a part of a word).
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.debug(f"Raw request is {request.headers}")
     body = await request.json()
     logger.info(f"Request received > {body}.")
@@ -937,13 +884,9 @@ class AyahQuestionRequest(BaseModel):
 @app.post("/api/v2/ayah")
 async def answer_ayah_question(
     req: AyahQuestionRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
     db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
         raise HTTPException(status_code=401, detail="Unauthorized")
 
