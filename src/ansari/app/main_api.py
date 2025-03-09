@@ -417,8 +417,6 @@ async def logout_user(
     Deletes all tokens.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     try:
         token = request.headers.get("Authorization", "").split(" ")[1]
@@ -441,8 +439,6 @@ async def add_feedback(
     req: FeedbackRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -468,8 +464,6 @@ async def create_thread(
     req: CreateThreadRequest = CreateThreadRequest(),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -486,8 +480,6 @@ async def get_all_threads(
     token_params: dict = Depends(db.validate_token),
 ):
     """Retrieve all threads for the user whose id is included in the token."""
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -520,8 +512,6 @@ def add_message(
     """Adds a message to a thread. If the message is the first message in the thread,
     we set the name of the thread to the content of the message.
     """
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
 
@@ -660,8 +650,6 @@ async def get_thread(
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
@@ -710,8 +698,6 @@ async def set_thread_name(
     req: ThreadNameRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     # TODO(mwk): check that the user_id in the token matches the
@@ -734,8 +720,6 @@ async def set_pref(
     req: SetPrefRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -749,8 +733,6 @@ async def set_pref(
 async def get_prefs(
     token_params: dict = Depends(db.validate_token),
 ):
-    if not token_params:
-        raise HTTPException(status_code=403, detail="Invalid credentials")
 
     logger.info(f"Token_params is {token_params}")
     try:
