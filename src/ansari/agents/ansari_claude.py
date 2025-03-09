@@ -459,6 +459,13 @@ class AnsariClaude(Ansari):
                     logger.debug(f"Message delta has stop_reason: {chunk.delta.stop_reason}")
                     if chunk.delta.stop_reason == "tool_use":
                         logger.debug("Message stopped for tool use")
+                    elif chunk.delta.stop_reason == "end_turn":
+                        logger.info("Message delta has stop_reason end_turn - finishing response")
+                        # The same finishing logic as message_stop will happen here
+                        # This handles the production case where message_stop isn't sent
+                        citations_text = self._finish_response(assistant_text, tool_calls)
+                        if citations_text:
+                            yield citations_text
                 elif hasattr(chunk.delta, "text"):
                     text = chunk.delta.text
                     assistant_text += text
@@ -466,151 +473,167 @@ class AnsariClaude(Ansari):
                     yield text
                 else:
                     logger.debug(f"Unhandled message_delta: {chunk.delta}")
-
+                    
             elif chunk.type == "message_stop":
                 logger.info("Message_stop chunk received - finishing response")
-                # Add citations list at the end if there were any citations
-                if self.citations:
-                    citations_text = "\n\n**Citations**:\n"
-                    logger.debug(f"Full Citations: {self.citations}")
-
-                    # Process each citation
-                    for i, citation in enumerate(self.citations, 1):
-                        cited_text = getattr(citation, "cited_text", "")
-                        title = getattr(citation, "document_title", "")
-                        citations_text += f"[{i}] {title}:\n"
-
-                        # Since we're now storing only Arabic text in the document data,
-                        # we can directly use the cited text as Arabic and translate it
-                        arabic_text = cited_text
-                        
-                        try:
-                            # Translate the Arabic text to English
-                            english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                            
-                            # Add both Arabic and English to the citations with extra newlines
-                            citations_text += f" Arabic: {arabic_text}\n\n"
-                            citations_text += f" English: {english_translation}\n"
-                        except Exception as e:
-                            # If translation fails, log the error and just show the Arabic text
-                            logger.error(f"Translation failed: {e}")
-                            citations_text += f" Arabic: {arabic_text}\n\n"
-                            citations_text += f" English: [Translation unavailable]\n"
-
-                    assistant_text += citations_text
+                # Call the extracted method to handle message completion
+                citations_text = self._finish_response(assistant_text, tool_calls)
+                if citations_text:
                     yield citations_text
 
-                # We are done with the message.
-                # At this point the next thing we should log is
+    def _finish_response(self, assistant_text, tool_calls):
+        """Handle the completion of a response, adding citations and processing tool calls.
+        
+        This method is called when a message stops, either via message_stop or 
+        when message_delta has stop_reason 'end_turn'.
+        
+        Args:
+            assistant_text: The accumulated text from the assistant
+            tool_calls: List of tool calls to process
+            
+        Returns:
+            The citations text that was added, if any, or None
+        """
+        citations_text = None
+        
+        # Add citations list at the end if there were any citations
+        if self.citations:
+            citations_text = "\n\n**Citations**:\n"
+            logger.debug(f"Full Citations: {self.citations}")
 
-                # Add the assistant's message to history
-                # This is both the text and the tool use calls.
-                content_blocks = []
+            # Process each citation
+            for i, citation in enumerate(self.citations, 1):
+                cited_text = getattr(citation, "cited_text", "")
+                title = getattr(citation, "document_title", "")
+                citations_text += f"[{i}] {title}:\n"
 
-                # Only include text block if there's non-empty text
-                if assistant_text.strip():
-                    content_blocks.append({"type": "text", "text": assistant_text.strip()})
-
-                # Always include tool_calls in content blocks if present
-                # This ensures the tool use call is saved in the message history
-                if tool_calls:
-                    content_blocks.extend(tool_calls)
-
-                # Create the message content based on whether we have content blocks
-                message_content = None
-                if content_blocks:
-                    message_content = content_blocks
-                else:
-                    # If no content blocks, use a single empty text element
-                    message_content = [{"type": "text", "text": ""}]
-
-                # Create the assistant message for the message history
-                # Don't include tool_name in the message sent to Claude API
-                assistant_message = {"role": "assistant", "content": message_content}
+                # Since we're now storing only Arabic text in the document data,
+                # we can directly use the cited text as Arabic and translate it
+                arabic_text = cited_text
                 
-                logger.debug(f"Adding assistant message to history. Current history length: {len(self.message_history)}")
-                logger.debug(f"Assistant message content blocks: {len(message_content)}")
-                
-                # Add to message history
                 try:
-                    self.message_history.append(assistant_message)
-                    logger.debug(f"Successfully added assistant message. New history length: {len(self.message_history)}")
-                    logger.debug(f"Last message in history role: {self.message_history[-1]['role']}")
+                    # Translate the Arabic text to English
+                    english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                    
+                    # Add both Arabic and English to the citations with extra newlines
+                    citations_text += f" Arabic: {arabic_text}\n\n"
+                    citations_text += f" English: {english_translation}\n"
                 except Exception as e:
-                    logger.error(f"Failed to append assistant message to history: {str(e)}")
-                    logger.error(f"assistant_message: {assistant_message}")
-                    logger.error(f"self.message_history type: {type(self.message_history)}")
-                
-                # For logging, create a copy with tool_name for database storage
-                if tool_calls:
-                    logger.debug(f"Logging assistant message with tool_name")
-                    log_message = assistant_message.copy()
-                    log_message["tool_name"] = tool_calls[0]["name"]
-                    # Log the message with tool_name for database
-                    self._log_message(log_message)
-                else:
-                    logger.debug(f"Logging regular assistant message")
-                    # Log the regular message
+                    # If translation fails, log the error and just show the Arabic text
+                    logger.error(f"Translation failed: {e}")
+                    citations_text += f" Arabic: {arabic_text}\n\n"
+                    citations_text += f" English: [Translation unavailable]\n"
+
+        # Add the assistant's message to history
+        # This is both the text and the tool use calls.
+        content_blocks = []
+
+        # Only include text block if there's non-empty text
+        if assistant_text.strip():
+            content_blocks.append({"type": "text", "text": assistant_text.strip()})
+
+        # Always include tool_calls in content blocks if present
+        # This ensures the tool use call is saved in the message history
+        if tool_calls:
+            content_blocks.extend(tool_calls)
+
+        # Create the message content based on whether we have content blocks
+        message_content = None
+        if content_blocks:
+            message_content = content_blocks
+        else:
+            # If no content blocks, use a single empty text element
+            message_content = [{"type": "text", "text": ""}]
+
+        # Create the assistant message for the message history
+        # Don't include tool_name in the message sent to Claude API
+        assistant_message = {"role": "assistant", "content": message_content}
+        
+        logger.debug(f"Adding assistant message to history. Current history length: {len(self.message_history)}")
+        logger.debug(f"Assistant message content blocks: {len(message_content)}")
+        
+        # Add to message history
+        try:
+            self.message_history.append(assistant_message)
+            logger.debug(f"Successfully added assistant message. New history length: {len(self.message_history)}")
+            logger.debug(f"Last message in history role: {self.message_history[-1]['role']}")
+        except Exception as e:
+            logger.error(f"Failed to append assistant message to history: {str(e)}")
+            logger.error(f"assistant_message: {assistant_message}")
+            logger.error(f"self.message_history type: {type(self.message_history)}")
+        
+        # For logging, create a copy with tool_name for database storage
+        if tool_calls:
+            logger.debug(f"Logging assistant message with tool_name")
+            log_message = assistant_message.copy()
+            log_message["tool_name"] = tool_calls[0]["name"]
+            # Log the message with tool_name for database
+            self._log_message(log_message)
+        else:
+            logger.debug(f"Logging regular assistant message")
+            # Log the regular message
+            self._log_message(self.message_history[-1])
+
+        # Process any accumulated tool calls
+        # Note: We only create a user message if there were tool calls?
+        if tool_calls:
+            logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
+            for tc in tool_calls:
+                try:
+                    # Process the tool call
+                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
+
+                    logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
+
+                    # Check what type of data we're dealing with
+                    document_blocks = []
+                    logger.debug(f"Reference list type: {type(reference_list)}")
+                    if reference_list and len(reference_list) > 0:
+                        logger.debug(f"First reference item type: {type(reference_list[0])}")
+
+                    # All references are now dictionaries, so we can directly use them
+                    document_blocks = reference_list
+
+                    # Store the tool call details in the assistant message for proper reconstruction
+                    # This ensures the database has the tool_use data needed for replay
+                    # We'll use these values directly when needed
+
+                    # Add tool result and document blocks in the same message
+                    self.message_history.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tc["id"],
+                                    "content": "Please see the references below.",
+                                }
+                            ]
+                            + document_blocks,
+                        }
+                    )
+                    # Log the tool result message with tool details to ensure proper saving
                     self._log_message(self.message_history[-1])
 
-                # Process any accumulated tool calls
-                # Note: We only create a user message if there were tool calls?
-                if tool_calls:
-                    logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
-                    for tc in tool_calls:
-                        try:
-                            # Process the tool call
-                            (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
-
-                            logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
-
-                            # Check what type of data we're dealing with
-                            document_blocks = []
-                            logger.debug(f"Reference list type: {type(reference_list)}")
-                            if reference_list and len(reference_list) > 0:
-                                logger.debug(f"First reference item type: {type(reference_list[0])}")
-
-                            # All references are now dictionaries, so we can directly use them
-                            document_blocks = reference_list
-
-                            # Store the tool call details in the assistant message for proper reconstruction
-                            # This ensures the database has the tool_use data needed for replay
-                            # We'll use these values directly when needed
-
-                            # Add tool result and document blocks in the same message
-                            self.message_history.append(
+                except Exception as e:
+                    logger.error(f"Error processing tool call: {str(e)}")
+                    # Add error as tool result
+                    self.message_history.append(
+                        {
+                            "role": "user",
+                            "content": [
                                 {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "tool_result",
-                                            "tool_use_id": tc["id"],
-                                            "content": "Please see the references below.",
-                                        }
-                                    ]
-                                    + document_blocks,
+                                    "type": "tool_result",
+                                    "tool_use_id": tc["id"],
+                                    "content": [{"type": "text", "text": str(e)}],
                                 }
-                            )
-                            # Log the tool result message with tool details to ensure proper saving
-                            self._log_message(self.message_history[-1])
-
-                        except Exception as e:
-                            logger.error(f"Error processing tool call: {str(e)}")
-                            # Add error as tool result
-                            self.message_history.append(
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "tool_result",
-                                            "tool_use_id": tc["id"],
-                                            "content": [{"type": "text", "text": str(e)}],
-                                        }
-                                    ],
-                                }
-                            )
-                            # Log the error message
-                            self._log_message(self.message_history[-1])
+                            ],
+                        }
+                    )
+                    # Log the error message
+                    self._log_message(self.message_history[-1])
+                    
+        return citations_text
 
     def process_message_history(self, use_tool=True, stream=True):
         """
