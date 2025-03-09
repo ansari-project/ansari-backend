@@ -54,6 +54,10 @@
   - Write tests that validate both expected behavior and edge cases
   - When fixing bugs, first write a test that reproduces the issue
   - Run tests frequently during development to catch regressions
+- **Error handling philosophy**: Prefer clean failures over unpredictable recovery attempts
+  - Log errors clearly and completely before failing
+  - Do not attempt to "fix" malformed data that could lead to unexpected behavior
+  - If recovery is necessary, implement it as a well-tested, dedicated fix rather than ad-hoc patches
 
 ## Testing Best Practices
 - Run tests before committing: `pytest tests/`
