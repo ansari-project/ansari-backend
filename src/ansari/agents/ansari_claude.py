@@ -464,7 +464,15 @@ class AnsariClaude(Ansari):
                 if hasattr(chunk.delta, "stop_reason"):
                     logger.debug(f"Message delta has stop_reason: {chunk.delta.stop_reason}")
                     if chunk.delta.stop_reason == "tool_use":
-                        logger.debug("Message stopped for tool use")
+                        if response_finished:
+                            logger.warning("Received tool_use stop_reason but response already finished - skipping")
+                        else:
+                            logger.info("Message delta has stop_reason tool_use - finishing response")
+                            # Treat tool_use stop reason as termination just like end_turn
+                            citations_text = self._finish_response(assistant_text, tool_calls)
+                            response_finished = True
+                            if citations_text:
+                                yield citations_text
                     elif chunk.delta.stop_reason == "end_turn":
                         if response_finished:
                             logger.warning("Received end_turn stop_reason but response already finished - skipping")
