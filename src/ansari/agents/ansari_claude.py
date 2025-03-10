@@ -527,22 +527,55 @@ class AnsariClaude(Ansari):
                 title = getattr(citation, "document_title", "")
                 citations_text += f"[{i}] {title}:\n"
 
-                # Since we're now storing only Arabic text in the document data,
-                # we can directly use the cited text as Arabic and translate it
-                arabic_text = cited_text
-
+                # First, try to parse the citation as a multilingual JSON object
+                # This handles cases where Claude cites entire document content (which should be JSON)
                 try:
-                    # Translate the Arabic text to English
-                    english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-
-                    # Add both Arabic and English to the citations with extra newlines
-                    citations_text += f" Arabic: {arabic_text}\n\n"
-                    citations_text += f" English: {english_translation}\n"
+                    # Attempt to parse as JSON
+                    multilingual_data = parse_multilingual_data(cited_text)
+                    logger.debug(f"Successfully parsed multilingual data: {multilingual_data}")
+                    
+                    # Extract Arabic and English text
+                    arabic_text = multilingual_data.get("ar", "")
+                    english_text = multilingual_data.get("en", "")
+                    
+                    # Add Arabic text if available
+                    if arabic_text:
+                        citations_text += f" Arabic: {arabic_text}\n\n"
+                    
+                    # Add English text if available, otherwise translate from Arabic
+                    if english_text:
+                        citations_text += f" English: {english_text}\n"
+                    elif arabic_text:
+                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                        citations_text += f" English: {english_translation}\n"
+                    
+                except json.JSONDecodeError:
+                    # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
+                    logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
+                    
+                    # Try to detect the language and handle accordingly
+                    lang = get_language_from_text(cited_text)
+                    if lang == "ar":
+                        # It's Arabic text
+                        arabic_text = cited_text
+                        citations_text += f" Arabic: {arabic_text}\n\n"
+                        
+                        # Translate to English
+                        try:
+                            english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                            citations_text += f" English: {english_translation}\n"
+                        except Exception as e:
+                            logger.error(f"Translation failed: {e}")
+                            citations_text += f" English: [Translation unavailable]\n" 
+                    else:
+                        # It's likely English or other language - just show as is
+                        citations_text += f" Text: {cited_text}\n"
+                    
                 except Exception as e:
-                    # If translation fails, log the error and just show the Arabic text
-                    logger.error(f"Translation failed: {e}")
-                    citations_text += f" Arabic: {arabic_text}\n\n"
-                    citations_text += f" English: [Translation unavailable]\n"
+                    # Log other errors clearly
+                    logger.error(f"Citation processing error: {str(e)}")
+                    logger.error(f"Raw citation data: {cited_text}")
+                    citations_text += f" Text: {cited_text}\n"
 
         # Add the assistant's message to history
         # This is both the text and the tool use calls.
@@ -550,7 +583,7 @@ class AnsariClaude(Ansari):
 
         # Only include text block if there's non-empty text
         if assistant_text.strip():
-            content_blocks.append({"type": "text", "text": assistant_text.strip()})
+            content_blocks.append({"type": "text", "text": assistant_text.strip() + "\n\n"})
 
         # Always include tool_calls in content blocks if present
         # This ensures the tool use call is saved in the message history
