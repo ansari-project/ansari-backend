@@ -3,7 +3,6 @@ import json
 import time
 from typing import Generator
 
-import anthropic
 
 from ansari.agents.ansari import Ansari
 from ansari.ansari_db import MessageLogger
@@ -380,7 +379,21 @@ class AnsariClaude(Ansari):
         current_json = ""  # Accumulated JSON for current tool
 
         logger.info("Processing response chunks")
-        logger.debug(f"Starting to process response stream")
+
+        """ Warning: This is probably the most complex code in all of Ansari. 
+
+        This is a finite state machine that processes the response chunks.
+
+        A summary of what the code does is: 
+    
+        - If it's a content block start and it's a tool call, capture the key parameters of the tool call. 
+        - If it's a content block delta that is text, add the text to the assistant's message. 
+        - If it's a content block delta that is a citation, add the citation to the citations list and 
+         yield a string that represents the citation.
+         - If it's tool parameters, accumulate the tool paramters into the current tool.  
+
+        """
+        logger.debug("Starting to process response stream")
         chunk_count = 0
         content_block_count = 0
         message_delta_count = 0
@@ -394,7 +407,6 @@ class AnsariClaude(Ansari):
         # - content_block_stop: End of a content block
         # - message_delta: Top-level message updates, including termination
         # - message_stop: Final message termination
-
         for chunk in response:
             chunk_count += 1
             logger.debug(f"Processing chunk #{chunk_count} of type: {chunk.type}")
@@ -441,7 +453,7 @@ class AnsariClaude(Ansari):
                     logger.debug(f"Unhandled content_block_delta: {chunk.delta}")
 
             elif chunk.type == "content_block_stop":
-                logger.debug(f"Content block stop received")
+                logger.debug("Content block stop received")
                 if current_tool:
                     try:
                         logger.debug(f"Parsing accumulated JSON for tool: {current_json[:50]}... (truncated)")
@@ -634,13 +646,13 @@ class AnsariClaude(Ansari):
 
         # For logging, create a copy with tool_name for database storage
         if tool_calls:
-            logger.debug(f"Logging assistant message with tool_name")
+            logger.debug("Logging assistant message with tool_name")
             log_message = assistant_message.copy()
             log_message["tool_name"] = tool_calls[0]["name"]
             # Log the message with tool_name for database
             self._log_message(log_message)
         else:
-            logger.debug(f"Logging regular assistant message")
+            logger.debug("Logging regular assistant message")
             # Log the regular message
             self._log_message(self.message_history[-1])
 

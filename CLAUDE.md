@@ -6,12 +6,29 @@
 - Keep branches focused on a single feature or fix
 - Delete branches after they're merged to keep the repository clean
 
+## Repository Organization
+- Keep the root directory clean and organized
+- Place temporary files, debug scripts, and other non-production artifacts in the `tmp/` directory
+- The `tmp/` directory is gitignored, making it perfect for development-only files
+- Make sure scripts and tools intended for the repository are placed in appropriate subdirectories
+
 ## Git Commit and PR Guidelines
 - Do not include "Generated with Claude Code" or "Co-Authored-By: Claude" in commit messages
 - Do not include "Generated with Claude Code" in PR descriptions or anywhere else
 - Keep commit messages concise and descriptive
 - Use imperative mood in commit messages (e.g., "Add feature" not "Added feature")
+- Always run `ruff check` and `ruff format` before committing changes
+- Fix all linting errors - clean code is maintainable code
 - All PRs should target the `develop` branch, not `main`
+
+## Branch Management Details
+- Consider a merged branch "done" - do not add new changes to it
+- If you have changes after a branch was merged:
+  - Create a new branch from the latest develop branch
+  - Apply your new changes there
+  - Create a new PR with a descriptive name
+- For related but separate features, use separate branches and PRs
+- Delete branches after they're merged to keep the repository clean
 
 ## Build/Test/Lint Commands
 - Install dependencies: `pip install -r requirements.txt`
@@ -59,6 +76,10 @@
   - Add clear comments about the purpose and behavior of complex code
   - Extract state machine logic into clearly defined handlers for each state
   - Aim for methods that can be understood without scrolling
+- **Error handling philosophy**: Prefer clean failures over unpredictable recovery attempts
+  - Log errors clearly and completely before failing
+  - Do not attempt to "fix" malformed data that could lead to unexpected behavior
+  - If recovery is necessary, implement it as a well-tested, dedicated fix rather than ad-hoc patches
 
 ## Testing Best Practices
 - Run tests before committing: `pytest tests/`
