@@ -20,6 +20,7 @@
 import logging
 import os
 import uuid
+import subprocess
 
 import psycopg2
 import psycopg2.extras
@@ -392,6 +393,12 @@ async def refresh_token(
         except psycopg2.Error as e:
             logger.critical(f"Error: {e}")
             raise HTTPException(status_code=500, detail="Database error")
+
+
+@app.get("/api/v2/deps")
+async def get_dependencies():
+    dependencies = subprocess.check_output(['pip', 'freeze']).decode()
+    return {"dependencies": dependencies}
 
 
 @app.get("/api/v2/users/me")
