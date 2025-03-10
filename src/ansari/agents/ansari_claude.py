@@ -582,8 +582,18 @@ class AnsariClaude(Ansari):
         content_blocks = []
 
         # Only include text block if there's non-empty text
-        if assistant_text.strip():
-            content_blocks.append({"type": "text", "text": assistant_text.strip() + "\n\n"})
+        assistant_content = assistant_text.strip()
+        
+        # If we have citations, append them to the assistant text
+        if citations_text:
+            # Make sure we have a gap between assistant text and citations
+            if assistant_content:
+                assistant_content += "\n\n" 
+            assistant_content += citations_text
+        
+        # Add the complete text (assistant text + citations) to content blocks
+        if assistant_content:
+            content_blocks.append({"type": "text", "text": assistant_content})
 
         # Always include tool_calls in content blocks if present
         # This ensures the tool use call is saved in the message history
