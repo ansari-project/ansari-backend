@@ -11,6 +11,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
+from ansari.util.general_helpers import get_language_from_text
 
 # Set up logging
 logger = get_logger(__name__)
@@ -554,21 +555,27 @@ class AnsariClaude(Ansari):
                     logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
                     
                     # Try to detect the language and handle accordingly
-                    lang = get_language_from_text(cited_text)
-                    if lang == "ar":
-                        # It's Arabic text
-                        arabic_text = cited_text
-                        citations_text += f" Arabic: {arabic_text}\n\n"
-                        
-                        # Translate to English
-                        try:
-                            english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                            citations_text += f" English: {english_translation}\n\n"
-                        except Exception as e:
-                            logger.error(f"Translation failed: {e}")
-                            citations_text += f" English: [Translation unavailable]\n\n" 
-                    else:
-                        # It's likely English or other language - just show as is
+                    try:
+                        # Use the imported function
+                        lang = get_language_from_text(cited_text)
+                        if lang == "ar":
+                            # It's Arabic text
+                            arabic_text = cited_text
+                            citations_text += f" Arabic: {arabic_text}\n\n"
+                            
+                            # Translate to English
+                            try:
+                                english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                                citations_text += f" English: {english_translation}\n\n"
+                            except Exception as e:
+                                logger.error(f"Translation failed: {e}")
+                                citations_text += " English: [Translation unavailable]\n\n" 
+                        else:
+                            # It's likely English or other language - just show as is
+                            citations_text += f" Text: {cited_text}\n\n"
+                    except Exception as e:
+                        # If language detection fails, default to treating as English
+                        logger.error(f"Language detection failed: {e}")
                         citations_text += f" Text: {cited_text}\n\n"
                     
                 except Exception as e:
@@ -714,6 +721,8 @@ class AnsariClaude(Ansari):
                 logger.info("Message history already ends with assistant message, no processing needed")
 
         count = 0
+        # Store the previous state of the entire message history for simple comparison
+        prev_history_json = json.dumps(self.message_history)
 
         # Track tool_use_ids to ensure tool_result blocks have matching tool_use blocks
         tool_use_ids = set()
@@ -823,6 +832,27 @@ class AnsariClaude(Ansari):
             try:
                 yield from self.process_one_round()
                 logger.debug(f"After process_one_round(), message history length: {len(self.message_history)}")
+                
+                # Simple check - compare entire message history with previous state
+                current_history_json = json.dumps(self.message_history)
+                
+                # Check if message_history is identical to previous iteration
+                if current_history_json == prev_history_json:
+                    logger.warning("Message history hasn't changed since last iteration - loop detected!")
+                    
+                    # Add a text-only message indicating the loop
+                    self.message_history.append({
+                        "role": "assistant", 
+                        "content": [{"type": "text", "text": "I got stuck in a loop. Let me try again or please rephrase your question."}]
+                    })
+                    # Log this message
+                    self._log_message(self.message_history[-1])
+                    # Break out of the loop
+                    break
+                
+                # Update previous state for next iteration comparison
+                prev_history_json = current_history_json
+                
                 if len(self.message_history) > 0:
                     logger.debug(f"Last message role after process_one_round: {self.message_history[-1]['role']}")
                 else:
