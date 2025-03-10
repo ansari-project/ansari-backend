@@ -17,7 +17,7 @@ class MockDatabase:
     def __init__(self):
         self.stored_messages = []
 
-    def append_message(self, user_id, thread_id, role, content, tool_name=None, tool_details=None, ref_list=None):
+    def append_message(self, source, user_id, thread_id, role, content, tool_name=None, tool_details=None, ref_list=None):
         """Store message in mock database"""
         # Serialize complex structures like a real database would
         serialized_content = json.dumps(content) if isinstance(content, (dict, list)) else content
@@ -188,6 +188,7 @@ class AnsariTester:
         # Store messages in mock database
         for i, msg in enumerate(message_logger.messages):
             mock_db.append_message(
+                source="web",  # Add source parameter
                 user_id=1,
                 thread_id=1,
                 role=msg["role"],

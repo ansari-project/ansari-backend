@@ -32,7 +32,7 @@ class TestCitationFormatting(unittest.TestCase):
 
     @patch('ansari.tools.search_quran.SearchQuran.run')
     def test_quran_search_sleeplessness_citation_format(self, mock_run):
-        """Test that Quran search for 'sleeplessness' doesn't return JSON in citations."""
+        """Test that Quran search for 'sleeplessness' properly formats data as JSON in citations."""
         # Mock the API response for Quran search
         mock_results = [
             {
@@ -61,16 +61,25 @@ class TestCitationFormatting(unittest.TestCase):
             self.assertIn("data", doc["source"])
             data = doc["source"]["data"]
             
-            # Verify data is just text, not JSON
-            with self.assertRaises(ValueError):
-                # This should raise ValueError since data is not JSON
-                json.loads(data)
-            
-            # Verify data is the Arabic text
-            self.assertTrue(
-                data == mock_results[0]["text"] or data == mock_results[1]["text"],
-                f"Expected data to be Arabic text, but got: {data}"
-            )
+            # Verify data is valid JSON format
+            try:
+                parsed_data = json.loads(data)
+                self.assertIsInstance(parsed_data, list)
+                
+                # Check that it contains language-text entries
+                self.assertTrue(len(parsed_data) > 0)
+                self.assertIn("lang", parsed_data[0])
+                self.assertIn("text", parsed_data[0])
+                
+                # If we have an Arabic entry, verify it matches one of the mock texts
+                for item in parsed_data:
+                    if item["lang"] == "ar":
+                        self.assertTrue(
+                            item["text"] == mock_results[0]["text"] or item["text"] == mock_results[1]["text"],
+                            f"Expected Arabic text to match mock data, but got: {item['text']}"
+                        )
+            except json.JSONDecodeError:
+                self.fail(f"Data should be valid JSON but got: {data}")
 
     @patch('ansari.tools.search_hadith.SearchHadith.run')
     def test_hadith_search_day_of_judgment_citation_format(self, mock_run):
@@ -117,14 +126,27 @@ class TestCitationFormatting(unittest.TestCase):
             self.assertIn("data", doc["source"])
             data = doc["source"]["data"]
             
-            # Verify data is just text, not JSON
-            with self.assertRaises(ValueError):
-                # This should raise ValueError since data is not JSON
-                json.loads(data)
-            
-            # Verify data is the Arabic text or English text (fallback)
-            self.assertTrue(
-                data == mock_results[0]["ar_text"] or data == mock_results[1]["ar_text"] or
-                data == mock_results[0]["en_text"] or data == mock_results[1]["en_text"],
-                f"Expected data to be text, but got: {data}"
-            )
+            # Verify data is valid JSON format
+            try:
+                parsed_data = json.loads(data)
+                self.assertIsInstance(parsed_data, list)
+                
+                # Check that it contains language-text entries
+                self.assertTrue(len(parsed_data) > 0)
+                self.assertIn("lang", parsed_data[0])
+                self.assertIn("text", parsed_data[0])
+                
+                # Verify text content if we have Arabic or English entries
+                for item in parsed_data:
+                    if item["lang"] == "ar":
+                        self.assertTrue(
+                            item["text"] == mock_results[0]["ar_text"] or item["text"] == mock_results[1]["ar_text"],
+                            f"Expected Arabic text to match mock data, but got: {item['text']}"
+                        )
+                    elif item["lang"] == "en":
+                        self.assertTrue(
+                            item["text"] == mock_results[0]["en_text"] or item["text"] == mock_results[1]["en_text"],
+                            f"Expected English text to match mock data, but got: {item['text']}"
+                        )
+            except json.JSONDecodeError:
+                self.fail(f"Data should be valid JSON but got: {data}")

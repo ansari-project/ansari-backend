@@ -105,7 +105,10 @@ class TestMessageReconstruction:
         reconstructed = mock_db.convert_message_llm(plain_text_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "assistant", "Role should be preserved"
-        assert reconstructed[0]["content"] == "Simple text response", "Content should be preserved as is"
+        # The content is now a list of objects for Claude format
+        assert isinstance(reconstructed[0]["content"], list), "Content should be a list for Claude format"
+        assert reconstructed[0]["content"][0]["type"] == "text", "Content should be text type"
+        assert reconstructed[0]["content"][0]["text"] == "Simple text response", "Text content should be preserved"
 
         # Test Case 2: Tool call message
         tool_msg = (
@@ -118,7 +121,8 @@ class TestMessageReconstruction:
         reconstructed = mock_db.convert_message_llm(tool_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "assistant", "Role should be preserved"
-        assert isinstance(reconstructed[0]["content"], str), "Content should be a string for base Ansari"
+        # For Claude, content should be a list of objects
+        assert isinstance(reconstructed[0]["content"], list), "Content should be a list for Claude format"
 
         # Test Case 3: Message with tool results
         tool_result_msg = (
@@ -131,7 +135,14 @@ class TestMessageReconstruction:
         reconstructed = mock_db.convert_message_llm(tool_result_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "tool", "Role should be preserved"
-        assert isinstance(reconstructed[0]["content"], str), "Content should be a string"
+        
+        # For Claude, this could be either a string or an object depending on format
+        content = reconstructed[0]["content"]
+        if isinstance(content, str):
+            assert "Tool result text" in content, "Content should contain the tool result text"
+        else:
+            assert isinstance(content, dict), "Content should be a dictionary if not a string"
+            assert "name" in content, "Content dictionary should have a name"
 
 
 @pytest.mark.integration

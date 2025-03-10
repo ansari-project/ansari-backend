@@ -105,10 +105,16 @@ class SearchQuran:
             # Create citation title
             title = f"Quran {id}"
 
-            # Only include text (Arabic preferred, English as fallback) in the document data
-            # We'll handle translation in the citation processing code
-            # Use Arabic text if available, otherwise fallback to English text
-            doc_text = arabic if arabic else english
+            # Format both Arabic and English texts in multilingual JSON format
+            # This is expected by the base_search.py documentation
+            text_entries = {}
+            if arabic:
+                text_entries["ar"] = arabic
+            if english:
+                text_entries["en"] = english
+                
+            # Format as multilingual JSON data
+            doc_text = format_multilingual_data(text_entries)
             
             documents.append(
                 {
