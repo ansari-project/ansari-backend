@@ -68,7 +68,7 @@ class TestSearchMawsuah:
         assert mock_translate.call_count == len(self.arabic_texts)
 
     @patch("ansari.util.translation.translate_text")
-    @patch("ansari.tools.search_mawsuah.asyncio.run")
+    @patch("ansari.util.translation.asyncio.run")
     def test_format_as_ref_list(self, mock_asyncio_run, mock_translate):
         """Test formatting response as a reference list with translations."""
         # Mock asyncio.run to return our mock translations
@@ -104,12 +104,12 @@ class TestSearchMawsuah:
 
             # Check results
             assert len(result) == 2
-            assert "Arabic: " in result[0]["source"]["data"]
-            assert "English: " in result[0]["source"]["data"]
+            # The data is now a JSON string in the format produced by format_multilingual_data
+            assert '"lang": "ar"' in result[0]["source"]["data"]
             assert "Encyclopedia of Islamic Jurisprudence" in result[0]["title"]
 
     @patch("ansari.util.translation.translate_text")
-    @patch("ansari.tools.search_mawsuah.asyncio.run")
+    @patch("ansari.util.translation.asyncio.run")
     def test_format_as_tool_result(self, mock_asyncio_run, mock_translate):
         """Test formatting response as a tool result with translations."""
         # Mock asyncio.run to return our mock translations
@@ -125,15 +125,13 @@ class TestSearchMawsuah:
             # Run the method
             result = self.search_tool.format_as_tool_result({"some": "response"})
 
-            # Check results
-            assert result["type"] == "array"
-            assert len(result["items"]) == 2
-            assert "Arabic Text: " in result["items"][0]["text"]
-            assert "English Translation: " in result["items"][0]["text"]
+            # Check results - the implementation now returns a text response
+            assert result["type"] == "text"
+            assert "Please see the references below." in result["text"]
 
     @patch("ansari.tools.search_vectara.SearchVectara.run")
     @patch("ansari.util.translation.translate_text")
-    @patch("ansari.tools.search_mawsuah.asyncio.run")
+    @patch("ansari.util.translation.asyncio.run")
     def test_run_as_string(self, mock_asyncio_run, mock_translate, mock_run):
         """Test running a search and getting results as a string with translations."""
         # Mock asyncio.run to return our mock translations
@@ -148,7 +146,8 @@ class TestSearchMawsuah:
         # Check results
         assert "Entry 1:" in result
         assert "Arabic Text: " in result
-        assert "English Translation: " in result
+        # English translations are no longer included in this method
+        assert "مرحبا" in result  # First Arabic text
 
     @patch("ansari.tools.search_vectara.SearchVectara.run")
     def test_no_results(self, mock_run):
