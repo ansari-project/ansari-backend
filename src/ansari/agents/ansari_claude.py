@@ -544,10 +544,10 @@ class AnsariClaude(Ansari):
                     
                     # Add English text if available, otherwise translate from Arabic
                     if english_text:
-                        citations_text += f" English: {english_text}\n"
+                        citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
                         english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                        citations_text += f" English: {english_translation}\n"
+                        citations_text += f" English: {english_translation}\n\n"
                     
                 except json.JSONDecodeError:
                     # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
@@ -563,19 +563,19 @@ class AnsariClaude(Ansari):
                         # Translate to English
                         try:
                             english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                            citations_text += f" English: {english_translation}\n"
+                            citations_text += f" English: {english_translation}\n\n"
                         except Exception as e:
                             logger.error(f"Translation failed: {e}")
-                            citations_text += f" English: [Translation unavailable]\n" 
+                            citations_text += f" English: [Translation unavailable]\n\n" 
                     else:
                         # It's likely English or other language - just show as is
-                        citations_text += f" Text: {cited_text}\n"
+                        citations_text += f" Text: {cited_text}\n\n"
                     
                 except Exception as e:
                     # Log other errors clearly
                     logger.error(f"Citation processing error: {str(e)}")
                     logger.error(f"Raw citation data: {cited_text}")
-                    citations_text += f" Text: {cited_text}\n"
+                    citations_text += f" Text: {cited_text}\n\n"
 
         # Add the assistant's message to history
         # This is both the text and the tool use calls.
