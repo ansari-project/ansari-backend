@@ -65,6 +65,8 @@ class AnsariDB:
             maxconn=10,
             dsn=str(settings.DATABASE_URL),
         )
+        if settings.DEV_MODE:
+            logger.debug(f"DB URL is {self.db_url}")
 
     @contextmanager
     def get_connection(self):
@@ -423,7 +425,7 @@ class AnsariDB:
 
             # Possibly continue query by adding source for WhatsApp users
             if is_whatsapp:
-                select_cmd += " AND initial_source = %s;"
+                select_cmd += " AND source = %s;"
                 param = (param, source)
             else:
                 select_cmd += ";"
