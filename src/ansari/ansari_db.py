@@ -1004,3 +1004,21 @@ class AnsariDB:
         except Exception as e:
             logger.error(f"Error retrieving Quran answer: {e!s}")
             return None
+
+    def get_user_id_for_thread(self, thread_id: UUID) -> Optional[UUID]:
+        """
+        Retrieves the user ID associated with a given thread ID.
+        
+        Args:
+            thread_id (UUID): The ID of the thread.
+            
+        Returns:
+            Optional[UUID]: The user ID associated with the thread, or None if the thread doesn't exist.
+        """
+        try:
+            select_cmd = """SELECT user_id FROM threads WHERE id = %s;"""
+            result = self._execute_query(select_cmd, (thread_id,), "one")[0]
+            return result[0] if result else None
+        except Exception as e:
+            logger.warning(f"Error retrieving user ID for thread: {e}")
+            return None

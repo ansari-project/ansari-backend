@@ -1,10 +1,34 @@
 # Ansari Backend - Developer Guide
 
+## Branch Management
+- Always create new branches from the `develop` branch, NOT from `main`
+- Use descriptive branch names that reflect the feature or fix being implemented
+- Keep branches focused on a single feature or fix
+- Delete branches after they're merged to keep the repository clean
+
+## Repository Organization
+- Keep the root directory clean and organized
+- Place temporary files, debug scripts, and other non-production artifacts in the `tmp/` directory
+- The `tmp/` directory is gitignored, making it perfect for development-only files
+- Make sure scripts and tools intended for the repository are placed in appropriate subdirectories
+
 ## Git Commit and PR Guidelines
 - Do not include "Generated with Claude Code" or "Co-Authored-By: Claude" in commit messages
 - Do not include "Generated with Claude Code" in PR descriptions or anywhere else
 - Keep commit messages concise and descriptive
 - Use imperative mood in commit messages (e.g., "Add feature" not "Added feature")
+- Always run `ruff check` and `ruff format` before committing changes
+- Fix all linting errors - clean code is maintainable code
+- All PRs should target the `develop` branch, not `main`
+
+## Branch Management Details
+- Consider a merged branch "done" - do not add new changes to it
+- If you have changes after a branch was merged:
+  - Create a new branch from the latest develop branch
+  - Apply your new changes there
+  - Create a new PR with a descriptive name
+- For related but separate features, use separate branches and PRs
+- Delete branches after they're merged to keep the repository clean
 
 ## Build/Test/Lint Commands
 - Install dependencies: `pip install -r requirements.txt`
@@ -29,13 +53,33 @@
 - **Types**: Use Python type hints for function parameters and return types
 - **Naming**: Use snake_case for variables/functions, PascalCase for classes
 - **Error handling**: Use try/except blocks with specific error types
+  - Prefer clean failures over unpredictable recovery attempts
+  - Log errors clearly and completely before failing
+  - Do not attempt to "fix" malformed data that could lead to unexpected behavior
+  - If recovery is necessary, implement it as a well-tested, dedicated fix rather than ad-hoc patches
+  - Avoid cascading fallbacks - throw clear errors instead
 - **Logging**: Use the logger from `ansari.ansari_logger.get_logger()`
 - **Documentation**: Add docstrings to functions, especially complex ones
 - **Testing**: Create unit tests in `tests/unit/` and integration tests in `tests/integration/`
+- **Citations**: 
+  - All search tools must format document data as multilingual JSON using `format_multilingual_data`
+  - The data format must be valid JSON following the schema in `base_search.py` documentation
+  - Store properly formatted JSON in the `data` field of document references
+  - Citation handling should account for both full document citations (valid JSON) and partial citations (plain text)
 - **Test-first development**: Always write tests before shipping features
   - Write tests that validate both expected behavior and edge cases
   - When fixing bugs, first write a test that reproduces the issue
   - Run tests frequently during development to catch regressions
+- **Code complexity management**:
+  - Break down complex methods into smaller, focused helpers with clear responsibilities
+  - Use meaningful method names that describe what the method does, not how it does it
+  - Add clear comments about the purpose and behavior of complex code
+  - Extract state machine logic into clearly defined handlers for each state
+  - Aim for methods that can be understood without scrolling
+- **Error handling philosophy**: Prefer clean failures over unpredictable recovery attempts
+  - Log errors clearly and completely before failing
+  - Do not attempt to "fix" malformed data that could lead to unexpected behavior
+  - If recovery is necessary, implement it as a well-tested, dedicated fix rather than ad-hoc patches
 
 ## Testing Best Practices
 - Run tests before committing: `pytest tests/`

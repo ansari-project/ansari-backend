@@ -8,7 +8,8 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
-from ansari.util.translation import translate_texts_parallel
+from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
+from ansari.util.general_helpers import get_language_from_text
 
 # Set up logging
 logger = get_logger(__name__)
@@ -31,9 +32,6 @@ class AnsariClaude(Ansari):
         # Log environment information for debugging
         try:
             import platform
-            import sys
-
-            import anthropic
 
             logger.info(f"Python version: {sys.version}")
             logger.info(f"Platform: {platform.platform()}")
@@ -312,6 +310,9 @@ class AnsariClaude(Ansari):
             - Updates the message history with at most one user message and one assistant message
             - Logs these messages once they're complete
         """
+        # ======================================================================
+        # 1. API REQUEST PREPARATION AND EXECUTION
+        # ======================================================================
         prompt_mgr = PromptMgr()
         system_prompt = prompt_mgr.bind("system_msg_claude").render()
 
@@ -362,14 +363,17 @@ class AnsariClaude(Ansari):
                 time.sleep(5)
                 continue
 
+        # ======================================================================
+        # 2. INITIALIZE STATE VARIABLES
+        # ======================================================================
         # Variables to accumulate complete messages before adding to history
-        assistant_text = ""
-        tool_calls = []
-        response_finished = False
+        assistant_text = ""  # Accumulated assistant response text
+        tool_calls = []  # List of complete tool calls
+        response_finished = False  # Flag to prevent duplicate processing
 
         # Variables for processing the streaming response
-        current_tool = None
-        current_json = ""
+        current_tool = None  # Current tool being processed
+        current_json = ""  # Accumulated JSON for current tool
 
         logger.info("Processing response chunks")
 
@@ -391,6 +395,15 @@ class AnsariClaude(Ansari):
         content_block_count = 0
         message_delta_count = 0
 
+        # ======================================================================
+        # 3. PROCESS STREAMING RESPONSE (STATE MACHINE)
+        # ======================================================================
+        # This is a finite state machine that processes different types of chunks:
+        # - content_block_start: Start of a content block (text or tool_use)
+        # - content_block_delta: Updates to content (text, citations, tool JSON)
+        # - content_block_stop: End of a content block
+        # - message_delta: Top-level message updates, including termination
+        # - message_stop: Final message termination
         for chunk in response:
             chunk_count += 1
             logger.debug(f"Processing chunk #{chunk_count} of type: {chunk.type}")
@@ -463,13 +476,14 @@ class AnsariClaude(Ansari):
 
                 if hasattr(chunk.delta, "stop_reason"):
                     logger.debug(f"Message delta has stop_reason: {chunk.delta.stop_reason}")
-                    if chunk.delta.stop_reason == "tool_use":
-                        logger.debug("Message stopped for tool use")
-                    elif chunk.delta.stop_reason == "end_turn":
+                    # Handle both "end_turn" and "tool_use" stop reasons the same way
+                    if chunk.delta.stop_reason in ["end_turn", "tool_use"]:
                         if response_finished:
-                            logger.warning("Received end_turn stop_reason but response already finished - skipping")
+                            logger.warning(
+                                f"Received {chunk.delta.stop_reason} stop_reason but response already finished - skipping"
+                            )
                         else:
-                            logger.info("Message delta has stop_reason end_turn - finishing response")
+                            logger.info(f"Message delta has stop_reason {chunk.delta.stop_reason} - finishing response")
                             # The same finishing logic as message_stop will happen here
                             # This handles the production case where message_stop isn't sent
                             citations_text = self._finish_response(assistant_text, tool_calls)
@@ -483,7 +497,7 @@ class AnsariClaude(Ansari):
                     yield text
                 else:
                     logger.debug(f"Unhandled message_delta: {chunk.delta}")
-                    
+
             elif chunk.type == "message_stop":
                 if response_finished:
                     logger.warning("Received message_stop but response already finished - skipping")
@@ -497,19 +511,21 @@ class AnsariClaude(Ansari):
 
     def _finish_response(self, assistant_text, tool_calls):
         """Handle the completion of a response, adding citations and processing tool calls.
-        
-        This method is called when a message stops, either via message_stop or 
-        when message_delta has stop_reason 'end_turn'.
-        
+
+        This method is called when a message stops, via any of these events:
+        - message_stop chunk
+        - message_delta with stop_reason 'end_turn'
+        - message_delta with stop_reason 'tool_use'
+
         Args:
             assistant_text: The accumulated text from the assistant
             tool_calls: List of tool calls to process
-            
+
         Returns:
             The citations text that was added, if any, or None
         """
         citations_text = None
-        
+
         # Add citations list at the end if there were any citations
         if self.citations:
             citations_text = "\n\n**Citations**:\n"
@@ -521,30 +537,79 @@ class AnsariClaude(Ansari):
                 title = getattr(citation, "document_title", "")
                 citations_text += f"[{i}] {title}:\n"
 
-                # Since we're now storing only Arabic text in the document data,
-                # we can directly use the cited text as Arabic and translate it
-                arabic_text = cited_text
-               
+                # First, try to parse the citation as a multilingual JSON object
+                # This handles cases where Claude cites entire document content (which should be JSON)
                 try:
-                    # Translate the Arabic text to English
-                    english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                    # Attempt to parse as JSON
+                    multilingual_data = parse_multilingual_data(cited_text)
+                    logger.debug(f"Successfully parsed multilingual data: {multilingual_data}")
                     
-                    # Add both Arabic and English to the citations with extra newlines
-                    citations_text += f" Arabic: {arabic_text}\n\n"
-                    citations_text += f" English: {english_translation}\n"
+                    # Extract Arabic and English text
+                    arabic_text = multilingual_data.get("ar", "")
+                    english_text = multilingual_data.get("en", "")
+                    
+                    # Add Arabic text if available
+                    if arabic_text:
+                        citations_text += f" Arabic: {arabic_text}\n\n"
+                    
+                    # Add English text if available, otherwise translate from Arabic
+                    if english_text:
+                        citations_text += f" English: {english_text}\n\n"
+                    elif arabic_text:
+                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                        citations_text += f" English: {english_translation}\n\n"
+                    
+                except json.JSONDecodeError:
+                    # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
+                    logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
+                    
+                    # Try to detect the language and handle accordingly
+                    try:
+                        # Use the imported function
+                        lang = get_language_from_text(cited_text)
+                        if lang == "ar":
+                            # It's Arabic text
+                            arabic_text = cited_text
+                            citations_text += f" Arabic: {arabic_text}\n\n"
+                            
+                            # Translate to English
+                            try:
+                                english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                                citations_text += f" English: {english_translation}\n\n"
+                            except Exception as e:
+                                logger.error(f"Translation failed: {e}")
+                                citations_text += " English: [Translation unavailable]\n\n" 
+                        else:
+                            # It's likely English or other language - just show as is
+                            citations_text += f" Text: {cited_text}\n\n"
+                    except Exception as e:
+                        # If language detection fails, default to treating as English
+                        logger.error(f"Language detection failed: {e}")
+                        citations_text += f" Text: {cited_text}\n\n"
+                    
                 except Exception as e:
-                    # If translation fails, log the error and just show the Arabic text
-                    logger.error(f"Translation failed: {e}")
-                    citations_text += f" Arabic: {arabic_text}\n\n"
-                    citations_text += f" English: [Translation unavailable]\n"
+                    # Log other errors clearly
+                    logger.error(f"Citation processing error: {str(e)}")
+                    logger.error(f"Raw citation data: {cited_text}")
+                    citations_text += f" Text: {cited_text}\n\n"
 
         # Add the assistant's message to history
         # This is both the text and the tool use calls.
         content_blocks = []
 
         # Only include text block if there's non-empty text
-        if assistant_text.strip():
-            content_blocks.append({"type": "text", "text": assistant_text.strip()})
+        assistant_content = assistant_text.strip()
+        
+        # If we have citations, append them to the assistant text
+        if citations_text:
+            # Make sure we have a gap between assistant text and citations
+            if assistant_content:
+                assistant_content += "\n\n" 
+            assistant_content += citations_text
+        
+        # Add the complete text (assistant text + citations) to content blocks
+        if assistant_content:
+            content_blocks.append({"type": "text", "text": assistant_content})
 
         # Always include tool_calls in content blocks if present
         # This ensures the tool use call is saved in the message history
@@ -562,10 +627,10 @@ class AnsariClaude(Ansari):
         # Create the assistant message for the message history
         # Don't include tool_name in the message sent to Claude API
         assistant_message = {"role": "assistant", "content": message_content}
-        
+
         logger.debug(f"Adding assistant message to history. Current history length: {len(self.message_history)}")
         logger.debug(f"Assistant message content blocks: {len(message_content)}")
-        
+
         # Add to message history
         try:
             self.message_history.append(assistant_message)
@@ -575,16 +640,16 @@ class AnsariClaude(Ansari):
             logger.error(f"Failed to append assistant message to history: {str(e)}")
             logger.error(f"assistant_message: {assistant_message}")
             logger.error(f"self.message_history type: {type(self.message_history)}")
-        
+
         # For logging, create a copy with tool_name for database storage
         if tool_calls:
-            logger.debug(f"Logging assistant message with tool_name")
+            logger.debug("Logging assistant message with tool_name")
             log_message = assistant_message.copy()
             log_message["tool_name"] = tool_calls[0]["name"]
             # Log the message with tool_name for database
             self._log_message(log_message)
         else:
-            logger.debug(f"Logging regular assistant message")
+            logger.debug("Logging regular assistant message")
             # Log the regular message
             self._log_message(self.message_history[-1])
 
@@ -646,7 +711,7 @@ class AnsariClaude(Ansari):
                     )
                     # Log the error message
                     self._log_message(self.message_history[-1])
-                    
+
         return citations_text
 
     def process_message_history(self, use_tool=True, stream=True):
@@ -665,6 +730,8 @@ class AnsariClaude(Ansari):
                 logger.info("Message history already ends with assistant message, no processing needed")
 
         count = 0
+        # Store the previous state of the entire message history for simple comparison
+        prev_history_json = json.dumps(self.message_history)
 
         # Track tool_use_ids to ensure tool_result blocks have matching tool_use blocks
         tool_use_ids = set()
@@ -756,7 +823,9 @@ class AnsariClaude(Ansari):
         else:
             logger.warning("Message history is empty before processing loop")
 
-        while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant":
+        # Add a max_iterations limit to prevent infinite loops
+        max_iterations = 10  # Reasonable upper limit based on expected conversation flow
+        while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant" and count < max_iterations:
             logger.info(f"Processing message iteration: {count}")
             logger.debug("Current message history:\n" + "-" * 60)
             for i, msg in enumerate(self.message_history):
@@ -772,6 +841,27 @@ class AnsariClaude(Ansari):
             try:
                 yield from self.process_one_round()
                 logger.debug(f"After process_one_round(), message history length: {len(self.message_history)}")
+                
+                # Simple check - compare entire message history with previous state
+                current_history_json = json.dumps(self.message_history)
+                
+                # Check if message_history is identical to previous iteration
+                if current_history_json == prev_history_json:
+                    logger.warning("Message history hasn't changed since last iteration - loop detected!")
+                    
+                    # Add a text-only message indicating the loop
+                    self.message_history.append({
+                        "role": "assistant", 
+                        "content": [{"type": "text", "text": "I got stuck in a loop. Let me try again or please rephrase your question."}]
+                    })
+                    # Log this message
+                    self._log_message(self.message_history[-1])
+                    # Break out of the loop
+                    break
+                
+                # Update previous state for next iteration comparison
+                prev_history_json = current_history_json
+                
                 if len(self.message_history) > 0:
                     logger.debug(f"Last message role after process_one_round: {self.message_history[-1]['role']}")
                 else:
@@ -786,6 +876,10 @@ class AnsariClaude(Ansari):
         # Log the final state after processing completes
         logger.info(f"Finished process_message_history after {count} iterations")
         logger.debug(f"Final message history length: {len(self.message_history)}")
+
+        # Check if we hit the iteration limit
+        if count >= max_iterations:
+            logger.warning(f"Hit max iterations limit ({max_iterations}). Check for processing issues.")
 
         if len(self.message_history) > 0:
             logger.info(f"Final message role: {self.message_history[-1]['role']}")

@@ -187,15 +187,12 @@ class RegisterRequest(BaseModel):
 #       * "because the logic of my code is based on this returned value"
 #   TL;DR of TL;DR: "I *depend* on running `validate_cors` first to proceed with my logic"
 @app.post("/api/v2/users/register")
-async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_cors)):
+async def register_user(req: RegisterRequest):
     """Register a new user.
     If the user exists, returns 403.
     Returns 200 on success.
     Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     password_hash = db.hash_password(req.password)
     logger.info(
         f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}",
@@ -236,16 +233,12 @@ class LoginRequest(BaseModel):
 @app.post("/api/v2/users/login")
 async def login_user(
     req: LoginRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Logs the user in.
     Returns a token on success.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
@@ -301,98 +294,90 @@ async def login_user(
 @app.post("/api/v2/users/refresh_token")
 async def refresh_token(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Refresh both the access token and the refresh token.
 
     Details: the function performs the following steps:
-    1. Validates CORS settings.
-    2. Extracts the old refresh token from the request headers.
-    3. Decodes the old refresh token to extract token parameters.
-    4. Uses a locking mechanism to prevent race conditions.
-    5. Checks if the new tokens are already cached.
-    6. Validates the old refresh token and deletes the old token pair from the database.
-    7. Generates new access and refresh tokens.
-    8. Saves the new tokens to the database.
-    9. Caches the new tokens with a short expiry.
-    10. Handles database errors and raises appropriate HTTP exceptions.
-
-    TODO(anyone): Explain the theory behind locking/caching, and why steps 4-9 are necessary.
+    1. Extracts the old refresh token from the Authorization request header.
+    2. Decodes the old refresh token to extract token parameters.
+    3. Validates the old refresh token is still valid in the database.
+    4. Verifies the token is actually a refresh token.
+    5. Generates new access and refresh tokens.
+    6. Saves the new tokens to the database.
+    # (this step is not implemented) 7. Invalidates the old refresh token to prevent reuse.
+    8. Handles database errors and raises appropriate HTTP exceptions.
 
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
 
     Raises:
         HTTPException:
-            - 403 if CORS validation fails or the token type is invalid.
-            - 401 if the refresh token is invalid or has expired.
+            - 401 if the refresh token is invalid, expired, or has been revoked.
             - 500 if there is an internal server error during token generation or saving.
-
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
-    old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
-    token_params = db.decode_token(old_refresh_token)
+    # If no cached tokens, proceed to validate and generate new tokens
+    try:
+        old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
+        token_params = db.decode_token(old_refresh_token)
+        
+        if not token_params:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    lock_key = f"lock:{token_params['user_id']}"
-    with Lock(cache, lock_key, expire=3):
-        # Check cache for existing token pair
-        cached_tokens = cache.get(old_refresh_token)
-        if cached_tokens:
-            return {"status": "success", **cached_tokens}
+        # Verify it's a refresh token
+        if token_params.get("token_type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+            
+        # Verify the token is still valid in the database
+        if not db.is_refresh_token_valid(old_refresh_token, token_params["user_id"]):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
 
-        # If no cached tokens, proceed to validate and generate new tokens
-        try:
-            # Validate the refresh token and delete the old token pair
-            db.delete_access_refresh_tokens_pair(old_refresh_token)
+        # Generate new tokens
+        new_access_token = db.generate_token(
+            token_params["user_id"],
+            token_type="access",
+            expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+        )
+        new_refresh_token = db.generate_token(
+            token_params["user_id"],
+            token_type="refresh",
+            expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+        )
 
-            # Generate new tokens
-            new_access_token = db.generate_token(
-                token_params["user_id"],
-                token_type="access",
-                expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+        # Save the new access token to the database
+        access_token_insert_result = db.save_access_token(
+            token_params["user_id"],
+            new_access_token,
+        )
+        if access_token_insert_result["status"] != "success":
+            raise HTTPException(
+                status_code=500,
+                detail="Couldn't save access token",
             )
-            new_refresh_token = db.generate_token(
-                token_params["user_id"],
-                token_type="refresh",
-                expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+
+        # Save the new refresh token to the database
+        refresh_token_insert_result = db.save_refresh_token(
+            token_params["user_id"],
+            new_refresh_token,
+            access_token_insert_result["token_db_id"],
+        )
+        if refresh_token_insert_result["status"] != "success":
+            raise HTTPException(
+                status_code=500,
+                detail="Couldn't save refresh token",
             )
 
-            # Save the new access token to the database
-            access_token_insert_result = db.save_access_token(
-                token_params["user_id"],
-                new_access_token,
-            )
-            if access_token_insert_result["status"] != "success":
-                raise HTTPException(
-                    status_code=500,
-                    detail="Couldn't save access token",
-                )
-
-            # Save the new refresh token to the database
-            refresh_token_insert_result = db.save_refresh_token(
-                token_params["user_id"],
-                new_refresh_token,
-                access_token_insert_result["token_db_id"],
-            )
-            if refresh_token_insert_result["status"] != "success":
-                raise HTTPException(
-                    status_code=500,
-                    detail="Couldn't save refresh token",
-                )
-
-            # Cache the new tokens with a short expiry (3 seconds)
-            new_tokens = {
-                "access_token": new_access_token,
-                "refresh_token": new_refresh_token,
-            }
-            cache.set(old_refresh_token, new_tokens, expire=3)
-            return {"status": "success", **new_tokens}
-        except psycopg2.Error as e:
-            logger.critical(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="Database error")
+        # Cache the new tokens with a short expiry (3 seconds)
+        new_tokens = {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+        }
+        # db.delete_refresh_token(old_refresh_token, token_params["user_id"])
+        return {"status": "success", **new_tokens}
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
 
 
 @app.get("/api/v2/deps")
@@ -403,12 +388,8 @@ async def get_dependencies():
 
 @app.get("/api/v2/users/me")
 async def get_user_details(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid credentials")
-
     try:
         user_id = token_params["user_id"]
         user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
@@ -425,12 +406,8 @@ async def get_user_details(
 
 @app.delete("/api/v2/users/me")
 async def delete_user(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid credentials")
-
     try:
         db.delete_user(token_params["user_id"])
         return {"status": "success"}
@@ -442,15 +419,12 @@ async def delete_user(
 @app.post("/api/v2/users/logout")
 async def logout_user(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Logs the user out.
     Deletes all tokens.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
 
     try:
         token = request.headers.get("Authorization", "").split(" ")[1]
@@ -471,11 +445,8 @@ class FeedbackRequest(BaseModel):
 @app.post("/api/v2/feedback")
 async def add_feedback(
     req: FeedbackRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -499,11 +470,8 @@ class CreateThreadRequest(BaseModel):
 @app.post("/api/v2/threads")
 async def create_thread(
     req: CreateThreadRequest = CreateThreadRequest(),
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -517,12 +485,9 @@ async def create_thread(
 
 @app.get("/api/v2/threads")
 async def get_all_threads(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Retrieve all threads for the user whose id is included in the token."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -549,15 +514,12 @@ class AddMessageRequest(BaseModel):
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
     settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
     """Adds a message to a thread. If the message is the first message in the thread,
     we set the name of the thread to the content of the message.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
 
@@ -613,16 +575,13 @@ def add_message(
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to share this thread")
     try:
         share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
         return {"status": "success", "share_uuid": share_uuid}
@@ -634,13 +593,9 @@ def share_thread(
 @app.get("/api/v2/share/{share_uuid_str}")
 def get_snapshot(
     share_uuid_str: str,
-    cors_ok: bool = Depends(validate_cors),
     filter_content: bool = True,
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
     try:
@@ -701,16 +656,14 @@ def filter_message_content(message):
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to access this thread")
     try:
         messages = db.get_thread(thread_id, token_params["user_id"])
         if messages:  # return only if the thread exists. else raise 404
@@ -733,15 +686,12 @@ async def get_thread(
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to delete this thread")
     try:
         return db.delete_thread(thread_id, token_params["user_id"])
     except psycopg2.Error as e:
@@ -757,15 +707,13 @@ class ThreadNameRequest(BaseModel):
 async def set_thread_name(
     thread_id: uuid.UUID,
     req: ThreadNameRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to set the name of this thread")
     try:
         messages = db.set_thread_name(thread_id, token_params["user_id"], req.name)
         return messages
@@ -782,11 +730,8 @@ class SetPrefRequest(BaseModel):
 @app.post("/api/v2/preferences")
 async def set_pref(
     req: SetPrefRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -798,11 +743,8 @@ async def set_pref(
 
 @app.get("/api/v2/preferences")
 async def get_prefs(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -821,12 +763,8 @@ class ResetPasswordRequest(BaseModel):
 @app.post("/api/v2/request_password_reset")
 async def request_password_reset(
     req: ResetPasswordRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Request received to reset {req.email}")
     if db.account_exists(email=req.email):
         user_id, _, _, _ = db.retrieve_user_info(source=req.source, email=req.email)
@@ -862,14 +800,10 @@ async def request_password_reset(
 
 @app.post("/api/v2/update_password")
 async def update_password(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_reset_token),
     password: str = None,
 ):
     """Update the user's password if you have a valid token"""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
-
     logger.info(f"Token_params is {token_params}")
     try:
         password_hash = db.hash_password(password)
@@ -891,11 +825,9 @@ class PasswordReset(BaseModel):
 
 
 @app.post("/api/v2/reset_password")
-async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_cors)):
+async def reset_password(req: PasswordReset):
     """Resets the user's password if you have a reset token."""
     token_params = db.validate_reset_token(req.reset_token)
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="Invalid username or password")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -914,7 +846,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
 
 
 @app.post("/api/v1/complete")
-async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
+async def complete(request: Request):
     """Provides a response to a user's input.
     The input is a list of messages, each with with
     a role and a text field. Roles are typically
@@ -924,9 +856,6 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     It returns a stream of tokens (a token is a part of a word).
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.debug(f"Raw request is {request.headers}")
     body = await request.json()
     logger.info(f"Request received > {body}.")
@@ -945,13 +874,9 @@ class AyahQuestionRequest(BaseModel):
 @app.post("/api/v2/ayah")
 async def answer_ayah_question(
     req: AyahQuestionRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
     db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
         raise HTTPException(status_code=401, detail="Unauthorized")
 
