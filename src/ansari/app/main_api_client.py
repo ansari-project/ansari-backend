@@ -8,8 +8,6 @@ offers a similar interface to main_stdio.py.
 import logging
 import typer
 import requests
-import json
-import uuid
 import random
 import string
 import time
@@ -18,7 +16,6 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from ansari.ansari_logger import get_logger
-from ansari.config import get_settings
 
 logger = get_logger(__name__)
 app = typer.Typer()
@@ -28,7 +25,9 @@ console = Console()
 class AnsariApiClient:
     """Client for interacting with the Ansari API."""
     
-    def __init__(self, base_url, email=None, password=None, origin="http://localhost:3000", mobile_header=False, json_mode=False):
+    def __init__(
+        self, base_url, email=None, password=None, origin="http://localhost:3000", mobile_header=False, json_mode=False
+    ):
         self.base_url = base_url
         self.email = email
         self.password = password

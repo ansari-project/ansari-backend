@@ -45,6 +45,9 @@
 - Run tests with specific marker: `pytest -m integration`
 - Lint code: `ruff check src/`
 - Format code: `ruff format src/`
+- Package commands:
+  - Build package: `python -m build`
+  - Upload to PyPI: `twine upload dist/*` (requires PyPI credentials)
 
 ## Code Style Guidelines
 - **Imports**: Use absolute imports within the `ansari` package

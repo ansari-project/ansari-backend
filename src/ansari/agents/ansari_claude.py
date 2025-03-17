@@ -855,7 +855,7 @@ class AnsariClaude(Ansari):
                     # Add a text-only message indicating the loop
                     self.message_history.append({
                         "role": "assistant", 
-                        "content": [{"type": "text", "text": "I got stuck in a loop. Let me try again or please rephrase your question."}]
+                        "content": [{"type": "text", "text": "I got stuck in a loop. Please rephrase your question."}]
                     })
                     # Log this message
                     self._log_message(self.message_history[-1])

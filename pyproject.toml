@@ -9,13 +9,52 @@ description = "Ansari is an AI assistant to enhance understanding and practice o
 authors = [
     { name = "Ansari Project", email = "feedback@ansari.chat" }
 ]
+readme = "README.md"
 requires-python = ">=3.8"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "bcrypt",
+    "diskcache",
+    "email-validator",
+    "fastapi",
+    "jinja2",
+    "langdetect",
+    "litellm>=1.59.6,<1.59.9",
+    "loguru",
+    "openai",
+    "pandas",
+    "psycopg2-binary",
+    "pydantic_settings",
+    "pyjwt",
+    "rich",
+    "sendgrid",
+    "sentry-sdk[fastapi]",
+    "tenacity",
+    "tiktoken",
+    "typer",
+    "uvicorn",
+    "zxcvbn",
+    "anthropic",
+]
 
 [project.urls]
 Homepage = "https://github.com/ansari-project/ansari-backend"
 Documentation = "https://github.com/ansari-project/ansari-backend"
 Source = "https://github.com/ansari-project/ansari-backend"
 Tracker = "https://github.com/ansari-project/ansari-backend/issues"
+
+[project.scripts]
+ansari = "ansari.app.main_stdio:main"
 
 [tool.ruff]
 line-length = 127
