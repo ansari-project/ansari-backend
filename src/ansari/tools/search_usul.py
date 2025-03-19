@@ -58,20 +58,20 @@ class SearchUsul(BaseSearchTool):
         }
 
     def run(self, query: str, limit: int = 10, include_chapters: bool = True) -> Dict[str, Any]:
-        """Execute the search and return raw results, automatically fetching all available pages.
+        """Execute the search and return raw results, capped at the specified limit.
 
         Args:
             query: The search query in any language
-            limit: Maximum number of results per page (1-50)
+            limit: Maximum total number of results to return (defaults to 10, max 32)
             include_chapters: Whether to include chapter details (defaults to True)
 
         Returns:
-            Dict containing raw search results with all pages combined
+            Dict containing raw search results, limited to the specified maximum
         """
         headers = {"Authorization": f"Bearer {self.api_token}"}
         params = {
             "q": query,
-            "limit": min(max(1, limit), 50),  # Ensure limit is between 1-50
+            "limit": min(max(1, limit), 32),  # Ensure limit is between 1-32
             "page": 1,  # Always start with page 1
             "include_chapters": "true" if include_chapters else "false",
         }
@@ -91,13 +91,16 @@ class SearchUsul(BaseSearchTool):
         if not results.get("hasNextPage", False):
             return results
 
-        # Otherwise, fetch all remaining pages and merge the results
+        # Otherwise, fetch remaining pages and merge the results, up to the overall limit
         all_results = results.get("results", [])
         current_page = results.get("currentPage", 1)
         total_pages = results.get("totalPages", 1)
 
-        # Fetch remaining pages
-        while current_page < total_pages:
+        # Total limit across all pages (default to the specified limit, max 32)
+        overall_limit = min(limit, 32)
+
+        # Fetch remaining pages until we reach the overall limit
+        while current_page < total_pages and len(all_results) < overall_limit:
             current_page += 1
             params["page"] = current_page
 
@@ -110,10 +113,18 @@ class SearchUsul(BaseSearchTool):
                 break
 
             page_results = response.json()
-            all_results.extend(page_results.get("results", []))
+            page_results_list = page_results.get("results", [])
 
-        # Create a new result object with just the combined results
-        final_results = {"results": all_results, "total": len(all_results)}
+            # Only add results up to the overall limit
+            remaining_slots = overall_limit - len(all_results)
+            all_results.extend(page_results_list[:remaining_slots])
+
+            # Stop if we've reached the limit
+            if len(all_results) >= overall_limit:
+                break
+
+        # Create a new result object with just the combined results (truncated to limit)
+        final_results = {"results": all_results[:overall_limit], "total": len(all_results)}
 
         return final_results
 
