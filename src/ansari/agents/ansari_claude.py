@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import time
 from typing import Generator
@@ -321,20 +322,41 @@ class AnsariClaude(Ansari):
 
         logger.info(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
 
-        # Create API request parameters
+        # Limit documents in message history to prevent Claude from crashing
+        # This creates a copy of the message history, preserving the original
+        limited_history = self.limit_documents_in_message_history(max_documents=100)
+
+        # Create API request parameters with the limited history
         params = {
             "model": self.settings.ANTHROPIC_MODEL,
             "system": system_prompt,
-            "messages": self.message_history,
+            "messages": limited_history,  # Use the limited version for API call
             "max_tokens": 4096,
             "temperature": 0.0,
             "stream": True,  # Always stream
         }
         params["tools"] = self.tools
 
+        # Count documents in original vs limited history for logging
+        orig_doc_count = sum(
+            sum(1 for block in msg.get("content", []) if isinstance(block, dict) and block.get("type") == "document")
+            for msg in self.message_history
+            if isinstance(msg.get("content"), list)
+        )
+        limited_doc_count = sum(
+            sum(1 for block in msg.get("content", []) if isinstance(block, dict) and block.get("type") == "document")
+            for msg in limited_history
+            if isinstance(msg.get("content"), list)
+        )
+
         # Log API request parameters (excluding the full message history for brevity)
         logger_params = params.copy()
-        logger_params["messages"] = f"[{len(self.message_history)} messages]"
+        doc_info = f"[{len(self.message_history)} messages with {limited_doc_count} documents"
+        if orig_doc_count != limited_doc_count:
+            doc_info += f", limited from {orig_doc_count} documents]"
+        else:
+            doc_info += "]"
+        logger_params["messages"] = doc_info
         logger_params["system"] = system_prompt[:100] + "..." if len(system_prompt) > 100 else system_prompt
         logger.info(f"API request parameters: {logger_params}")
 
@@ -546,26 +568,26 @@ class AnsariClaude(Ansari):
                     # Attempt to parse as JSON
                     multilingual_data = parse_multilingual_data(cited_text)
                     logger.debug(f"Successfully parsed multilingual data: {multilingual_data}")
-                    
+
                     # Extract Arabic and English text
                     arabic_text = multilingual_data.get("ar", "")
                     english_text = multilingual_data.get("en", "")
-                    
+
                     # Add Arabic text if available
                     if arabic_text:
                         citations_text += f" Arabic: {arabic_text}\n\n"
-                    
+
                     # Add English text if available, otherwise translate from Arabic
                     if english_text:
                         citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
                         english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
                         citations_text += f" English: {english_translation}\n\n"
-                    
+
                 except json.JSONDecodeError:
                     # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
                     logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
-                    
+
                     # Try to detect the language and handle accordingly
                     try:
                         # Use the imported function
@@ -574,14 +596,14 @@ class AnsariClaude(Ansari):
                             # It's Arabic text
                             arabic_text = cited_text
                             citations_text += f" Arabic: {arabic_text}\n\n"
-                            
+
                             # Translate to English
                             try:
                                 english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
                                 citations_text += f" English: {english_translation}\n\n"
                             except Exception as e:
                                 logger.error(f"Translation failed: {e}")
-                                citations_text += " English: [Translation unavailable]\n\n" 
+                                citations_text += " English: [Translation unavailable]\n\n"
                         else:
                             # It's likely English or other language - just show as is
                             citations_text += f" Text: {cited_text}\n\n"
@@ -589,7 +611,7 @@ class AnsariClaude(Ansari):
                         # If language detection fails, default to treating as English
                         logger.error(f"Language detection failed: {e}")
                         citations_text += f" Text: {cited_text}\n\n"
-                    
+
                 except Exception as e:
                     # Log other errors clearly
                     logger.error(f"Citation processing error: {str(e)}")
@@ -602,14 +624,14 @@ class AnsariClaude(Ansari):
 
         # Only include text block if there's non-empty text
         assistant_content = assistant_text.strip()
-        
+
         # If we have citations, append them to the assistant text
         if citations_text:
             # Make sure we have a gap between assistant text and citations
             if assistant_content:
-                assistant_content += "\n\n" 
+                assistant_content += "\n\n"
             assistant_content += citations_text
-        
+
         # Add the complete text (assistant text + citations) to content blocks
         if assistant_content:
             content_blocks.append({"type": "text", "text": assistant_content})
@@ -716,6 +738,70 @@ class AnsariClaude(Ansari):
                     self._log_message(self.message_history[-1])
 
         return citations_text
+
+    def limit_documents_in_message_history(self, max_documents=100):
+        """
+        Limit the total number of document blocks across all messages to prevent Claude from crashing.
+        This creates a copy of the message history and modifies the copy, preserving the original data.
+
+        Args:
+            max_documents: Maximum number of documents to keep across all messages (default 100)
+
+        Returns:
+            A copy of the message history with document count limited to max_documents
+        """
+        # Create a deep copy of the message history to preserve original data
+        limited_history = copy.deepcopy(self.message_history)
+
+        # Count and collect all document blocks
+        all_documents = []
+
+        # First, collect all document blocks with their positions in the message history
+        for msg_idx, msg in enumerate(limited_history):
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                # Find document blocks in this message
+                for block_idx, block in enumerate(msg["content"]):
+                    if isinstance(block, dict) and block.get("type") == "document":
+                        # Store document with its position for later removal if needed
+                        all_documents.append({"document": block, "position": (msg_idx, block_idx)})
+
+        document_count = len(all_documents)
+        logger.debug(f"Found {document_count} document blocks in message history")
+
+        # If we have more documents than allowed, remove the oldest ones
+        if document_count > max_documents:
+            logger.warning(f"Limiting documents from {document_count} to {max_documents}")
+
+            # Calculate how many documents to remove
+            documents_to_remove = document_count - max_documents
+
+            # Sort by position - earliest messages first (these will be removed)
+            all_documents.sort(key=lambda x: x["position"][0])
+
+            # Get the positions of documents to remove
+            positions_to_remove = [doc["position"] for doc in all_documents[:documents_to_remove]]
+
+            # Now remove documents from the copy of the message history
+            # We need to process messages in reverse order to avoid index shifting
+            positions_by_message = {}
+            for msg_idx, block_idx in positions_to_remove:
+                if msg_idx not in positions_by_message:
+                    positions_by_message[msg_idx] = []
+                positions_by_message[msg_idx].append(block_idx)
+
+            # For each message, remove blocks in reverse order
+            for msg_idx in sorted(positions_by_message.keys()):
+                block_indices = sorted(positions_by_message[msg_idx], reverse=True)
+
+                # Get the message content
+                if isinstance(limited_history[msg_idx].get("content"), list):
+                    for block_idx in block_indices:
+                        # Remove this document block
+                        logger.debug(f"Removing document block at position {msg_idx},{block_idx}")
+                        if block_idx < len(limited_history[msg_idx]["content"]):
+                            limited_history[msg_idx]["content"].pop(block_idx)
+
+        return limited_history
 
     def process_message_history(self, use_tool=True, stream=True):
         """
@@ -844,27 +930,29 @@ class AnsariClaude(Ansari):
             try:
                 yield from self.process_one_round()
                 logger.debug(f"After process_one_round(), message history length: {len(self.message_history)}")
-                
+
                 # Simple check - compare entire message history with previous state
                 current_history_json = json.dumps(self.message_history)
-                
+
                 # Check if message_history is identical to previous iteration
                 if current_history_json == prev_history_json:
                     logger.warning("Message history hasn't changed since last iteration - loop detected!")
-                    
+
                     # Add a text-only message indicating the loop
-                    self.message_history.append({
-                        "role": "assistant", 
-                        "content": [{"type": "text", "text": "I got stuck in a loop. Please rephrase your question."}]
-                    })
+                    self.message_history.append(
+                        {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": "I got stuck in a loop. Please rephrase your question."}],
+                        }
+                    )
                     # Log this message
                     self._log_message(self.message_history[-1])
                     # Break out of the loop
                     break
-                
+
                 # Update previous state for next iteration comparison
                 prev_history_json = current_history_json
-                
+
                 if len(self.message_history) > 0:
                     logger.debug(f"Last message role after process_one_round: {self.message_history[-1]['role']}")
                 else:
