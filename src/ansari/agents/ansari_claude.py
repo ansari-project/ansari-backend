@@ -233,7 +233,15 @@ class AnsariClaude(Ansari):
         and then processes it to generate a response from Ansari.
         """
         # AnsariClaude doesn't use system message, so we don't need to prefix it
-        self.message_history = message_history
+        # Remove message IDs from the history before sending to Claude
+        cleaned_history = []
+        for msg in message_history:
+            msg_copy = msg.copy()
+            if "id" in msg_copy:
+                del msg_copy["id"]
+            cleaned_history.append(msg_copy)
+
+        self.message_history = cleaned_history
 
         for m in self.process_message_history(use_tool, stream):
             if m:
