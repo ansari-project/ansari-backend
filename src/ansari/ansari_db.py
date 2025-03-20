@@ -579,7 +579,7 @@ class AnsariDB:
         try:
             # We need to check user_id to make sure that the user has access to the thread.
             select_cmd_1 = (
-                "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
+                "SELECT id, role, content, tool_name, tool_details, ref_list FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
             select_cmd_2 = "SELECT name FROM threads WHERE id = %s AND user_id = %s;"
@@ -612,7 +612,7 @@ class AnsariDB:
             select_cmd_1 = """SELECT name FROM threads WHERE id = %s AND user_id = %s;"""
 
             select_cmd_2 = (
-                "SELECT role, content, tool_name, tool_details, ref_list FROM messages "
+                "SELECT id, role, content, tool_name, tool_details, ref_list FROM messages "
                 + "WHERE thread_id = %s AND user_id = %s ORDER BY timestamp;"
             )
 
@@ -850,7 +850,14 @@ class AnsariDB:
     def convert_message(self, msg: Iterable[str]) -> dict:
         """Convert a message from database format to a displayable format.
         This means stripping things like tool usage."""
-        role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
+        # Check if message has ID (from database) or not (from in-memory)
+        if len(msg) == 6:
+            # Message from database query with ID
+            msg_id, role, content, _, _, _ = msg  # Unpack id, role, content; ignore tool_name, tool_details, ref_list
+        else:
+            # Message from in-memory (no ID yet)
+            role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
+            msg_id = None
         logger.info(f"Content is {content}")
 
         # If content is a string that looks like JSON, try to parse it
@@ -868,7 +875,7 @@ class AnsariDB:
                     content = item.get("text", "")
                     break
 
-        return {"role": role, "content": content}
+        return {"id": msg_id, "role": role, "content": content}
 
     def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
         """Convert a message from database format to LLM format.
@@ -877,7 +884,14 @@ class AnsariDB:
         into the proper format expected by the LLM interface, preserving all
         necessary structure and relationships between content, tool data, and references.
         """
-        role, content, tool_name, tool_details, ref_list = msg
+        # Check if message has ID (from database) or not (from in-memory)
+        if len(msg) == 6:
+            # Message from database query with ID
+            msg_id, role, content, tool_name, tool_details, ref_list = msg
+        else:
+            # Message from in-memory (no ID yet)
+            role, content, tool_name, tool_details, ref_list = msg
+            msg_id = None
 
         # Parse JSON content if needed
         if isinstance(content, str) and (content.startswith("[") or content.startswith("{")):
@@ -916,7 +930,7 @@ class AnsariDB:
             if ref_list_data:
                 result_content.extend(ref_list_data)
 
-            return [{"role": role, "content": result_content}]
+            return [{"id": msg_id, "role": role, "content": result_content}]
 
         # Handle all assistant messages (with or without tool use)
         elif role == "assistant":
@@ -945,17 +959,17 @@ class AnsariDB:
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse tool details JSON: {tool_details}")
 
-            return [{"role": role, "content": content_blocks}]
+            return [{"id": msg_id, "role": role, "content": content_blocks}]
 
         # Handle regular user messages without tool use
         else:
             # For simple user messages, use simple format
             if isinstance(content, str):
                 # Simple text content
-                return [{"role": role, "content": content}]
+                return [{"id": msg_id, "role": role, "content": content}]
             else:
                 # Content is already structured (list or dict)
-                return [{"role": role, "content": content}]
+                return [{"id": msg_id, "role": role, "content": content}]
 
     def store_quran_answer(
         self,
@@ -1006,10 +1020,10 @@ class AnsariDB:
     def get_user_id_for_thread(self, thread_id: UUID) -> Optional[UUID]:
         """
         Retrieves the user ID associated with a given thread ID.
-        
+
         Args:
             thread_id (UUID): The ID of the thread.
-            
+
         Returns:
             Optional[UUID]: The user ID associated with the thread, or None if the thread doesn't exist.
         """
