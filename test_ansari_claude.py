@@ -1,7 +1,5 @@
 #\!/usr/bin/env python
 
-import json
-import os
 import sys
 
 from ansari.agents.ansari_claude import AnsariClaude

@@ -25,7 +25,7 @@ import subprocess
 import psycopg2
 import psycopg2.extras
 import sentry_sdk
-from diskcache import FanoutCache, Lock
+from diskcache import FanoutCache
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -43,7 +43,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, validate_cors
+from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins
 
 logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE

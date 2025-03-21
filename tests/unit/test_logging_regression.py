@@ -25,7 +25,7 @@ def test_logging_changes_dont_break_basic_functionality():
         claude = AnsariClaude.__new__(AnsariClaude)
         claude.settings = settings
         claude.message_logger = None
-        
+
         # Set needed attributes that would normally be set in __init__
         claude.tools = []
         claude.tool_name_to_instance = {}
@@ -37,26 +37,26 @@ def test_logging_changes_dont_break_basic_functionality():
         claude.message_history = [
             {"role": "user", "content": "Hello, world!"}
         ]
-        
+
         # Mock the API response to avoid actual API calls
         claude.process_one_round = MagicMock(side_effect=lambda: [])
-        
+
         # Add an assistant response
         claude.message_history.append({
-            "role": "assistant", 
+            "role": "assistant",
             "content": [{"type": "text", "text": "Hello! How can I help you today?"}]
         })
-        
+
         # Verify basic validation works
-        assert claude.validate_message(claude.message_history[-1]) == True
-        
+        assert claude.validate_message(claude.message_history[-1])
+
         # Test message logging works
         claude.message_logger = MagicMock()
         claude._log_message(claude.message_history[-1])
-        
+
         # Verify logger was called
         claude.message_logger.log.assert_called_once()
-        
+
         print("Test passed - basic functionality works!")
 
 
