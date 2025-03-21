@@ -32,6 +32,8 @@ class AnsariClaude(Ansari):
 
         # Log environment information for debugging
         try:
+            import anthropic
+            import sys
             import platform
 
             logger.info(f"Python version: {sys.version}")
@@ -407,17 +409,17 @@ class AnsariClaude(Ansari):
 
         logger.info("Processing response chunks")
 
-        """ Warning: This is probably the most complex code in all of Ansari. 
+        """ Warning: This is probably the most complex code in all of Ansari.
 
         This is a finite state machine that processes the response chunks.
 
-        A summary of what the code does is: 
-    
-        - If it's a content block start and it's a tool call, capture the key parameters of the tool call. 
-        - If it's a content block delta that is text, add the text to the assistant's message. 
-        - If it's a content block delta that is a citation, add the citation to the citations list and 
+        A summary of what the code does is:
+
+        - If it's a content block start and it's a tool call, capture the key parameters of the tool call.
+        - If it's a content block delta that is text, add the text to the assistant's message.
+        - If it's a content block delta that is a citation, add the citation to the citations list and
          yield a string that represents the citation.
-         - If it's tool parameters, accumulate the tool paramters into the current tool.  
+         - If it's tool parameters, accumulate the tool paramters into the current tool.
 
         """
         logger.debug("Starting to process response stream")

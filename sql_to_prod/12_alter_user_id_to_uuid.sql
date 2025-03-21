@@ -7,6 +7,10 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+DROP TABLE user_tokens;
+
+ALTER TABLE users_whatsapp DROP COLUMN user_id;
+
 ALTER TABLE users ADD COLUMN new_id UUID DEFAULT uuid_generate_v4() NOT NULL;
 
 UPDATE users SET new_id = uuid_generate_v4();
@@ -15,7 +19,7 @@ DO $$
 DECLARE
   table_name TEXT;
   tables CURSOR FOR
-    SELECT unnest(ARRAY['preferences', 'feedback', 'messages', 'threads', 'users_whatsapp', 'access_tokens', 'refresh_tokens', 'reset_tokens']) AS table_name;
+    SELECT unnest(ARRAY['preferences', 'feedback', 'messages', 'threads', 'access_tokens', 'refresh_tokens', 'reset_tokens']) AS table_name;
 BEGIN
   FOR table_info IN tables LOOP
   RAISE NOTICE 'Updating % table', table_info.table_name;
@@ -46,7 +50,7 @@ DO $$
 DECLARE
   table_name TEXT;
   tables CURSOR FOR
-    SELECT unnest(ARRAY['preferences', 'feedback', 'messages', 'threads', 'users_whatsapp', 'access_tokens', 'refresh_tokens', 'reset_tokens']) AS table_name;
+    SELECT unnest(ARRAY['preferences', 'feedback', 'messages', 'threads', 'access_tokens', 'refresh_tokens', 'reset_tokens']) AS table_name;
 BEGIN
   FOR table_info IN tables LOOP
   RAISE NOTICE 'Updating % table', table_info.table_name;
