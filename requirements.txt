@@ -1,3 +1,4 @@
+anthropic
 bcrypt
 build
 discord.py
@@ -27,5 +28,3 @@ typer
 uvicorn
 wheel
 zxcvbn
-email-validator
-anthropic

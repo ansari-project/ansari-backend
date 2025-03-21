@@ -4,7 +4,6 @@ import json
 import time
 from typing import Generator
 
-
 from ansari.agents.ansari import Ansari
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
@@ -33,8 +32,6 @@ class AnsariClaude(Ansari):
 
         # Log environment information for debugging
         try:
-            import anthropic
-            import sys
             import platform
 
             logger.info(f"Python version: {sys.version}")

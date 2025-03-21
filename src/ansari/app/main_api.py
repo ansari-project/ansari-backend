@@ -28,7 +28,6 @@ import sentry_sdk
 from diskcache import FanoutCache, Lock
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, EmailStr
@@ -44,7 +43,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.general_helpers import get_extended_origins, validate_cors
+from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, validate_cors
 
 logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
@@ -74,6 +73,9 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
 
 app = FastAPI()
 
+# Include the WhatsApp router
+app.include_router(whatsapp_router)
+
 
 # Custom exception handler, which aims to log FastAPI-related exceptions before raising them
 # Details: https://fastapi.tiangolo.com/tutorial/handling-errors/#override-request-validation-exceptions
@@ -102,12 +104,14 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 
 
 def add_app_middleware():
-    # Get the origins from `.env` as well as extra origins
-    #   based on current environment (e.g., local dev, CI/CD, etc.)
+    # Get extra origins based on current environment (e.g., local dev., CI/CD, etc.)
     origins = get_extended_origins()
+    logger.debug(f"Configured CORS origins: {origins}")
 
+    # Use our custom middleware which is basically CORSMiddleware,
+    #   but it now logs errors should they occur in the middleware layer
     app.add_middleware(
-        CORSMiddleware,
+        CORSMiddlewareWithLogging,
         allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
@@ -132,9 +136,6 @@ presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
-
-# Include the WhatsApp router
-app.include_router(whatsapp_router)
 
 if __name__ == "__main__" and get_settings().DEV_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility

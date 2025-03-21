@@ -4,6 +4,7 @@ import unicodedata as ud
 from typing import Literal
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from jwt import PyJWTError
 from langdetect import detect
 
@@ -20,8 +21,8 @@ def get_extended_origins(settings: Settings = Depends(get_settings)):
     # Also, if we don't execute the code below, we'll get a "400 Bad Request" error when
     # trying to access the API from the local frontend
     if get_settings().DEV_MODE:
-        # Change "8081" to the port of your frontend server (8081 is the default there)
-        local_origin = "http://localhost:8081"
+        # Change "3000" to the port of your frontend server (3000 is the default there)
+        local_origin = "http://localhost:3000"
         zrok_origin = get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
 
         if local_origin not in origins:
@@ -55,6 +56,60 @@ def validate_cors(request: Request, settings: Settings = Depends(get_settings)) 
             raise HTTPException(status_code=502, detail=f"Incoming origin/host: {incoming_origin} is not in origin list")
     except PyJWTError:
         raise HTTPException(status_code=403, detail="Could not validate credentials")
+
+
+# Custom CORS middleware to log errors that occur in the middleware layer (if any)
+class CORSMiddlewareWithLogging(CORSMiddleware):
+    async def __call__(self, scope, receive, send):
+        """Override the __call__ method to add logging"""
+        if scope["type"] != "http":  # pragma: no cover
+            return await super().__call__(scope, receive, send)
+
+        logger.debug("Starting CORS middleware processing")
+
+        # Create a Request object for logging
+        request = Request(scope, receive)
+
+        async def modified_send(message):
+            """Intercept response to log CORS errors"""
+            if message["type"] == "http.response.start":
+                status = message["status"]
+                # Common error details
+                base_error = (
+                    f"Status: {status}\n"
+                    f"Path: {request.url.path}\n"
+                    f"Method: {request.method}\n"
+                    f"Origin: {request.headers.get('origin')}"
+                )
+
+                # Log CORS-related errors (if any)
+                if request.headers.get("origin") not in self.allow_origins:
+                    logger.error(f"CORS Origin Error\n{base_error}\n" f"Allowed: {self.allow_origins}")
+                # Else log issues that occur in the middleware layer (if any)
+                elif any(
+                    [
+                        status == 400 and request.method == "OPTIONS",
+                        status == 401 and "Authorization" not in request.headers,
+                        status == 403 and request.headers.get("origin") not in self.allow_origins,
+                        status == 429,
+                    ]
+                ):
+                    logger.error(f"Middleware Error\n{base_error}")
+            await send(message)
+
+        try:
+            await super().__call__(scope, receive, modified_send)
+        except Exception as e:
+            logger.error(
+                (
+                    f"Unhandled Middleware Error\nType: {type(e).__name__}\n"
+                    f"Message: {str(e)}\n"
+                    f"Path: {request.url.path}\n"
+                    f"Method: {request.method}"
+                ),
+                exc_info=True,
+            )
+            raise
 
 
 def _check_if_mostly_english(text: str, threshold: float = 0.8):
