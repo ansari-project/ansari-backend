@@ -38,7 +38,8 @@ class TestCitationFormatting(unittest.TestCase):
             {
                 "id": "25:47",
                 "text": "وَهُوَ ٱلَّذِى جَعَلَ لَكُمُ ٱلَّيْلَ لِبَاسًا وَٱلنَّوْمَ سُبَاتًا وَجَعَلَ ٱلنَّهَارَ نُشُورًا",
-                "en_text": "He is the One Who has made the night for you as a cover, and made sleep for resting, and the day for rising.",
+                "en_text": """He is the One Who has made the night for you as a cover,
+                and made sleep for resting, and the day for rising.""",
             },
             {"id": "78:9", "text": "وَجَعَلْنَا نَوْمَكُمْ سُبَاتًا", "en_text": "and made your sleep for rest,"},
         ]
@@ -56,17 +57,17 @@ class TestCitationFormatting(unittest.TestCase):
             self.assertIn("source", doc)
             self.assertIn("data", doc["source"])
             data = doc["source"]["data"]
-            
+
             # Verify data is valid JSON format
             try:
                 parsed_data = json.loads(data)
                 self.assertIsInstance(parsed_data, list)
-                
+
                 # Check that it contains language-text entries
                 self.assertTrue(len(parsed_data) > 0)
                 self.assertIn("lang", parsed_data[0])
                 self.assertIn("text", parsed_data[0])
-                
+
                 # If we have an Arabic entry, verify it matches one of the mock texts
                 for item in parsed_data:
                     if item["lang"] == "ar":
@@ -91,7 +92,8 @@ class TestCitationFormatting(unittest.TestCase):
                 "section_english": "The asking of Jibreel about Iman, Islam, Ihsan",
                 "hadith_number": "50",
                 "ar_text": "عَنْ أَبِي هُرَيْرَةَ، قَالَ كَانَ النَّبِيُّ صلى الله عليه وسلم بَارِزًا يَوْمًا لِلنَّاسِ...",
-                "en_text": 'Narrated Abu Huraira: One day while the Prophet (ﷺ) was sitting in the company of some people, (The angel) Gabriel came and asked, "What is faith?"...',
+                "en_text": """Narrated Abu Huraira: One day while the Prophet (ﷺ) was sitting in the company of some people,
+                (The angel) Gabriel came and asked, "What is faith?"...""",
                 "grade_en": "Sahih-Authentic",
             },
             {
@@ -103,7 +105,8 @@ class TestCitationFormatting(unittest.TestCase):
                 "section_english": "Signs of the hour",
                 "hadith_number": "4178",
                 "ar_text": "قال رسول الله صلى الله عليه وسلم: لا تقوم الساعة حتى تكون عشر آيات...",
-                "en_text": "The Messenger of Allah (peace be upon him) said: The last hour will not come or happen until there appear ten signs before it...",
+                "en_text": """The Messenger of Allah (peace be upon him) said:
+                The last hour will not come or happen until there appear ten signs before it...""",
                 "grade_en": "Sahih - Authentic",
             },
         ]
@@ -121,17 +124,17 @@ class TestCitationFormatting(unittest.TestCase):
             self.assertIn("source", doc)
             self.assertIn("data", doc["source"])
             data = doc["source"]["data"]
-            
+
             # Verify data is valid JSON format
             try:
                 parsed_data = json.loads(data)
                 self.assertIsInstance(parsed_data, list)
-                
+
                 # Check that it contains language-text entries
                 self.assertTrue(len(parsed_data) > 0)
                 self.assertIn("lang", parsed_data[0])
                 self.assertIn("text", parsed_data[0])
-                
+
                 # Verify text content if we have Arabic or English entries
                 for item in parsed_data:
                     if item["lang"] == "ar":
