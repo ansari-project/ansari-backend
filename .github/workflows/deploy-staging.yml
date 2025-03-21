@@ -1,0 +1,111 @@
+name: Staging Deployment (AWS App Runner)
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: staging-aws
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        id: aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ansari-backend
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Deploy to App Runner
+        id: deploy-apprunner
+        uses: awslabs/amazon-app-runner-deploy@main
+        env:
+          DEPLOYMENT_TYPE: staging
+          LOGGING_LEVEL: DEBUG
+          DATABASE_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'database-url') }}
+          SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
+          ORIGINS:  ${{ format('{0}{1}', secrets.SSM_ROOT, 'origins') }}
+
+          OPENAI_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'openai-api-key') }}
+          SENDGRID_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sendgrid-api-key') }}
+          ANTHROPIC_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'anthropic-api-key') }}
+          KALEMAT_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'kalemat-api-key') }}
+          SUNNAH_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sunnah-token') }}
+          VECTARA_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'vectara-api-key') }}
+          TAFSIR_VECTARA_CORPUS_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'tafsir-vectara-corpus-key') }}
+          MAWSUAH_VECTARA_CORPUS_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mawsuah-vectara-corpus-key') }}
+          QURAN_DOT_COM_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'quran-dot-com-api-key') }}
+
+          WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-access-token-from-sys-user') }}
+          WHATSAPP_BUSINESS_PHONE_NUMBER_ID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-business-phone-number-id') }}
+          WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-verify-token-for-webhook') }}
+
+          WHATSAPP_API_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-api-version') }}
+          ZROK_SHARE_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'zrok-share-token') }}
+          USUL_API_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'usul-api-token') }}
+
+          SENTRY_DSN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sentry-dsn') }}
+
+        with:
+          service: ansari-staging-backend
+          image: ${{ steps.build-image.outputs.image }}
+          access-role-arn: ${{ secrets.ROLE_ARN }}
+          region: ${{ secrets.AWS_REGION }}
+          cpu : 1
+          memory : 2
+          port: 8000
+          wait-for-service-stability-seconds: 1200
+          copy-env-vars: |
+            DEPLOYMENT_TYPE
+            LOGGING_LEVEL
+          copy-secret-env-vars: |
+            DATABASE_URL
+            SECRET_KEY
+            ORIGINS
+
+            OPENAI_API_KEY
+            SENDGRID_API_KEY
+            ANTHROPIC_API_KEY
+            KALEMAT_API_KEY
+            SUNNAH_TOKEN
+            VECTARA_API_KEY
+            TAFSIR_VECTARA_CORPUS_KEY
+            MAWSUAH_VECTARA_CORPUS_KEY
+            QURAN_DOT_COM_API_KEY
+
+            WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER
+            WHATSAPP_BUSINESS_PHONE_NUMBER_ID
+            WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK
+
+            WHATSAPP_API_VERSION
+            ZROK_SHARE_TOKEN
+            USUL_API_TOKEN
+            SENTRY_DSN
+          instance-role-arn: ${{ secrets.INSTANCE_ROLE_ARN }}
+
+      - name: App Runner URL
+        run: echo "App runner URL ${{ steps.deploy-apprunner.outputs.service-url }}"

@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import DirectoryPath, Field, PostgresDsn, SecretStr, field_validator
+from pydantic import DirectoryPath, Field, HttpUrl, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Can't use get_logger() here due to circular import
@@ -40,6 +40,9 @@ class Settings(BaseSettings):
         path = resources_dir / filename
         return path
 
+    DEPLOYMENT_TYPE: str = Field(default="development")
+    SENTRY_DSN: HttpUrl | None = None
+
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari",
     )
@@ -59,10 +62,13 @@ class Settings(BaseSettings):
     API_SERVER_PORT: int = Field(default=8000)
 
     OPENAI_API_KEY: SecretStr
+    ANTHROPIC_API_KEY: SecretStr
     PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
 
     VECTARA_API_KEY: SecretStr
+
+    MAX_FAILURES: int = Field(default=3)
 
     MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
         alias="MAWSUAH_VECTARA_CORPUS_KEY",
@@ -114,29 +120,77 @@ class Settings(BaseSettings):
     )
     TAFSIR_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
 
+    # Settings for Tafsir Encyclopedia search tool
+    TAFSIR_ENCYC_FN_NAME: str = Field(default="search_tafsir_encyc")
+    TAFSIR_ENCYC_FN_DESCRIPTION: str = Field(
+        default="""
+        Searches specialized tafsir encyclopedias for scholarly interpretations of Quranic verses.
+        This tool provides access to rich, contextual explanations from multiple scholarly sources,
+        helping to understand deeper meanings and scholarly consensus on Quranic interpretation.
+        The search will be based on the 'query' parameter, which must be provided.
+        """,
+    )
+    TAFSIR_ENCYC_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Topic or concept to search for within tafsir encyclopedias. Can be in Arabic or English.",
+            },
+        ],
+    )
+    TAFSIR_ENCYC_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    # Settings for Usul Fiqh search tool
+    USUL_FN_NAME: str = Field(default="search_usul")
+    USUL_FN_DESCRIPTION: str = Field(
+        default="""
+        Searches principles of Islamic jurisprudence (usul al-fiqh) for scholarly methodologies
+        and frameworks used to derive Islamic legal rulings. This tool provides access to 
+        foundational concepts that govern how Islamic law is derived from primary sources.
+        The search will be based on the 'query' parameter, which must be provided.
+        """,
+    )
+    USUL_TOOL_PARAMS: list = Field(
+        default=[
+            {
+                "name": "query",
+                "type": "string",
+                "description": "Principle, methodology, or concept to search for within usul al-fiqh texts.",
+            },
+        ],
+    )
+    USUL_TOOL_REQUIRED_PARAMS: list = Field(default=["query"])
+
+    # Usul.ai API settings
+    USUL_API_TOKEN: SecretStr = Field(default="")  # Set via environment variable
+    USUL_BASE_URL: str = Field(default="https://semantic-search.usul.ai/v1/vector-search")
+    USUL_TOOL_NAME_PREFIX: str = Field(default="search_usul")
+    TAFSIR_ENCYC_BOOK_ID: str = Field(default="pet7s2sjr900zvxjsafa3s3b")
+    TAFSIR_ENCYC_VERSION_ID: str = Field(default="MT3i8pDNoM")
+    TAFSIR_ENCYC_TOOL_NAME: str = Field(default="search_tafsir_encyc")
+
     DISCORD_TOKEN: SecretStr | None = Field(default=None)
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
-    WHATSAPP_RECIPIENT_WAID: SecretStr | None = Field(default=None)
     WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
-    WHATSAPP_TEST_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
-    WHATSAPP_CHAT_RETENTION_HOURS: int = Field(default=3)  # This is hardcoded to 0.05 when DEBUG_MODE is True
+    WHATSAPP_CHAT_RETENTION_HOURS: float = Field(default=3)
     ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")
 
     MODEL: str = Field(default="gpt-4o")
     MAX_TOOL_TRIES: int = Field(default=3)
-    MAX_FAILURES: int = Field(default=1)
     SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_tool")
     AYAH_SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_ayah")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
-
+    AGENT: str = Field(default="AnsariClaude")
+    ANTHROPIC_MODEL: str = Field(default="claude-3-7-sonnet-latest")
     LOGGING_LEVEL: str = Field(default="INFO")
-    DEBUG_MODE: bool = Field(default=False)
+    DEV_MODE: bool = Field(default=False)
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):

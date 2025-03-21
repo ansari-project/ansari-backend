@@ -1,3 +1,4 @@
+anthropic
 bcrypt
 build
 discord.py
@@ -15,8 +16,11 @@ psycopg2-binary
 pydantic_settings
 pyjwt
 pytest-asyncio
+pytest-mock
+pytest-xdist
 rich
 sendgrid
+sentry-sdk[fastapi]
 setuptools
 tenacity
 tiktoken

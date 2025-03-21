@@ -8,12 +8,12 @@ from typing import Any, Literal, Optional
 import httpx
 
 from ansari.agents.ansari import Ansari
-from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_direction_from_text, get_language_from_text
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Initialize the DB and agent
 # TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
@@ -104,7 +104,7 @@ class WhatsAppPresenter:
         incoming_msg_body: dict,
     ) -> None:
         """
-        Checks if the user's phone number is stored in the users_whatsapp table.
+        Checks if the user's phone number is stored in the users table.
         If not, registers the user with the preferred language.
 
         Args:
@@ -115,8 +115,8 @@ class WhatsAppPresenter:
         Returns:
             None
         """
-        # Check if the user's phone number is stored in users_whatsapp table
-        if db.account_exists_whatsapp(phone_num=user_whatsapp_number):
+        # Check if the user's phone number exists in users table
+        if db.account_exists(phone_num=user_whatsapp_number):
             return True
 
         # Else, register the user with the detected language
@@ -127,9 +127,13 @@ class WhatsAppPresenter:
             # TODO(odyash, good_first_issue): use lightweight library/solution that gives us language from country code
             # instead of hardcoding "en" in below code
             user_lang = "en"
-        status: Literal["success", "failure"] = db.register_whatsapp(user_whatsapp_number, {"preferred_language": user_lang})[
-            "status"
-        ]
+
+        status: Literal["success", "failure"] = db.register(
+            source=SourceType.WHATSAPP,
+            phone_num=user_whatsapp_number,
+            preferred_language=user_lang,
+        )["status"]
+
         if status == "success":
             logger.info(f"Registered new whatsapp user (lang: {user_lang})!: {user_whatsapp_number}")
             return True
@@ -188,10 +192,7 @@ class WhatsAppPresenter:
         return passed_time, passed_time_logging
 
     def _get_retention_time_in_seconds(self) -> int:
-        if get_settings().DEBUG_MODE:
-            reten_hours = 0.05  # so allowed_time == 3 minutes
-        else:
-            reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
+        reten_hours = get_settings().WHATSAPP_CHAT_RETENTION_HOURS
         allowed_time = reten_hours * 60 * 60
         return allowed_time
 
@@ -261,7 +262,7 @@ class WhatsAppPresenter:
 
             # Get user's ID from users_whatsapp table
             # NOTE: we're not checking for user's existence here, as we've already done that in `main_webhook()`
-            user_id_whatsapp = db.retrieve_user_info_whatsapp(user_whatsapp_number, "id")[0]
+            user_id_whatsapp = db.retrieve_user_info(source=SourceType.WHATSAPP, phone_num=user_whatsapp_number)[0]
 
             # Get details of the thread that the user last interacted with (i.e., max(updated_at))
             thread_id, last_msg_time = db.get_last_message_time_whatsapp(user_id_whatsapp)
@@ -281,14 +282,36 @@ class WhatsAppPresenter:
             #   ... but we're keeping the condition for clarity and future-proofing :]
             if thread_id is None or passed_time > allowed_time:
                 first_few_words = " ".join(incoming_txt_msg.split()[:6])
-                thread_id = db.create_thread_whatsapp(user_id_whatsapp, first_few_words)
+
+                result: dict = db.create_thread(SourceType.WHATSAPP, user_id_whatsapp, first_few_words)
+
+                if "error" in result:
+                    logger.error(f"Error creating a new thread for whatsapp user ({user_id_whatsapp}): {result['error']}")
+                    await self.send_whatsapp_message(
+                        user_whatsapp_number,
+                        "An unexpected error occurred while creating a new chat session. Please try again later.",
+                    )
+                    return
+
+                thread_id = result["thread_id"]
+
                 logger.info(
                     f"Created a new thread for the whatsapp user ({user_id_whatsapp}), "
                     + "as the allowed retention time has passed."
                 )
 
             # Get `message_history` from current thread (excluding incoming user's message, as it will be logged later)
-            msg_history = db.get_thread_llm_whatsapp(thread_id, user_id_whatsapp)
+            thread_name_and_history = db.get_thread_llm(thread_id, user_id_whatsapp)
+            if "messages" not in thread_name_and_history:
+                logger.error(f"Error retrieving message history for thread ({thread_id}) of user ({user_id_whatsapp})")
+                await self.send_whatsapp_message(
+                    user_whatsapp_number,
+                    "An unexpected error occurred while getting your last chat session. Please try again later.",
+                )
+                return
+
+            msg_history: list[dict] = thread_name_and_history["messages"]
+
             msg_history_for_debugging = [msg for msg in msg_history if msg["role"] in {"user", "assistant"}]
             logger.debug(
                 f"#msgs (user/assistant only) retrieved for user ({user_id_whatsapp})'s current whatsapp thread: "
@@ -296,12 +319,12 @@ class WhatsAppPresenter:
             )
 
             # Append the user's message to the history retrieved from the DB
-            user_msg = db.convert_message_llm(["user", incoming_txt_msg])[0]
+            user_msg = db.convert_message_llm(["user", incoming_txt_msg, None, None, None])[0]
             msg_history.append(user_msg)
 
             # Setup `MessageLogger` for Ansari, so it can log user's/Ansari's message to DB
             agent = copy.deepcopy(self.agent)
-            agent.set_message_logger(MessageLogger(db, user_id_whatsapp, thread_id, to_whatsapp=True))
+            agent.set_message_logger(MessageLogger(db, SourceType.WHATSAPP, user_id_whatsapp, thread_id))
 
             # Send the thread's history to the Ansari agent which will
             #   log (i.e., append) the message history's last user message to DB,
@@ -334,6 +357,8 @@ class WhatsAppPresenter:
                 "An unexpected error occurred while processing your message. Please try again later.",
             )
 
+    # NOTE: This function assumes `loc_lat` and `loc_long` columns are in `users` DB table
+    #   If alternative columns are used (e.g., city), the function should be updated accordingly
     async def handle_location_message(
         self,
         user_whatsapp_number: str,
@@ -351,7 +376,7 @@ class WhatsAppPresenter:
             None
         """
         loc = incoming_msg_body
-        db.update_user_whatsapp(user_whatsapp_number, {"loc_lat": loc["latitude"], "loc_long": loc["longitude"]})
+        db.update_user_by_phone_num(user_whatsapp_number, {"loc_lat": loc["latitude"], "loc_long": loc["longitude"]})
         # TODO(odyash, good_first_issue): update msg below to also say something like:
         # 'Type "pt"/"prayer times" to get prayer times', then implement that feature
         await self.send_whatsapp_message(

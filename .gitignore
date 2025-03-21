@@ -1,3 +1,4 @@
+# Folders
 .conda/
 .venv/
 .vscode/
@@ -10,9 +11,11 @@ etc/
 example_projects/
 lib/
 share/
-tmp/*
 src/ansari_backend.egg-info/*
+tmp/
+dist/
 
+# Files
 .__atomic-write*
 .env
 .history

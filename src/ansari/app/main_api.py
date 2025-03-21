@@ -20,12 +20,14 @@
 import logging
 import os
 import uuid
+import subprocess
 
 import psycopg2
 import psycopg2.extras
+import sentry_sdk
 from diskcache import FanoutCache, Lock
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, EmailStr
@@ -34,15 +36,17 @@ from sendgrid.helpers.mail import Mail
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
 
-from ansari.agents import Ansari, AnsariWorkflow
-from ansari.ansari_db import AnsariDB, MessageLogger
+from ansari.agents import Ansari, AnsariClaude
+from ansari.agents.ansari_workflow import AnsariWorkflow
+from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.general_helpers import get_extended_origins, validate_cors
+from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, validate_cors
 
-logger = get_logger()
+logger = get_logger(__name__)
+deployment_type = get_settings().DEPLOYMENT_TYPE
 
 # Register the UUID type globally
 # Details: Read the SO question then the answer referenced below:
@@ -51,7 +55,26 @@ logger = get_logger()
 #   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
 psycopg2.extras.register_uuid()
 
+if get_settings().SENTRY_DSN and deployment_type != "development":
+    sentry_sdk.init(
+        dsn=get_settings().SENTRY_DSN,
+        environment=deployment_type,
+        # Add data like request headers and IP for users, if applicable;
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=False,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=0.2 if deployment_type == "production" else 1.0,
+        # Set profiles_sample_rate to 1.0 to profile 100%
+        # of sampled transactions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=0.2 if deployment_type == "production" else 1.0,
+    )
+
 app = FastAPI()
+
+# Include the WhatsApp router
+app.include_router(whatsapp_router)
 
 
 # Custom exception handler, which aims to log FastAPI-related exceptions before raising them
@@ -60,20 +83,35 @@ app = FastAPI()
 #   contrary to what's mentioned in the above URL.
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request, exc: HTTPException):
-    logger.error(f"{exc}")
+    logger.error(f"HTTP exception: {exc}")
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
     )
 
 
-def add_app_middleware():
-    # Get the origins from `.env` as well as extra origins
-    #   based on current environment (e.g., local dev, CI/CD, etc.)
-    origins = get_extended_origins()
+# Add this new handler specifically for validation errors
+#   (like an invalid query parameter type, etc.)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    errors = exc.errors()
+    logger.error(f"Validation errors: {errors}")
 
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+
+def add_app_middleware():
+    # Get extra origins based on current environment (e.g., local dev., CI/CD, etc.)
+    origins = get_extended_origins()
+    logger.debug(f"Configured CORS origins: {origins}")
+
+    # Use our custom middleware which is basically CORSMiddleware,
+    #   but it now logs errors should they occur in the middleware layer
     app.add_middleware(
-        CORSMiddleware,
+        CORSMiddlewareWithLogging,
         allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
@@ -82,19 +120,24 @@ def add_app_middleware():
 
 
 add_app_middleware()
-
 db = AnsariDB(get_settings())
-ansari = Ansari(get_settings())
+
+agent_type = get_settings().AGENT
+
+if agent_type == "Ansari":
+    ansari = Ansari(get_settings())
+elif agent_type == "AnsariClaude":
+    ansari = AnsariClaude(get_settings())
+else:
+    raise ValueError(f"Unknown agent type: {agent_type}. Must be one of: Ansari, AnsariClaude")
+
 
 presenter = ApiPresenter(app, ansari)
 presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 
-# Include the WhatsApp router
-app.include_router(whatsapp_router)
-
-if __name__ == "__main__" and get_settings().DEBUG_MODE:
+if __name__ == "__main__" and get_settings().DEV_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     #   I.e., just run:
     #   `python src/ansari/app/main_api.py`
@@ -127,6 +170,9 @@ class RegisterRequest(BaseModel):
     password: str
     first_name: str
     last_name: str
+    # Left as an optional field for now to avoid breaking the frontend
+    #   (I.e., the frontend doesn't send this field yet)
+    source: SourceType = SourceType.WEB
 
 
 # NOTE 1: Check `docs/structure_of_api_responses/*_request_received_*.json` to visualize the structure of the requests
@@ -141,22 +187,19 @@ class RegisterRequest(BaseModel):
 #       * "because the logic of my code is based on this returned value"
 #   TL;DR of TL;DR: "I *depend* on running `validate_cors` first to proceed with my logic"
 @app.post("/api/v2/users/register")
-async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_cors)):
+async def register_user(req: RegisterRequest):
     """Register a new user.
     If the user exists, returns 403.
     Returns 200 on success.
     Returns 400 if the password is too weak. Will include suggestions for a stronger password.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     password_hash = db.hash_password(req.password)
     logger.info(
         f"Received request to create account: {req.email} {password_hash} {req.first_name} {req.last_name}",
     )
     try:
         # Check if account exists
-        if db.account_exists(req.email):
+        if db.account_exists(email=req.email):
             raise HTTPException(status_code=403, detail="Account already exists")
 
         # zxcvbn is a password strength checker (named after last row of keys in a keyboard :])
@@ -169,7 +212,13 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
                 status_code=400,
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
-        return db.register(req.email, req.first_name, req.last_name, password_hash)
+        return db.register(
+            source=req.source,
+            email=req.email,
+            first_name=req.first_name,
+            last_name=req.last_name,
+            password_hash=password_hash,
+        )
     except psycopg2.Error as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
@@ -178,25 +227,22 @@ async def register_user(req: RegisterRequest, cors_ok: bool = Depends(validate_c
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/users/login")
 async def login_user(
     req: LoginRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Logs the user in.
     Returns a token on success.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
-    if not db.account_exists(req.email):
+    if not db.account_exists(email=req.email):
         raise HTTPException(status_code=403, detail="Invalid username or password")
 
-    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(req.email)
+    user_id, existing_hash, first_name, last_name = db.retrieve_user_info(source=req.source, email=req.email)
 
     if not db.check_password(req.password, existing_hash):
         raise HTTPException(status_code=403, detail="Invalid username or password")
@@ -248,112 +294,137 @@ async def login_user(
 @app.post("/api/v2/users/refresh_token")
 async def refresh_token(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
     """Refresh both the access token and the refresh token.
 
     Details: the function performs the following steps:
-    1. Validates CORS settings.
-    2. Extracts the old refresh token from the request headers.
-    3. Decodes the old refresh token to extract token parameters.
-    4. Uses a locking mechanism to prevent race conditions.
-    5. Checks if the new tokens are already cached.
-    6. Validates the old refresh token and deletes the old token pair from the database.
-    7. Generates new access and refresh tokens.
-    8. Saves the new tokens to the database.
-    9. Caches the new tokens with a short expiry.
-    10. Handles database errors and raises appropriate HTTP exceptions.
-
-    TODO(anyone): Explain the theory behind locking/caching, and why steps 4-9 are necessary.
+    1. Extracts the old refresh token from the Authorization request header.
+    2. Decodes the old refresh token to extract token parameters.
+    3. Validates the old refresh token is still valid in the database.
+    4. Verifies the token is actually a refresh token.
+    5. Generates new access and refresh tokens.
+    6. Saves the new tokens to the database.
+    # (this step is not implemented) 7. Invalidates the old refresh token to prevent reuse.
+    8. Handles database errors and raises appropriate HTTP exceptions.
 
     Returns:
         dict: A dictionary containing the new access and refresh tokens on success.
 
     Raises:
         HTTPException:
-            - 403 if CORS validation fails or the token type is invalid.
-            - 401 if the refresh token is invalid or has expired.
+            - 401 if the refresh token is invalid, expired, or has been revoked.
             - 500 if there is an internal server error during token generation or saving.
-
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
-    old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
-    token_params = db.decode_token(old_refresh_token)
+    # If no cached tokens, proceed to validate and generate new tokens
+    try:
+        old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
+        token_params = db.decode_token(old_refresh_token)
+        
+        if not token_params:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    lock_key = f"lock:{token_params['user_id']}"
-    with Lock(cache, lock_key, expire=3):
-        # Check cache for existing token pair
-        cached_tokens = cache.get(old_refresh_token)
-        if cached_tokens:
-            return {"status": "success", **cached_tokens}
+        # Verify it's a refresh token
+        if token_params.get("token_type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+            
+        # Verify the token is still valid in the database
+        if not db.is_refresh_token_valid(old_refresh_token, token_params["user_id"]):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
 
-        # If no cached tokens, proceed to validate and generate new tokens
-        try:
-            # Validate the refresh token and delete the old token pair
-            db.delete_access_refresh_tokens_pair(old_refresh_token)
+        # Generate new tokens
+        new_access_token = db.generate_token(
+            token_params["user_id"],
+            token_type="access",
+            expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+        )
+        new_refresh_token = db.generate_token(
+            token_params["user_id"],
+            token_type="refresh",
+            expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+        )
 
-            # Generate new tokens
-            new_access_token = db.generate_token(
-                token_params["user_id"],
-                token_type="access",
-                expiry_hours=settings.ACCESS_TOKEN_EXPIRY_HOURS,
+        # Save the new access token to the database
+        access_token_insert_result = db.save_access_token(
+            token_params["user_id"],
+            new_access_token,
+        )
+        if access_token_insert_result["status"] != "success":
+            raise HTTPException(
+                status_code=500,
+                detail="Couldn't save access token",
             )
-            new_refresh_token = db.generate_token(
-                token_params["user_id"],
-                token_type="refresh",
-                expiry_hours=settings.REFRESH_TOKEN_EXPIRY_HOURS,
+
+        # Save the new refresh token to the database
+        refresh_token_insert_result = db.save_refresh_token(
+            token_params["user_id"],
+            new_refresh_token,
+            access_token_insert_result["token_db_id"],
+        )
+        if refresh_token_insert_result["status"] != "success":
+            raise HTTPException(
+                status_code=500,
+                detail="Couldn't save refresh token",
             )
 
-            # Save the new access token to the database
-            access_token_insert_result = db.save_access_token(
-                token_params["user_id"],
-                new_access_token,
-            )
-            if access_token_insert_result["status"] != "success":
-                raise HTTPException(
-                    status_code=500,
-                    detail="Couldn't save access token",
-                )
+        # Cache the new tokens with a short expiry (3 seconds)
+        new_tokens = {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+        }
+        # db.delete_refresh_token(old_refresh_token, token_params["user_id"])
+        return {"status": "success", **new_tokens}
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
 
-            # Save the new refresh token to the database
-            refresh_token_insert_result = db.save_refresh_token(
-                token_params["user_id"],
-                new_refresh_token,
-                access_token_insert_result["token_db_id"],
-            )
-            if refresh_token_insert_result["status"] != "success":
-                raise HTTPException(
-                    status_code=500,
-                    detail="Couldn't save refresh token",
-                )
 
-            # Cache the new tokens with a short expiry (3 seconds)
-            new_tokens = {
-                "access_token": new_access_token,
-                "refresh_token": new_refresh_token,
-            }
-            cache.set(old_refresh_token, new_tokens, expire=3)
-            return {"status": "success", **new_tokens}
-        except psycopg2.Error as e:
-            logger.critical(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="Database error")
+@app.get("/api/v2/deps")
+async def get_dependencies():
+    dependencies = subprocess.check_output(['pip', 'freeze']).decode()
+    return {"dependencies": dependencies}
+
+
+@app.get("/api/v2/users/me")
+async def get_user_details(
+    token_params: dict = Depends(db.validate_token),
+):
+    try:
+        user_id = token_params["user_id"]
+        user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
+        return {
+            "user_id": user_id,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+        }
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500)
+
+
+@app.delete("/api/v2/users/me")
+async def delete_user(
+    token_params: dict = Depends(db.validate_token),
+):
+    try:
+        db.delete_user(token_params["user_id"])
+        return {"status": "success"}
+    except psycopg2.Error as e:
+        logger.critical(f"Error: {e}")
+        raise HTTPException(status_code=500)
 
 
 @app.post("/api/v2/users/logout")
 async def logout_user(
     request: Request,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Logs the user out.
     Deletes all tokens.
     Returns 403 if the password is incorrect or the user doesn't exist.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
 
     try:
         token = request.headers.get("Authorization", "").split(" ")[1]
@@ -374,11 +445,8 @@ class FeedbackRequest(BaseModel):
 @app.post("/api/v2/feedback")
 async def add_feedback(
     req: FeedbackRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -395,18 +463,19 @@ async def add_feedback(
         raise HTTPException(status_code=500, detail="Database error")
 
 
+class CreateThreadRequest(BaseModel):
+    source: SourceType = SourceType.WEB
+
+
 @app.post("/api/v2/threads")
 async def create_thread(
-    request: Request,
-    cors_ok: bool = Depends(validate_cors),
+    req: CreateThreadRequest = CreateThreadRequest(),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
-        thread_id = db.create_thread(token_params["user_id"])
+        thread_id = db.create_thread(req.source, token_params["user_id"])
         logger.debug(f"Created thread {thread_id}")
         return thread_id
     except psycopg2.Error as e:
@@ -416,16 +485,18 @@ async def create_thread(
 
 @app.get("/api/v2/threads")
 async def get_all_threads(
-    request: Request,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Retrieve all threads for the user whose id is included in the token."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
+        # NOTE: "Returning all sources" is what we want in case user is logging from web/mobile because:
+        #   1. we want threads defined in web to be shown in mobile, and vice verse
+        #   2. We know that a user_id is uniquely defined per independent platform
+        #       (i.e., web/mobile have same user_id ,
+        #       while whatsapp is an independent platform with its own threads,
+        #       so user_id will be different there)
         threads = db.get_all_threads(token_params["user_id"])
         return threads
     except psycopg2.Error as e:
@@ -436,21 +507,19 @@ async def get_all_threads(
 class AddMessageRequest(BaseModel):
     role: str
     content: str
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/threads/{thread_id}")
 def add_message(
     thread_id: uuid.UUID,
     req: AddMessageRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
     settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
     """Adds a message to a thread. If the message is the first message in the thread,
     we set the name of the thread to the content of the message.
     """
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
 
@@ -458,10 +527,16 @@ def add_message(
         # Get the thread history (excluding incoming user's message, as it will be logged later)
         history = db.get_thread_llm(thread_id, token_params["user_id"])
 
-        # Create a new thread for the current user if not already created (i.e., history is empty)
-        # NOTE: the name of this thread is set to the first message
-        #   that the user sends in this new thread
-        if history["thread_name"] is None:
+        # Check if we got a valid history response
+        if not history or "thread_name" not in history:
+            # Create a new thread since we either got an empty response or invalid format
+            db.set_thread_name(
+                thread_id,
+                token_params["user_id"],
+                req.content,
+            )
+            logger.info(f"Added thread {thread_id}")
+        elif history["thread_name"] is None:
             db.set_thread_name(
                 thread_id,
                 token_params["user_id"],
@@ -469,10 +544,13 @@ def add_message(
             )
             logger.info(f"Added thread {thread_id}")
 
+        # Get the thread history
+        history = db.get_thread(thread_id, token_params["user_id"])
+
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = db.convert_message_llm(["user", req.content])[0]
+        user_msg = db.convert_message_llm(["user", req.content, None, None, None])[0]
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will
@@ -484,6 +562,7 @@ def add_message(
             history,
             message_logger=MessageLogger(
                 db,
+                req.source,
                 token_params["user_id"],
                 thread_id,
             ),
@@ -496,16 +575,13 @@ def add_message(
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to share this thread")
     try:
         share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
         return {"status": "success", "share_uuid": share_uuid}
@@ -517,37 +593,89 @@ def share_thread(
 @app.get("/api/v2/share/{share_uuid_str}")
 def get_snapshot(
     share_uuid_str: str,
-    cors_ok: bool = Depends(validate_cors),
+    filter_content: bool = True,
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
     share_uuid = uuid.UUID(share_uuid_str)
     try:
         content = db.get_snapshot(share_uuid)
+
+        # Filter out tool results, documents, and tool uses if requested
+        if filter_content and content and "messages" in content:
+            filtered_messages = []
+            for msg in content["messages"]:
+                filtered_msg = filter_message_content(msg)
+                # Only add messages that have content (not None)
+                if filtered_msg is not None:
+                    filtered_messages.append(filtered_msg)
+            content["messages"] = filtered_messages
+
         return {"status": "success", "content": content}
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
 
 
+def filter_message_content(message):
+    """Filter out tool results, documents, and tool uses from message content.
+    Returns None if there's no text content to keep (to completely remove the message).
+    """
+    filtered_msg = message.copy()
+    content = message.get("content")
+
+    # User messages are typically strings, keep them as is
+    if message.get("role") == "user" and isinstance(content, str):
+        return filtered_msg
+
+    # Filter list content (typical for assistant messages)
+    if isinstance(content, list):
+        filtered_content = []
+        for item in content:
+            if isinstance(item, dict):
+                # Only keep text blocks
+                if item.get("type") == "text" and item.get("text"):
+                    filtered_content.append(item)
+                # Skip tool_use, tool_result, and document blocks
+
+        # If we found any text blocks, use them
+        if filtered_content:
+            filtered_msg["content"] = filtered_content
+            return filtered_msg
+        # Otherwise return None to completely remove this message
+        else:
+            return None
+
+    # If content is empty or None, return None to remove the message
+    if not content:
+        return None
+
+    return filtered_msg
+
+
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
+    filter_content: bool = True,
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to access this thread")
     try:
         messages = db.get_thread(thread_id, token_params["user_id"])
         if messages:  # return only if the thread exists. else raise 404
+            # Filter out tool results, documents, and tool uses if requested
+            if filter_content and "messages" in messages:
+                filtered_messages = []
+                for msg in messages["messages"]:
+                    filtered_msg = filter_message_content(msg)
+                    # Only add messages that have content (not None)
+                    if filtered_msg is not None:
+                        filtered_messages.append(filtered_msg)
+                messages["messages"] = filtered_messages
             return messages
         raise HTTPException(status_code=404, detail="Thread not found")
     except psycopg2.Error as e:
@@ -558,15 +686,12 @@ async def get_thread(
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
     thread_id: uuid.UUID,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to delete this thread")
     try:
         return db.delete_thread(thread_id, token_params["user_id"])
     except psycopg2.Error as e:
@@ -582,15 +707,13 @@ class ThreadNameRequest(BaseModel):
 async def set_thread_name(
     thread_id: uuid.UUID,
     req: ThreadNameRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
-    # TODO(mwk): check that the user_id in the token matches the
-    # user_id associated with the thread_id.
+    user_id_for_thread = db.get_user_id_for_thread(thread_id)
+    if user_id_for_thread != token_params["user_id"]:
+        raise HTTPException(status_code=403, detail="You are not allowed to set the name of this thread")
     try:
         messages = db.set_thread_name(thread_id, token_params["user_id"], req.name)
         return messages
@@ -607,11 +730,8 @@ class SetPrefRequest(BaseModel):
 @app.post("/api/v2/preferences")
 async def set_pref(
     req: SetPrefRequest,
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -623,11 +743,8 @@ async def set_pref(
 
 @app.get("/api/v2/preferences")
 async def get_prefs(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_token),
 ):
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="CORS not permitted")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -640,20 +757,17 @@ async def get_prefs(
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
+    source: SourceType = SourceType.WEB
 
 
 @app.post("/api/v2/request_password_reset")
 async def request_password_reset(
     req: ResetPasswordRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.info(f"Request received to reset {req.email}")
-    if db.account_exists(req.email):
-        user_id, _, _, _ = db.retrieve_user_info(req.email)
+    if db.account_exists(email=req.email):
+        user_id, _, _, _ = db.retrieve_user_info(source=req.source, email=req.email)
         reset_token = db.generate_token(user_id, "reset")
         db.save_reset_token(user_id, reset_token)
         # shall we also revoke login and refresh tokens?
@@ -686,14 +800,10 @@ async def request_password_reset(
 
 @app.post("/api/v2/update_password")
 async def update_password(
-    cors_ok: bool = Depends(validate_cors),
     token_params: dict = Depends(db.validate_reset_token),
     password: str = None,
 ):
     """Update the user's password if you have a valid token"""
-    if not (cors_ok and token_params):
-        raise HTTPException(status_code=403, detail="Invalid username or password")
-
     logger.info(f"Token_params is {token_params}")
     try:
         password_hash = db.hash_password(password)
@@ -715,11 +825,9 @@ class PasswordReset(BaseModel):
 
 
 @app.post("/api/v2/reset_password")
-async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_cors)):
+async def reset_password(req: PasswordReset):
     """Resets the user's password if you have a reset token."""
     token_params = db.validate_reset_token(req.reset_token)
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="Invalid username or password")
 
     logger.info(f"Token_params is {token_params}")
     try:
@@ -738,7 +846,7 @@ async def reset_password(req: PasswordReset, cors_ok: bool = Depends(validate_co
 
 
 @app.post("/api/v1/complete")
-async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
+async def complete(request: Request):
     """Provides a response to a user's input.
     The input is a list of messages, each with with
     a role and a text field. Roles are typically
@@ -748,9 +856,6 @@ async def complete(request: Request, cors_ok: bool = Depends(validate_cors)):
     It returns a stream of tokens (a token is a part of a word).
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     logger.debug(f"Raw request is {request.headers}")
     body = await request.json()
     logger.info(f"Request received > {body}.")
@@ -769,13 +874,9 @@ class AyahQuestionRequest(BaseModel):
 @app.post("/api/v2/ayah")
 async def answer_ayah_question(
     req: AyahQuestionRequest,
-    cors_ok: bool = Depends(validate_cors),
     settings: Settings = Depends(get_settings),
     db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
 ):
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
         raise HTTPException(status_code=401, detail="Unauthorized")
 

@@ -1,6 +1,12 @@
+import logging
 import json
 
 import requests
+
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class SearchVectara:
@@ -100,25 +106,73 @@ class SearchVectara:
             raise requests.exceptions.HTTPError(error_msg)
         return response.json()
 
-    def pp_response(self, response: dict) -> list:
-        """Extract text from response"""
+    def format_as_list(self, response: dict) -> list:
+        """Format raw API results as a list of strings."""
         if not response.get("search_results"):
             return []
 
-        results = [r["text"] for r in response["search_results"]]
-        return results
+        return [r["text"] for r in response["search_results"]]
 
-    def run_as_list(self, query: str, num_results: int = 5, **kwargs) -> list:
+    def format_as_tool_result(self, response: dict) -> dict:
+        """Format raw API results as a tool result dictionary."""
+        if not response.get("search_results"):
+            return {"results": [], "tool_name": self.get_tool_name()}
+
+        formatted_results = []
+        for result in response["search_results"]:
+            metadata = {}
+            for m in result.get("metadata", []):
+                metadata[m["name"]] = m["value"]
+
+            formatted_results.append(
+                {
+                    "text": result.get("text", ""),
+                    "score": result.get("score", 0),
+                    "metadata": metadata,
+                    "reference": f"{metadata.get('source', '')} {metadata.get('volume', '')}:{metadata.get('page', '')}",
+                }
+            )
+
+        return {"results": formatted_results, "tool_name": self.get_tool_name()}
+
+    def format_as_ref_list(self, response: dict) -> list:
+        """Format raw API results as a list of reference documents for Claude."""
+        if not response or "search_results" not in response:
+            return []
+
+        documents = []
+        for result in response["search_results"]:
+            # Temporary placeholder.
+            # Nasty hack. TODO(mwk): Fix this
+            volume = result.get("document_id", "").replace(".txt", "")
+            title = "Encyclopedia of Islamic Jurisprudence, Volume " + volume
+
+            # Get the text content
+            text = result.get("text", "")
+
+            documents.append(
+                {
+                    "type": "document",
+                    "source": {"type": "text", "media_type": "text/plain", "data": text},
+                    "title": title,
+                    "context": "Retrieved from Encyclopedia of Islamic jurisprudence",
+                    "citations": {"enabled": True},
+                }
+            )
+
+        return documents
+
+    def run_as_list(self, query: str, num_results: int = 10, **kwargs) -> list:
         """Return results as a list of strings"""
         response = self.run(query, num_results, **kwargs)
-        return self.pp_response(response)
+        return self.format_as_list(response)
 
-    def run_as_json(self, query: str, num_results: int = 5, **kwargs) -> dict:
+    def run_as_json(self, query: str, num_results: int = 10, **kwargs) -> dict:
         """Return results wrapped in a JSON object"""
         response = self.run(query, num_results, **kwargs)
-        return {"matches": self.pp_response(response)}
+        return {"matches": self.format_as_list(response)}
 
-    def run_as_string(self, query: str, num_results: int = 5, **kwargs) -> str:
+    def run_as_string(self, query: str, num_results: int = 10, **kwargs) -> str:
         """Return results as a newline-separated string"""
-        results = self.run_as_list(query, num_results, **kwargs)
-        return "\n".join(results)
+        results = self.run(query, num_results, **kwargs)
+        return "\n".join(self.format_as_list(results))

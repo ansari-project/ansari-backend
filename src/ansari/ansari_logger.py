@@ -1,48 +1,46 @@
-# This file aims to provide a loguru logger instance for the caller file (e.g., main_api.py, etc.).
-# NOTE: Using loguru for logging (for simpler syntax); check below resources for reasons/details:
-#   https://nikhilakki.in/loguru-logging-in-python-made-fun-and-easy#heading-why-use-loguru-over-the-std-logging-module
-#   https://loguru.readthedocs.io/en/stable/resources/migration.html
+# This file provides a standard Python logging instance for the caller file (e.g., main_api.py, etc.).
 
-import copy
-import os
+import logging
 import sys
-
-from loguru import logger
-from loguru._logger import Logger
 
 from ansari.config import get_settings
 
 
-def get_logger(
-    logging_level: str = None,
-) -> Logger:
-    """Creates and returns a logger instance for the specified caller file.
+def get_logger(name: str) -> logging.Logger:
+    """Creates and returns a logger instance for the specified module.
 
     Args:
-        caller_file_name (str): The name of the file requesting the logger.
-        logging_level (Optional[str]): The logging level to be set for the logger.
-                                    If None, it defaults to the LOGGING_LEVEL from settings.
+        name (str): The name of the module requesting the logger (typically __name__).
 
     Returns:
-        logger: Configured logger instance.
-
+        logging.Logger: Configured logger instance.
     """
-    if logging_level is None:
-        logging_level = get_settings().LOGGING_LEVEL.upper()
+    logging_level = get_settings().LOGGING_LEVEL.upper()
 
-    log_format = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSSS}</green> | "
-        + "<level>{level}</level> | "
-        + "<magenta>{name}:{function}:{line}</magenta> | "
-        + "<level>{message}</level>"
+    # Create a logger
+    logger = logging.getLogger(name)
+
+    # Clear any existing handlers to avoid duplicate logs
+    if logger.handlers:
+        logger.handlers.clear()
+
+    # Set the logging level
+    logger.setLevel(logging_level)
+
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging_level)
+
+    # Create formatter
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    logger.remove()
-    cur_logger = copy.deepcopy(logger)
+    # Add formatter to handler
+    console_handler.setFormatter(formatter)
 
-    # In colorize, If None, the choice is automatically made based on the sink being a tty or not.
-    cur_logger.add(
-        sys.stdout, level=logging_level, format=log_format, enqueue=True, colorize=os.getenv("GITHUB_ACTIONS", None)
-    )
+    # Add handler to logger
+    logger.addHandler(console_handler)
 
-    return cur_logger
+    return logger
