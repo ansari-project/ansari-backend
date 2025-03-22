@@ -86,7 +86,7 @@ class SearchHadith:
 
             # Create citation title (including grade if available)
             title = (
-                f"{source_book} - Chapter {chapter}: {chapter_name}, "
+                f"{source_book} - Chapter {chapter}: {chapter_name[:300]}, "
                 f"Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
             )
             if grade:
@@ -99,10 +99,10 @@ class SearchHadith:
                 text_entries["ar"] = ar_text
             if text:
                 text_entries["en"] = text
-                
+
             # Format as multilingual JSON data
             doc_text = format_multilingual_data(text_entries)
-            
+
             document = {
                 "type": "document",
                 "source": {"type": "text", "media_type": "text/plain", "data": doc_text},
