@@ -83,7 +83,7 @@ class CORSMiddlewareWithLogging(CORSMiddleware):
                 )
 
                 # Log CORS-related errors (if any)
-                if request.headers.get("origin") not in self.allow_origins:
+                if request.headers.get("origin") is not None and request.headers.get("origin") not in self.allow_origins:
                     logger.error(f"CORS Origin Error\n{base_error}\n" f"Allowed: {self.allow_origins}")
                 # Else log issues that occur in the middleware layer (if any)
                 elif any(

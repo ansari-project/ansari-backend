@@ -20,7 +20,6 @@
 import logging
 import os
 import uuid
-import subprocess
 
 import psycopg2
 import psycopg2.extras
@@ -321,14 +320,14 @@ async def refresh_token(
     try:
         old_refresh_token = request.headers.get("Authorization", "").split(" ")[1]
         token_params = db.decode_token(old_refresh_token)
-        
+
         if not token_params:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         # Verify it's a refresh token
         if token_params.get("token_type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
-            
+
         # Verify the token is still valid in the database
         if not db.is_refresh_token_valid(old_refresh_token, token_params["user_id"]):
             raise HTTPException(status_code=401, detail="Token has been revoked")
@@ -378,12 +377,6 @@ async def refresh_token(
     except psycopg2.Error as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Database error")
-
-
-@app.get("/api/v2/deps")
-async def get_dependencies():
-    dependencies = subprocess.check_output(['pip', 'freeze']).decode()
-    return {"dependencies": dependencies}
 
 
 @app.get("/api/v2/users/me")

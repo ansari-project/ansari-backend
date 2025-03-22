@@ -426,12 +426,13 @@ class AnsariDB:
             # Possibly continue query by adding source for WhatsApp users
             if is_whatsapp:
                 select_cmd += " AND source = %s;"
-                param = (param, source)
+                params = (param, source)
             else:
                 select_cmd += ";"
-            logger.info(f"Query: {select_cmd}, params: ({source}, {email}, {phone_num}, {db_cols})")
+                params = (param,)
+
             # Execute query and return result
-            return self._execute_query(select_cmd, (param,), "one")[0]
+            return self._execute_query(select_cmd, params, "one")[0]
 
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
