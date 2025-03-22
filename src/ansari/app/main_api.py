@@ -785,7 +785,7 @@ async def request_password_reset(
                 logger.warning("No sendgrid key")
                 logger.info(f"Would have sent: {message}")
         except Exception as e:
-            print(e.message)
+            logger.error(f"Error logging message: {str(e)}")
     # Even if the email doesn't exist, we return success.
     # So this can't be used to work out who is on our system.
     return {"status": "success"}
