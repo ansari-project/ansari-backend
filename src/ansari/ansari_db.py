@@ -429,7 +429,7 @@ class AnsariDB:
                 param = (param, source)
             else:
                 select_cmd += ";"
-
+            logger.info(f"Query: {select_cmd}, params: ({source}, {email}, {phone_num}, {db_cols})")
             # Execute query and return result
             return self._execute_query(select_cmd, (param,), "one")[0]
 
@@ -660,7 +660,7 @@ class AnsariDB:
         try:
             select_cmd = """
             SELECT id, updated_at
-            FROM threads 
+            FROM threads
             WHERE user_id = %s
             ORDER BY updated_at DESC
             LIMIT 1;
