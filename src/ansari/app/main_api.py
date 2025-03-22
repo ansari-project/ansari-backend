@@ -31,7 +31,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, EmailStr
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Email, To, HtmlContent
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
 
@@ -768,16 +768,17 @@ async def request_password_reset(
         template = tenv.get_template("password_reset.html")
         rendered_template = template.render(reset_token=reset_token)
         message = Mail(
-            from_email="feedback@ansari.chat",
-            to_emails=f"{req.email}",
+            from_email=Email("feedback@ansari.chat"),
+            to_emails=To(req.email),
             subject="Ansari Password Reset",
-            html_content=rendered_template,
+            html_content=HtmlContent(rendered_template),
         )
 
         try:
             if settings.SENDGRID_API_KEY:
-                sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-                response = sg.send(message)
+                sg = SendGridAPIClient(settings.SENDGRID_API_KEY.get_secret_value())
+                mail_json = message.get()
+                response = sg.client.mail.send.post(request_body=mail_json)
                 logger.debug(response.status_code)
                 logger.debug(response.body)
                 logger.debug(response.headers)
