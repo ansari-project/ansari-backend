@@ -106,7 +106,8 @@ class AnsariDB:
         try:
             payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
 
-            # Convert user_id to a UUID, throw ValueError otherwise
+            if isinstance(payload["user_id"], int):
+                raise ValueError("Invalid identifier")
             payload["user_id"] = UUID(payload["user_id"], version=4)
 
             return payload
@@ -379,11 +380,8 @@ class AnsariDB:
 
     def save_reset_token(self, user_id, token):
         try:
-            insert_cmd = (
-                "INSERT INTO reset_tokens (user_id, token) "
-                + "VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET token = %s;"
-            )
-            self._execute_query(insert_cmd, (user_id, token, token))
+            insert_cmd = "INSERT INTO reset_tokens (user_id, token) VALUES (%s, %s);"
+            self._execute_query(insert_cmd, (user_id, token))
             return {"status": "success", "token": token}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")

@@ -68,6 +68,11 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
         # of sampled transactions.
         # We recommend adjusting this value in production.
         profiles_sample_rate=0.2 if deployment_type == "production" else 1.0,
+        ignore_errors=[
+            "Invalid token type",
+            "Token has expired",
+            "Could not validate credentials",
+        ],
     )
 
 app = FastAPI()
