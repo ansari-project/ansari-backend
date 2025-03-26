@@ -10,6 +10,7 @@ jinja2
 langdetect
 litellm>=1.59.6,<1.59.9
 loguru
+pymongo[srv]
 openai
 pandas
 psycopg2-binary
