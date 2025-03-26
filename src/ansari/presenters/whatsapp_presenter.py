@@ -1,6 +1,5 @@
 # Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp interactions
 
-import copy
 import re
 from datetime import datetime
 from typing import Any, Literal, Optional
@@ -8,6 +7,7 @@ from typing import Any, Literal, Optional
 import httpx
 
 from ansari.agents.ansari import Ansari
+from ansari.agents.ansari_claude import AnsariClaude
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
@@ -29,7 +29,7 @@ class WhatsAppPresenter:
         business_phone_number_id,
         api_version="v21.0",
     ):
-        self.agent = agent
+        self.settings = agent.settings
         self.access_token = access_token
         self.meta_api_url = f"https://graph.facebook.com/{api_version}/{business_phone_number_id}/messages"
 
@@ -164,14 +164,18 @@ class WhatsAppPresenter:
             "text": {"body": msg_body},
         }
 
-        async with httpx.AsyncClient() as client:
-            logger.debug(f"SENDING REQUEST TO: {url}")
-            response = await client.post(url, headers=headers, json=json_data)
-            response.raise_for_status()  # Raise an exception for HTTP errors
-            if msg_body != "...":
-                logger.info(
-                    f"Ansari responsded to WhatsApp user: {user_whatsapp_number} with:\n{msg_body}",
-                )
+        try:
+            async with httpx.AsyncClient() as client:
+                logger.debug(f"SENDING REQUEST TO: {url}")
+                response = await client.post(url, headers=headers, json=json_data)
+                response.raise_for_status()  # Raise an exception for HTTP errors
+                if msg_body != "...":
+                    logger.info(
+                        f"Ansari responsded to WhatsApp user: {user_whatsapp_number} with:\n{msg_body}",
+                    )
+        except Exception as e:
+            logger.error(f"Error sending message: {e}. Details are in next log.")
+            logger.exception(e)
 
     def _calculate_time_passed(self, last_message_time: Optional[datetime]) -> tuple[float, str]:
         if last_message_time is None:
@@ -322,9 +326,11 @@ class WhatsAppPresenter:
             user_msg = db.convert_message_llm(["user", incoming_txt_msg, None, None, None])[0]
             msg_history.append(user_msg)
 
-            # Setup `MessageLogger` for Ansari, so it can log user's/Ansari's message to DB
-            agent = copy.deepcopy(self.agent)
-            agent.set_message_logger(MessageLogger(db, SourceType.WHATSAPP, user_id_whatsapp, thread_id))
+            message_logger = MessageLogger(db, SourceType.WHATSAPP, user_id_whatsapp, thread_id)
+            if self.settings.AGENT == "Ansari":
+                agent = Ansari(settings=self.settings, message_logger=message_logger)
+            elif self.settings.AGENT == "AnsariClaude":
+                agent = AnsariClaude(settings=self.settings, message_logger=message_logger)
 
             # Send the thread's history to the Ansari agent which will
             #   log (i.e., append) the message history's last user message to DB,

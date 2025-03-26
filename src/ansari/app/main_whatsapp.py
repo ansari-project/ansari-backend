@@ -10,14 +10,13 @@
 #    5. Define a GET endpoint to handle WhatsApp webhook verification.
 #    6. Define a POST endpoint to handle incoming WhatsApp messages.
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.presenters.whatsapp_presenter import WhatsAppPresenter
-from ansari.util.general_helpers import validate_cors
 
 logger = get_logger(__name__)
 
@@ -47,7 +46,7 @@ presenter.present()
 
 
 @router.get("/whatsapp/v1")
-async def verification_webhook(request: Request, cors_ok: bool = Depends(validate_cors)) -> str | None:
+async def verification_webhook(request: Request) -> str | None:
     """Handles the WhatsApp webhook verification request.
 
     Args:
@@ -57,9 +56,6 @@ async def verification_webhook(request: Request, cors_ok: bool = Depends(validat
         Optional[str]: The challenge string if verification is successful, otherwise raises an HTTPException.
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     mode = request.query_params.get("hub.mode")
     verify_token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
@@ -76,7 +72,7 @@ async def verification_webhook(request: Request, cors_ok: bool = Depends(validat
 
 
 @router.post("/whatsapp/v1")
-async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors)) -> None:
+async def main_webhook(request: Request) -> None:
     """Handles the incoming WhatsApp webhook message.
 
     Args:
@@ -86,9 +82,6 @@ async def main_webhook(request: Request, cors_ok: bool = Depends(validate_cors))
         None
 
     """
-    if not cors_ok:
-        raise HTTPException(status_code=403, detail="CORS not permitted")
-
     # Wait for the incoming webhook message to be received as JSON
     data = await request.json()
 
