@@ -154,6 +154,8 @@ class WhatsAppPresenter:
 
         """
         url = self.meta_api_url
+        # Temp fix to work around the the maximum length for Whatsapp text messages (4096 characters)
+        msg_body = msg_body[:4000]
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
