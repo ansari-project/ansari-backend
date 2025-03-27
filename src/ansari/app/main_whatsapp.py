@@ -25,6 +25,7 @@ router = APIRouter()
 
 # Initialize the Ansari agent
 agent_type = get_settings().AGENT
+whatsapp_enabled = get_settings().WHATSAPP_ENABLED
 
 if agent_type == "Ansari":
     ansari = Ansari(get_settings())
@@ -103,6 +104,13 @@ async def main_webhook(request: Request) -> None:
         incoming_msg_type,
         incoming_msg_body,
     ) = result
+
+    if not whatsapp_enabled:
+        await presenter.send_whatsapp_message(
+            from_whatsapp_number,
+            "Ansari for WhatsApp is down for maintenance, please try again later or visit our website at https://ansari.chat.",
+        )
+        return
 
     # Check if the user's phone number is stored in users_whatsapp table and register if not
     # Returns false if user's not found and thier registration fails

@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     USUL_FN_DESCRIPTION: str = Field(
         default="""
         Searches principles of Islamic jurisprudence (usul al-fiqh) for scholarly methodologies
-        and frameworks used to derive Islamic legal rulings. This tool provides access to 
+        and frameworks used to derive Islamic legal rulings. This tool provides access to
         foundational concepts that govern how Islamic law is derived from primary sources.
         The search will be based on the 'query' parameter, which must be provided.
         """,
@@ -173,6 +173,7 @@ class Settings(BaseSettings):
     DISCORD_TOKEN: SecretStr | None = Field(default=None)
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
+    WHATSAPP_ENABLED: bool = Field(default=True)
     WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
