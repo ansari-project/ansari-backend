@@ -19,10 +19,7 @@
 
 import logging
 import os
-import uuid
 
-import psycopg2
-import psycopg2.extras
 import sentry_sdk
 from contextlib import asynccontextmanager
 from diskcache import FanoutCache
@@ -47,13 +44,6 @@ from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_
 
 logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
-
-# Register the UUID type globally
-# Details: Read the SO question then the answer referenced below:
-#   https://stackoverflow.com/a/59268003/13626137
-# More details (optional):
-#   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
-psycopg2.extras.register_uuid()
 
 if get_settings().SENTRY_DSN and deployment_type != "development":
     sentry_sdk.init(
@@ -402,7 +392,7 @@ async def get_user_details(
         user_id = token_params["user_id"]
         user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
         return {
-            "user_id": user_id,
+            "user_id": str(user_id),
             "email": email,
             "first_name": first_name,
             "last_name": last_name,
@@ -444,7 +434,7 @@ async def logout_user(
 
 
 class FeedbackRequest(BaseModel):
-    thread_id: uuid.UUID
+    thread_id: str
     message_id: int
     feedback_class: str
     comment: str
@@ -520,7 +510,7 @@ class AddMessageRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}")
 def add_message(
-    thread_id: uuid.UUID,
+    thread_id: str,
     req: AddMessageRequest,
     token_params: dict = Depends(db.validate_token),
     settings: Settings = Depends(get_settings),
@@ -558,7 +548,7 @@ def add_message(
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = db.convert_message_llm(["user", req.content, None, None, None])[0]
+        user_msg = {"role": "user", "content": req.content}
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will
@@ -582,7 +572,7 @@ def add_message(
 
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
@@ -605,9 +595,8 @@ def get_snapshot(
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
-    share_uuid = uuid.UUID(share_uuid_str)
     try:
-        content = db.get_snapshot(share_uuid)
+        content = db.get_snapshot(share_uuid_str)
 
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:
@@ -663,7 +652,7 @@ def filter_message_content(message):
 
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
@@ -693,7 +682,7 @@ async def get_thread(
 
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
 ):
     logger.info(f"Token_params is {token_params}")
@@ -713,7 +702,7 @@ class ThreadNameRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}/name")
 async def set_thread_name(
-    thread_id: uuid.UUID,
+    thread_id: str,
     req: ThreadNameRequest,
     token_params: dict = Depends(db.validate_token),
 ):

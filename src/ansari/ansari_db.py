@@ -5,8 +5,7 @@ from pymongo import MongoClient
 
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Iterable, Optional
-from uuid import UUID
+from typing import Optional
 
 import bcrypt
 import jwt
@@ -90,7 +89,7 @@ class AnsariDB:
         if token_type not in ["access", "reset", "refresh"]:
             raise ValueError("Invalid token type")
         payload = {
-            "user_id": str(user_id),
+            "user_id": user_id,
             "type": token_type,
             "exp": datetime.now(timezone.utc) + timedelta(hours=expiry_hours),
         }
@@ -100,9 +99,8 @@ class AnsariDB:
         try:
             payload = jwt.decode(token, self.token_secret_key, algorithms=[self.ALGORITHM])
 
-            if isinstance(payload["user_id"], int) or isinstance(payload["user_id"], UUID):
+            if not ObjectId.is_valid(payload["user_id"]):
                 raise ValueError("Invalid identifier")
-            payload["user_id"] = ObjectId(payload["user_id"])
 
             return payload
         except ValueError:
@@ -135,7 +133,7 @@ class AnsariDB:
 
     def _validate_token_in_db(self, user_id: ObjectId, token: str, collection_name: str) -> bool:
         try:
-            result = self.mongo_db[collection_name].find_one({"user_id": user_id, "token": token})
+            result = self.mongo_db[collection_name].find_one({"user_id": ObjectId(user_id), "token": token})
             return result is not None
         except Exception:
             logger.exception("Database error during token validation")
@@ -217,6 +215,8 @@ class AnsariDB:
                 "phone_num": phone_num,
                 "preferred_language": preferred_language,
                 "source": source,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
             }
 
             self.mongo_db["users"].insert_one(new_user)
@@ -254,12 +254,12 @@ class AnsariDB:
 
     def save_access_token(self, user_id, token):
         try:
-            result = self.mongo_db["access_tokens"].insert_one({"user_id": user_id, "token": token})
+            result = self.mongo_db["access_tokens"].insert_one({"user_id": ObjectId(user_id), "token": token})
             logger.info(f"Result is {result}")
             return {
                 "status": "success",
                 "token": token,
-                "token_db_id": result.inserted_id,
+                "token_db_id": str(result.inserted_id),
             }
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -267,7 +267,9 @@ class AnsariDB:
 
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
-            self.mongo_db["refresh_tokens"].insert_one({"user_id": user_id, "token": token, "access_token_id": access_token_id})
+            self.mongo_db["refresh_tokens"].insert_one({"user_id": ObjectId(user_id),
+                                                        "token": token, "access_token_id": access_token_id})
+
             return {"status": "success", "token": token}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -275,7 +277,7 @@ class AnsariDB:
 
     def save_reset_token(self, user_id, token):
         try:
-            self.mongo_db["reset_tokens"].insert_one({"user_id": user_id, "token": token})
+            self.mongo_db["reset_tokens"].insert_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success", "token": token}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -302,12 +304,12 @@ class AnsariDB:
                 result = self.mongo_db["users"].find_one({"phone_num": phone_num, "source": source.value})
                 if result is None:
                     return None
-                return result["_id"]
+                return str(result["_id"])
             else:
                 result = self.mongo_db["users"].find_one({"email": email.strip().lower()})
                 if result is None:
                     return None, None, None, None
-                return result["_id"], result["password_hash"], result["first_name"], result["last_name"]
+                return str(result["_id"]), result["password_hash"], result["first_name"], result["last_name"]
 
 
         except Exception as e:
@@ -319,7 +321,7 @@ class AnsariDB:
             result = self.mongo_db["users"].find_one({"_id": ObjectId(id)})
 
             if result:
-                return result["_id"], result["email"], result["first_name"], result["last_name"]
+                return str(result["_id"]), result["email"], result["first_name"], result["last_name"]
 
             return None, None, None, None
         except Exception as e:
@@ -330,8 +332,8 @@ class AnsariDB:
         try:
             self.mongo_db["feedback"].insert_one(
                 {
-                    "user_id": user_id,
-                    "thread_id": thread_id,
+                    "user_id": ObjectId(user_id),
+                    "thread_id": ObjectId(thread_id),
                     "message_id": message_id,
                     "class": feedback_class,
                     "comment": comment,
@@ -356,8 +358,17 @@ class AnsariDB:
         try:
             # Use the unified threads table with the initial_source field
             name = thread_name if thread_name else None
-            result = self.mongo_db["threads"].insert_one({"user_id": user_id, "name": name, "initial_source": source})
-            return {"status": "success", "thread_id": result.inserted_id}
+            result = self.mongo_db["threads"].insert_one(
+                {
+                    "user_id": ObjectId(user_id),
+                    "name": name,
+                    "initial_source": source,
+                    "messages": [],
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            )
+            return {"status": "success", "thread_id": str(result.inserted_id)}
 
         except Exception as e:
             logger.warning(f"Thread creation error: {e}")
@@ -365,8 +376,9 @@ class AnsariDB:
 
     def get_all_threads(self, user_id):
         try:
-            result = self.mongo_db["threads"].find({"user_id": user_id})
-            return [{"thread_id": x["_id"], "thread_name": x["name"], "updated_at": x["updated_at"]} for x in result] if result else []
+            result = self.mongo_db["threads"].find({"user_id": ObjectId(user_id)})
+            return [{"thread_id": str(x["_id"]), "thread_name": x["name"],
+                     "updated_at": x["updated_at"]} for x in result] if result else []
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return []
@@ -374,7 +386,7 @@ class AnsariDB:
     def set_thread_name(self, thread_id, user_id, thread_name):
         try:
             truncated_thread_name = thread_name[: get_settings().MAX_THREAD_NAME_LENGTH]
-            self.mongo_db["threads"].update_one({"_id": thread_id}, {"$set": {"name": truncated_thread_name}})
+            self.mongo_db["threads"].update_one({"_id": ObjectId(thread_id)}, {"$set": {"name": truncated_thread_name}})
 
             return {"status": "success"}
         except Exception as e:
@@ -408,25 +420,26 @@ class AnsariDB:
             ref_list: Optional list of reference documents
         """
         try:
-            if source != SourceType.WHATSAPP:
-                # Standardize content format based on message type
-                if role == "assistant" and not isinstance(content, list):
-                    # Convert simple assistant messages to expected format
-                    content = [{"type": "text", "text": content}]
-                content = json.dumps(content) if isinstance(content, (dict, list)) else content
-
-            params = {
-                "user_id": user_id,
-                "thread_id": thread_id,
+            new_message = {
+                "_id": ObjectId(),
                 "role": role,
                 "content": content,
-                "tool_name": tool_name,
-                "tool_details": json.dumps(tool_details) if tool_details is not None else None,
-                "ref_list": json.dumps(ref_list) if ref_list is not None else None,
-                "source": source.value if source else None,
+                "created_at": datetime.now(timezone.utc),
             }
 
-            self.mongo_db["messages"].insert_one(params)
+            if tool_name:
+                new_message["tool_name"] = tool_name
+
+            if tool_details:
+                new_message["tool_details"] = tool_details
+
+            if ref_list:
+                new_message["ref_list"] = ref_list
+
+            if source:
+                new_message["source"] = source.value
+
+            self.mongo_db["threads"].update_one({'_id': ObjectId(thread_id)}, {'$push': {'messages': new_message}})
 
         except Exception as e:
             logger.warning(f"Error appending message to database: {e}")
@@ -438,10 +451,8 @@ class AnsariDB:
         tool messages are not included.
         """
         try:
-            # We need to check user_id to make sure that the user has access to the thread.
-            thread = self.mongo_db["threads"].find_one({"_id": thread_id, "user_id": user_id})
-
-            result = self.mongo_db["messages"].find({"thread_id": thread_id, "user_id": user_id}).sort("timestamp", 1)
+            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id),
+                                                        "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -452,7 +463,7 @@ class AnsariDB:
             thread_name = thread["name"]
             retval = {
                 "thread_name": thread_name,
-                "messages": [self.convert_message(x) for x in result],
+                "messages": [self.convert_message(x) for x in thread["messages"]],
             }
             return retval
         except Exception as e:
@@ -465,9 +476,8 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            thread = self.mongo_db["threads"].find_one({"_id": thread_id, "user_id": user_id})
-
-            result = self.mongo_db["messages"].find({"thread_id": thread_id, "user_id": user_id}).sort("timestamp", 1)
+            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id),
+                                                        "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -478,8 +488,8 @@ class AnsariDB:
             # Now convert the messages to be in the format that the LLM expects
             thread_name = thread["name"]
             msgs = []
-            for db_row in result:
-                msgs.extend(self.convert_message_llm(db_row))
+            for msg in thread["messages"]:
+                msgs.extend(self.convert_message_llm(msg))
 
             # Wrap the messages in a history object bundled with its thread name
             history = {
@@ -505,9 +515,9 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"user_id": user_id}, sort=[('updated_at', -1)])
+            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[('updated_at', -1)])
             if result:
-                return result["_id"], result["updated_at"]
+                return str(result["_id"]), result["updated_at"]
             return None, None
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -524,7 +534,7 @@ class AnsariDB:
             logger.info(f"Thread is {json.dumps(thread)}")
             result = self.mongo_db["share"].insert_one({"content": thread})
             logger.info(f"Result is {result}")
-            return result.inserted_id if result else None
+            return str(result.inserted_id)
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
@@ -532,7 +542,7 @@ class AnsariDB:
     def get_snapshot(self, share_uuid):
         """Retrieve a snapshot of a thread."""
         try:
-            result = self.mongo_db["share"].find_one({"_id": share_uuid})
+            result = self.mongo_db["share"].find_one({"_id": ObjectId(share_uuid)})
             if result:
                 # Deserialize json string
                 return json.loads(result)
@@ -545,8 +555,8 @@ class AnsariDB:
         try:
             # We need to ensure that the user_id has access to the thread.
             # We must delete the messages associated with the thread first.
-            self.mongo_db["messages"].delete_many({"thread_id": thread_id, "user_id": user_id})
-            self.mongo_db["threads"].delete_one({"_id": thread_id})
+            self.mongo_db["messages"].delete_many({"thread_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
+            self.mongo_db["threads"].delete_one({"_id": ObjectId(thread_id)})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -578,11 +588,11 @@ class AnsariDB:
             return {"status": "success"}
         except psycopg2.Error as e:
             logging.critical(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="Database error")
+            raise HTTPException(status_code=500)
 
     def delete_access_token(self, user_id, token):
         try:
-            self.mongo_db["access_tokens"].delete_one({"user_id": user_id, "token": token})
+            self.mongo_db["access_tokens"].delete_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -590,6 +600,7 @@ class AnsariDB:
 
     def delete_user(self, user_id):
         try:
+            obj_id = ObjectId(user_id)
             for collection_name in [
                 "preferences",
                 "feedback",
@@ -599,9 +610,9 @@ class AnsariDB:
                 "access_tokens",
                 "reset_tokens",
             ]:
-                self.mongo_db[collection_name].delete_many({"user_id": user_id})
+                self.mongo_db[collection_name].delete_many({"user_id": obj_id})
 
-            self.mongo_db["users"].delete_one({"_id": user_id})
+            self.mongo_db["users"].delete_one({"_id": obj_id})
 
             return {"status": "success"}
         except Exception as e:
@@ -611,23 +622,25 @@ class AnsariDB:
     def logout(self, user_id, token):
         try:
             for collection_name in ["refresh_tokens", "access_tokens"]:
-                self.mongo_db[collection_name].delete_one({"user_id": user_id, "token": token})
+                self.mongo_db[collection_name].delete_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
-        self.mongo_db["preferences"].update_one({"user_id": user_id, "pref_key": key}, {"$set": {"pref_value": value}, "upsert": True})
+        self.mongo_db["preferences"].update_one({"user_id": ObjectId(user_id), "pref_key": key},
+                                                {"$set": {"pref_value": value}, "upsert": True})
+
         return {"status": "success"}
 
     def get_prefs(self, user_id):
-        result = self.mongo_db["preferences"].find({"user_id": user_id})
+        result = self.mongo_db["preferences"].find({"user_id": ObjectId(user_id)})
         return result
 
     def update_password(self, user_id, new_password_hash):
         try:
-            self.mongo_db["users"].update_one({"_id": user_id}, {"$set": {"password_hash": new_password_hash}})
+            self.mongo_db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": {"password_hash": new_password_hash}})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -656,26 +669,12 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def convert_message(self, msg: Iterable[str]) -> dict:
+    def convert_message(self, msg) -> dict:
         """Convert a message from database format to a displayable format.
         This means stripping things like tool usage."""
-        # Check if message has ID (from database) or not (from in-memory)
-        if len(msg) == 6:
-            # Message from database query with ID
-            msg_id, role, content, _, _, _ = msg  # Unpack id, role, content; ignore tool_name, tool_details, ref_list
-        else:
-            # Message from in-memory (no ID yet)
-            role, content, _, _, _ = msg  # Ignore tool_name, tool_details, ref_list
-            msg_id = None
-        logger.info(f"Content is {content}")
+        msg_id, role, content = msg.get("_id"), msg.get("role"), msg.get("content")
 
-        # If content is a string that looks like JSON, try to parse it
-        if isinstance(content, str) and (content.startswith("[") or content.startswith("{")):
-            try:
-                content = json.loads(content)
-            except json.JSONDecodeError:
-                # Keep as string if not valid JSON
-                pass
+        logger.info(f"Content is {content}")
 
         # If content is a list, find the first element with type "text"
         if isinstance(content, list):
@@ -684,101 +683,18 @@ class AnsariDB:
                     content = item.get("text", "")
                     break
 
-        return {"id": msg_id, "role": role, "content": content}
+        return {"id": str(msg_id), "role": role, "content": content}
 
-    def convert_message_llm(self, msg: Iterable[str]) -> list[dict]:
+    def convert_message_llm(self, msg) -> list[dict]:
         """Convert a message from database format to LLM format.
 
         This method ensures that the database-stored messages are reconstructed
         into the proper format expected by the LLM interface, preserving all
         necessary structure and relationships between content, tool data, and references.
         """
-        # Check if message has ID (from database) or not (from in-memory)
-        if len(msg) == 6:
-            # Message from database query with ID
-            msg_id, role, content, tool_name, tool_details, ref_list = msg
-        else:
-            # Message from in-memory (no ID yet)
-            role, content, tool_name, tool_details, ref_list = msg
-            msg_id = None
+        msg_id, role, content = msg.get("_id"), msg.get("role"), msg.get("content")
 
-        # Parse JSON content if needed
-        if isinstance(content, str) and (content.startswith("[") or content.startswith("{")):
-            try:
-                content = json.loads(content)
-            except json.JSONDecodeError:
-                # Keep as string if not valid JSON
-                pass
-
-        # Handle tool result messages (typically user messages with tool response)
-        if tool_name and role == "user":
-            # Parse the reference list if it exists
-            ref_list_data = json.loads(ref_list) if ref_list else []
-
-            # Parse tool details
-            tool_use_id = None
-            if tool_details:
-                try:
-                    tool_details_dict = json.loads(tool_details)
-                    tool_use_id = tool_details_dict.get("id")
-                except json.JSONDecodeError:
-                    pass
-
-            # Create a properly structured tool result message
-            result_content = []
-
-            # Add the tool result block
-            if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
-                # Content already has tool_result structure
-                result_content = content
-            else:
-                # Need to create tool_result structure
-                result_content = [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content}]
-
-            # Add reference list data
-            if ref_list_data:
-                result_content.extend(ref_list_data)
-
-            return [{"id": msg_id, "role": role, "content": result_content}]
-
-        # Handle all assistant messages (with or without tool use)
-        elif role == "assistant":
-            # For assistant messages, always use block format
-            content_blocks = []
-
-            # Add text block
-            if isinstance(content, str):
-                content_blocks.append({"type": "text", "text": content})
-            elif isinstance(content, list) and all(isinstance(block, dict) and "type" in block for block in content):
-                # Content is already in block format
-                content_blocks = content
-            else:
-                # Convert to text block
-                content_blocks.append({"type": "text", "text": str(content)})
-
-            # If there's tool info, add tool use block
-            if tool_name and tool_details:
-                try:
-                    tool_details_dict = json.loads(tool_details)
-                    tool_id = tool_details_dict.get("id")
-                    tool_input = tool_details_dict.get("args")
-                    # Add tool use block only if we have valid information
-                    if tool_id and tool_name:
-                        content_blocks.append({"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input})
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse tool details JSON: {tool_details}")
-
-            return [{"id": msg_id, "role": role, "content": content_blocks}]
-
-        # Handle regular user messages without tool use
-        else:
-            # For simple user messages, use simple format
-            if isinstance(content, str):
-                # Simple text content
-                return [{"id": msg_id, "role": role, "content": content}]
-            else:
-                # Content is already structured (list or dict)
-                return [{"id": msg_id, "role": role, "content": content}]
+        return [{"id": str(msg_id), "role": role, "content": content}]
 
     def store_quran_answer(
         self,
@@ -787,7 +703,15 @@ class AnsariDB:
         question: str,
         ansari_answer: str,
     ):
-        self.mongo_db["quran_answers"].insert_one({"surah": surah, "ayah": ayah, "question": question, "ansari_answer": ansari_answer})
+        self.mongo_db["quran_answers"].insert_one(
+            {
+                "surah": surah,
+                "ayah": ayah,
+                "question": question,
+                "ansari_answer": ansari_answer,
+                "created_at": datetime.now(timezone.utc)
+            }
+        )
 
     def get_quran_answer(
         self,
@@ -827,8 +751,10 @@ class AnsariDB:
             Optional[ObjectId]: The user ID associated with the thread, or None if the thread doesn't exist.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"_id": thread_id})
-            return result["user_id"] if result else None
+            result = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id)})
+            if result:
+                return str(result["user_id"])
+            return None
         except Exception as e:
             logger.warning(f"Error retrieving user ID for thread: {e}")
             return None
