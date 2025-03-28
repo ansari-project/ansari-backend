@@ -32,13 +32,12 @@
 
 ## Build/Test/Lint Commands
 - Install dependencies: `pip install -r requirements.txt`
-- Run database setup: `python setup_database.py`
 - Run backend service: `uvicorn main_api:app --reload`
-- Run CLI version (interactive): 
+- Run CLI version (interactive):
   - Claude: `python src/ansari/app/main_stdio.py -a AnsariClaude`
   - OpenAI: `python src/ansari/app/main_stdio.py -a Ansari`
 - Run CLI with direct input:
-  - `python src/ansari/app/main_stdio.py -i "your question here"` 
+  - `python src/ansari/app/main_stdio.py -i "your question here"`
   - `python src/ansari/app/main_stdio.py --input "your question here"`
 - Run tests: `pytest tests/`
 - Run single test: `pytest tests/path/to/test.py::test_function_name`
@@ -64,7 +63,7 @@
 - **Logging**: Use the logger from `ansari.ansari_logger.get_logger()`
 - **Documentation**: Add docstrings to functions, especially complex ones
 - **Testing**: Create unit tests in `tests/unit/` and integration tests in `tests/integration/`
-- **Citations**: 
+- **Citations**:
   - All search tools must format document data as multilingual JSON using `format_multilingual_data`
   - The data format must be valid JSON following the schema in `base_search.py` documentation
   - Store properly formatted JSON in the `data` field of document references

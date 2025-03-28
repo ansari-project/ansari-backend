@@ -268,7 +268,7 @@ class WhatsAppPresenter:
 
             # Get user's ID from users_whatsapp table
             # NOTE: we're not checking for user's existence here, as we've already done that in `main_webhook()`
-            user_id_whatsapp = db.retrieve_user_info(source=SourceType.WHATSAPP, phone_num=user_whatsapp_number)[0]
+            user_id_whatsapp = db.retrieve_user_info(source=SourceType.WHATSAPP, phone_num=user_whatsapp_number)
 
             # Get details of the thread that the user last interacted with (i.e., max(updated_at))
             thread_id, last_msg_time = db.get_last_message_time_whatsapp(user_id_whatsapp)
