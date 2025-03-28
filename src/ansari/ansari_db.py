@@ -696,9 +696,66 @@ class AnsariDB:
         into the proper format expected by the LLM interface, preserving all
         necessary structure and relationships between content, tool data, and references.
         """
-        msg_id, role, content = msg.get("_id"), msg.get("role"), msg.get("content")
+        msg_id, role, content = str(msg.get("_id")), msg.get("role"), msg.get("content")
+        tool_name, tool_details, ref_list = msg.get("tool_name"), msg.get("tool_details"), msg.get("ref_list")
 
-        return [{"id": str(msg_id), "role": role, "content": content}]
+        # Handle tool result messages (typically user messages with tool response)
+        if tool_name and role == "user":
+            tool_use_id = None
+            if tool_details:
+                tool_use_id = tool_details.get("id")
+
+            # Create a properly structured tool result message
+            result_content = []
+
+            # Add the tool result block
+            if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
+                # Content already has tool_result structure
+                result_content = content
+            else:
+                # Need to create tool_result structure
+                result_content = [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content}]
+
+            # Add reference list data
+            if ref_list:
+                result_content.extend(ref_list)
+
+            return [{"id": msg_id, "role": role, "content": result_content}]
+
+        # Handle all assistant messages (with or without tool use)
+        elif role == "assistant":
+            # For assistant messages, always use block format
+            content_blocks = []
+
+            # Add text block
+            if isinstance(content, str):
+                content_blocks.append({"type": "text", "text": content})
+            elif isinstance(content, list) and all(isinstance(block, dict) and "type" in block for block in content):
+                # Content is already in block format
+                content_blocks = content
+            else:
+                # Convert to text block
+                content_blocks.append({"type": "text", "text": str(content)})
+
+            # If there's tool info, add tool use block
+            if tool_name and tool_details:
+                tool_id = tool_details.get("id")
+                tool_input = tool_details.get("args")
+                # Add tool use block only if we have valid information
+                if tool_id and tool_name:
+                    content_blocks.append({"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input})
+
+            return [{"id": msg_id, "role": role, "content": content_blocks}]
+
+        # Handle regular user messages without tool use
+        else:
+            # For simple user messages, use simple format
+            if isinstance(content, str):
+                # Simple text content
+                return [{"id": msg_id, "role": role, "content": content}]
+            else:
+                # Content is already structured (list or dict)
+                return [{"id": msg_id, "role": role, "content": content}]
 
     def store_quran_answer(
         self,
