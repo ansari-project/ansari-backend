@@ -120,7 +120,8 @@ def migrate_database():
                 query = {"_id": thread["_id"]}
 
                 user = users_collection.find_one({"original_id": thread["original_user_id"]})
-                messages = list(messages_collection.find({"original_thread_id": thread["original_id"]}).sort("created_at", pymongo.ASCENDING))
+                messages = list(messages_collection.find({"original_thread_id": thread["original_id"]})
+                                .sort("created_at", pymongo.ASCENDING))
                 for message in messages:
                     del message["raw_content"]
                     del message["original_id"]
