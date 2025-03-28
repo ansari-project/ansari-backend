@@ -569,7 +569,12 @@ class AnsariClaude(Ansari):
                 title = getattr(citation, "document_title", "")
                 citations_text += f"[{i}] {title}:\n"
 
-                # First, try to parse the citation as a multilingual JSON object
+                # First, check if the citation text has already been processed
+                if any(lang in cited_text for lang in ["Arabic: ", "English: "]):
+                    citations_text += f"{cited_text}\n\n"
+                    continue
+
+                # Then, try to parse the citation as a multilingual JSON object
                 # This handles cases where Claude cites entire document content (which should be JSON)
                 try:
                     # Attempt to parse as JSON
@@ -703,7 +708,25 @@ class AnsariClaude(Ansari):
                         logger.debug(f"First reference item type: {type(reference_list[0])}")
 
                     # All references are now dictionaries, so we can directly use them
-                    document_blocks = reference_list
+                    document_blocks = copy.deepcopy(reference_list)
+                    if (tc["name"] == "search_quran" or tc["name"] == "search_hadith") and document_blocks:
+                        for doc in document_blocks:
+                            if "source" in doc and "data" in doc["source"]:
+                                try:
+                                    multilingual_data = parse_multilingual_data(doc["source"]["data"])
+                                    arabic_text = multilingual_data.get("ar", "")
+                                    english_text = multilingual_data.get("en", "")
+
+                                    text_list = []
+                                    if arabic_text:
+                                        text_list.append(f"Arabic: {arabic_text}")
+                                    if english_text:
+                                        text_list.append(f"English: {english_text}")
+
+                                    doc["source"]["data"] = "\n\n".join(text_list)
+
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
 
                     # Store the tool call details in the assistant message for proper reconstruction
                     # This ensures the database has the tool_use data needed for replay
