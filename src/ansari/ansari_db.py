@@ -330,15 +330,19 @@ class AnsariDB:
 
     def add_feedback(self, user_id, thread_id, message_id, feedback_class, comment):
         try:
-            self.mongo_db["feedback"].insert_one(
-                {
-                    "user_id": ObjectId(user_id),
-                    "thread_id": ObjectId(thread_id),
-                    "message_id": message_id,
-                    "class": feedback_class,
-                    "comment": comment,
-                }
-            )
+            feedback = {
+                "class": feedback_class,
+                "comment": comment,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+
+            self.mongo_db["threads"].update_one({
+                "_id": ObjectId(thread_id),
+                "messages._id": ObjectId(message_id)
+            },
+            {"$set": {"messages.$.feedback": feedback}})
+
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")

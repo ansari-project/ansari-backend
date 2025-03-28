@@ -435,7 +435,7 @@ async def logout_user(
 
 class FeedbackRequest(BaseModel):
     thread_id: str
-    message_id: int
+    message_id: str
     feedback_class: str
     comment: str
 
