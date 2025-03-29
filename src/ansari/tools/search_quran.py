@@ -112,10 +112,10 @@ class SearchQuran:
                 text_entries["ar"] = arabic
             if english:
                 text_entries["en"] = english
-                
+
             # Format as multilingual JSON data
             doc_text = format_multilingual_data(text_entries)
-            
+
             documents.append(
                 {
                     "type": "document",

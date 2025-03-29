@@ -445,7 +445,6 @@ async def add_feedback(
     req: FeedbackRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-
     logger.info(f"Token_params is {token_params}")
     try:
         db.add_feedback(
@@ -470,7 +469,6 @@ async def create_thread(
     req: CreateThreadRequest = CreateThreadRequest(),
     token_params: dict = Depends(db.validate_token),
 ):
-
     logger.info(f"Token_params is {token_params}")
     try:
         thread_id = db.create_thread(req.source, token_params["user_id"])
@@ -657,7 +655,6 @@ async def get_thread(
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
-
     logger.info(f"Token_params is {token_params}")
     user_id_for_thread = db.get_user_id_for_thread(thread_id)
     if user_id_for_thread != token_params["user_id"]:
@@ -707,7 +704,6 @@ async def set_thread_name(
     req: ThreadNameRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-
     logger.info(f"Token_params is {token_params}")
     user_id_for_thread = db.get_user_id_for_thread(thread_id)
     if user_id_for_thread != token_params["user_id"]:
@@ -730,7 +726,6 @@ async def set_pref(
     req: SetPrefRequest,
     token_params: dict = Depends(db.validate_token),
 ):
-
     logger.info(f"Token_params is {token_params}")
     try:
         db.set_pref(token_params["user_id"], req.key, req.value)
@@ -743,7 +738,6 @@ async def set_pref(
 async def get_prefs(
     token_params: dict = Depends(db.validate_token),
 ):
-
     logger.info(f"Token_params is {token_params}")
     try:
         prefs = db.get_prefs(token_params["user_id"])
