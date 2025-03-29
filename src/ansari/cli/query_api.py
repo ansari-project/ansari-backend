@@ -26,7 +26,14 @@ class AnsariApiClient:
     """Client for interacting with the Ansari API."""
 
     def __init__(
-        self, base_url, email=None, password=None, origin="http://localhost:3000", mobile_header=False, json_mode=False
+        self,
+        base_url,
+        email=None,
+        password=None,
+        origin="http://localhost:3000",
+        mobile_header=False,
+        json_mode=False,
+        debug_level=None,
     ):
         self.base_url = base_url
         self.email = email
@@ -43,6 +50,7 @@ class AnsariApiClient:
         self.user_info = None
         self.is_guest = False
         self.json_mode = json_mode
+        self.debug_level = debug_level
 
     def login(self):
         """Authenticate with the API using email and password."""

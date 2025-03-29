@@ -57,13 +57,13 @@ class SearchUsul(BaseSearchTool):
             },
         }
 
-    def run(self, query: str, limit: int = 10, include_chapters: bool = True) -> Dict[str, Any]:
+    def run(self, query: str, limit: int = 10, include_chapters: bool = False) -> Dict[str, Any]:
         """Execute the search and return raw results, capped at the specified limit.
 
         Args:
             query: The search query in any language
             limit: Maximum total number of results to return (defaults to 10, max 32)
-            include_chapters: Whether to include chapter details (defaults to True)
+            include_chapters: Whether to include chapter details (defaults to False)
 
         Returns:
             Dict containing raw search results, limited to the specified maximum
@@ -73,7 +73,7 @@ class SearchUsul(BaseSearchTool):
             "q": query,
             "limit": min(max(1, limit), 32),  # Ensure limit is between 1-32
             "page": 1,  # Always start with page 1
-            "include_chapters": "true" if include_chapters else "false",
+            "include_chapters": "false" if not include_chapters else "true",
         }
 
         # Get the first page of results
@@ -285,13 +285,13 @@ class SearchUsul(BaseSearchTool):
 
         return {"type": "array", "items": formatted_results}
 
-    def run_as_list(self, query: str, limit: int = 10, include_chapters: bool = True) -> List[str]:
+    def run_as_list(self, query: str, limit: int = 10, include_chapters: bool = False) -> List[str]:
         """Run search and return results as a list of strings.
 
         Args:
             query: The search query
             limit: Maximum number of results per page
-            include_chapters: Whether to include chapter details (defaults to True)
+            include_chapters: Whether to include chapter details (defaults to False)
 
         Returns:
             List of formatted result strings
@@ -303,7 +303,7 @@ class SearchUsul(BaseSearchTool):
         # Convert document objects to strings using the base class helper
         return [self.format_document_as_string(doc) for doc in ref_docs]
 
-    def run_as_string(self, query: str, limit: int = 10, include_chapters: bool = True) -> str:
+    def run_as_string(self, query: str, limit: int = 10, include_chapters: bool = False) -> str:
         """Run search and return results as a single string.
 
         Args:

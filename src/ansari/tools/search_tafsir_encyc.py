@@ -247,7 +247,7 @@ class SearchTafsirEncyc(SearchUsul):
 
         return result
 
-    def run_as_string(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = True) -> str:
+    def run_as_string(self, query: str, limit: int = 10, page: int = 1, include_chapters: bool = False) -> str:
         """Run search and return results as a single string.
 
         Args:
