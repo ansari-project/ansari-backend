@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     )
     MAX_THREAD_NAME_LENGTH: int = Field(default=100)
 
+    MONGO_URL: str = Field(default="mongodb://localhost:27017")
+    MONGO_DB_NAME: str = Field(default="ansari_db")
+
     SECRET_KEY: SecretStr = Field(default="secret")
     # Literal ensures the allowed value(s), and frozen ensures it can't be changed after initialization
     ALGORITHM: Literal["HS256"] = Field(default="HS256", frozen=True)

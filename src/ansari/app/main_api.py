@@ -19,11 +19,9 @@
 
 import logging
 import os
-import uuid
 
-import psycopg2
-import psycopg2.extras
 import sentry_sdk
+from contextlib import asynccontextmanager
 from diskcache import FanoutCache
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -47,13 +45,6 @@ from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_
 logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
 
-# Register the UUID type globally
-# Details: Read the SO question then the answer referenced below:
-#   https://stackoverflow.com/a/59268003/13626137
-# More details (optional):
-#   https://www.psycopg.org/docs/advanced.html#:~:text=because%20the%20object%20to%20adapt%20comes%20from%20a%20third%20party%20library
-psycopg2.extras.register_uuid()
-
 if get_settings().SENTRY_DSN and deployment_type != "development":
     sentry_sdk.init(
         dsn=get_settings().SENTRY_DSN,
@@ -75,7 +66,17 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
         ],
     )
 
-app = FastAPI()
+db = AnsariDB(get_settings())
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("FastAPI startup")
+    yield
+    logger.info("FastAPI shutdown")
+    db.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Include the WhatsApp router
 app.include_router(whatsapp_router)
@@ -124,7 +125,6 @@ def add_app_middleware():
 
 
 add_app_middleware()
-db = AnsariDB(get_settings())
 
 agent_type = get_settings().AGENT
 
@@ -223,9 +223,9 @@ async def register_user(req: RegisterRequest):
             last_name=req.last_name,
             password_hash=password_hash,
         )
-    except psycopg2.Error as e:
+    except Exception as e:
         print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class LoginRequest(BaseModel):
@@ -290,9 +290,9 @@ async def login_user(
             "first_name": first_name,
             "last_name": last_name,
         }
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.post("/api/v2/users/refresh_token")
@@ -379,9 +379,9 @@ async def refresh_token(
         }
         # db.delete_refresh_token(old_refresh_token, token_params["user_id"])
         return {"status": "success", **new_tokens}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.get("/api/v2/users/me")
@@ -392,12 +392,12 @@ async def get_user_details(
         user_id = token_params["user_id"]
         user_id, email, first_name, last_name = db.retrieve_user_info_by_user_id(user_id)
         return {
-            "user_id": user_id,
+            "user_id": str(user_id),
             "email": email,
             "first_name": first_name,
             "last_name": last_name,
         }
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500)
 
@@ -409,7 +409,7 @@ async def delete_user(
     try:
         db.delete_user(token_params["user_id"])
         return {"status": "success"}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500)
 
@@ -428,14 +428,14 @@ async def logout_user(
         token = request.headers.get("Authorization", "").split(" ")[1]
         db.logout(token_params["user_id"], token)
         return {"status": "success"}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class FeedbackRequest(BaseModel):
-    thread_id: uuid.UUID
-    message_id: int
+    thread_id: str
+    message_id: str
     feedback_class: str
     comment: str
 
@@ -455,9 +455,9 @@ async def add_feedback(
             req.comment,
         )
         return {"status": "success"}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class CreateThreadRequest(BaseModel):
@@ -474,9 +474,9 @@ async def create_thread(
         thread_id = db.create_thread(req.source, token_params["user_id"])
         logger.debug(f"Created thread {thread_id}")
         return thread_id
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.get("/api/v2/threads")
@@ -495,9 +495,9 @@ async def get_all_threads(
         #       so user_id will be different there)
         threads = db.get_all_threads(token_params["user_id"])
         return threads
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class AddMessageRequest(BaseModel):
@@ -508,7 +508,7 @@ class AddMessageRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}")
 def add_message(
-    thread_id: uuid.UUID,
+    thread_id: str,
     req: AddMessageRequest,
     token_params: dict = Depends(db.validate_token),
     settings: Settings = Depends(get_settings),
@@ -546,7 +546,7 @@ def add_message(
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = db.convert_message_llm(["user", req.content, None, None, None])[0]
+        user_msg = {"role": "user", "content": req.content}
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will
@@ -563,14 +563,14 @@ def add_message(
                 thread_id,
             ),
         )
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.post("/api/v2/share/{thread_id}")
 def share_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
@@ -581,9 +581,9 @@ def share_thread(
     try:
         share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
         return {"status": "success", "share_uuid": share_uuid}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.get("/api/v2/share/{share_uuid_str}")
@@ -593,9 +593,8 @@ def get_snapshot(
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
     logger.info(f"Incoming share_uuid is {share_uuid_str}")
-    share_uuid = uuid.UUID(share_uuid_str)
     try:
-        content = db.get_snapshot(share_uuid)
+        content = db.get_snapshot(share_uuid_str)
 
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:
@@ -608,9 +607,9 @@ def get_snapshot(
             content["messages"] = filtered_messages
 
         return {"status": "success", "content": content}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 def filter_message_content(message):
@@ -651,7 +650,7 @@ def filter_message_content(message):
 
 @app.get("/api/v2/threads/{thread_id}")
 async def get_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
     filter_content: bool = True,
 ):
@@ -673,14 +672,14 @@ async def get_thread(
                 messages["messages"] = filtered_messages
             return messages
         raise HTTPException(status_code=404, detail="Thread not found")
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.delete("/api/v2/threads/{thread_id}")
 async def delete_thread(
-    thread_id: uuid.UUID,
+    thread_id: str,
     token_params: dict = Depends(db.validate_token),
 ):
     logger.info(f"Token_params is {token_params}")
@@ -689,9 +688,9 @@ async def delete_thread(
         raise HTTPException(status_code=403, detail="You are not allowed to delete this thread")
     try:
         return db.delete_thread(thread_id, token_params["user_id"])
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class ThreadNameRequest(BaseModel):
@@ -700,7 +699,7 @@ class ThreadNameRequest(BaseModel):
 
 @app.post("/api/v2/threads/{thread_id}/name")
 async def set_thread_name(
-    thread_id: uuid.UUID,
+    thread_id: str,
     req: ThreadNameRequest,
     token_params: dict = Depends(db.validate_token),
 ):
@@ -711,9 +710,9 @@ async def set_thread_name(
     try:
         messages = db.set_thread_name(thread_id, token_params["user_id"], req.name)
         return messages
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class SetPrefRequest(BaseModel):
@@ -729,9 +728,9 @@ async def set_pref(
     logger.info(f"Token_params is {token_params}")
     try:
         db.set_pref(token_params["user_id"], req.key, req.value)
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.get("/api/v2/preferences")
@@ -742,9 +741,9 @@ async def get_prefs(
     try:
         prefs = db.get_prefs(token_params["user_id"])
         return prefs
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class ResetPasswordRequest(BaseModel):
@@ -807,9 +806,9 @@ async def update_password(
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
         db.update_password(token_params["email"], password_hash)
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 class PasswordReset(BaseModel):
@@ -833,9 +832,9 @@ async def reset_password(req: PasswordReset):
             )
         db.update_password(token_params["user_id"], password_hash)
         return {"status": "success"}
-    except psycopg2.Error as e:
+    except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500)
 
 
 @app.post("/api/v1/complete")
