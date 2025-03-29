@@ -709,7 +709,7 @@ class AnsariClaude(Ansari):
 
                     # All references are now dictionaries, so we can directly use them
                     document_blocks = copy.deepcopy(reference_list)
-                    if (tc["name"] == "search_quran" or tc["name"] == "search_hadith") and document_blocks:
+                    if (tc["name"] == "search_quran" or tc["name"] == "search_hadith" or tc["name"] == "search_mawsuah") and document_blocks:
                         for doc in document_blocks:
                             if "source" in doc and "data" in doc["source"]:
                                 try:
