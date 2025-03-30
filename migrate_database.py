@@ -1,7 +1,8 @@
-import json
-
+from bson import ObjectId
 import pymongo
+from bson import json_util
 
+from ansari.ansari_db_sql import AnsariSQLDB
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 
@@ -11,6 +12,7 @@ logger = get_logger(__name__)
 def migrate_database():
     try:
         settings = get_settings()
+        sql_db = AnsariSQLDB(settings)
         db_url = settings.MONGO_URL
         db_name = settings.MONGO_DB_NAME
         mongo_connection = pymongo.MongoClient(db_url)
@@ -53,6 +55,7 @@ def migrate_database():
                             }}}
                         ))
 
+            logger.info("Saving changes...")
             feedback_results = feedback_collection.bulk_write(feedback_operations)
             logger.info(f"Feedback results: {feedback_results}")
 
@@ -74,32 +77,31 @@ def migrate_database():
                 logger.info(f"{i} Processing Message: {str(message["_id"])}")
                 query = {"_id": message["_id"]}
 
-                set_values = {
+                original_message = (
+                    message.get("original_id"),
+                    message.get("role"),
+                    message.get("content"),
+                    message.get("tool_name"),
+                    message.get("tool_details"),
+                    message.get("ref_list"),
+                )
+                converted_message = sql_db.convert_message_llm(original_message)[0]
+
+                updated_message = {
+                    "role": converted_message["role"],
+                    "content": converted_message["content"],
+                    "id": str(ObjectId()),
+                    "source": message["source"],
+                    "created_at": message["created_at"],
+                    "original_id": message["original_id"],
+                    "original_thread_id": message["original_thread_id"],
+                    "original_message": json_util.dumps(message),
                     "migrated": True,
                 }
 
-                raw_content = message.get("raw_content")
-                if isinstance(raw_content, str) and (raw_content.startswith("[") or raw_content.startswith("{")):
-                    content = json.loads(raw_content)
-                else:
-                    content = raw_content
+                operations.append(pymongo.ReplaceOne(query, updated_message))
 
-                set_values["content"] = content
-
-                unset_values = {}
-                if message.get("tool_name") is None:
-                    unset_values["tool_name"] = None
-
-                tool_details = message.get("tool_details")
-                if tool_details is None or len(tool_details) == 0:
-                    unset_values["tool_details"] = None
-
-                ref_list = message.get("ref_list")
-                if ref_list is None or len(ref_list) == 0:
-                    unset_values["ref_list"] = None
-
-                operations.append(pymongo.UpdateOne(query, {"$set": set_values, "$unset": unset_values}))
-
+            logger.info("Saving changes...")
             results = messages_collection.bulk_write(operations)
             logger.info(f"Message results: {results}")
 
@@ -122,21 +124,27 @@ def migrate_database():
                 user = users_collection.find_one({"original_id": thread["original_user_id"]})
                 messages = list(messages_collection.find({"original_thread_id": thread["original_id"]})
                                 .sort("created_at", pymongo.ASCENDING))
+
+                agent_type = "AnsariClaude"
                 for message in messages:
-                    del message["raw_content"]
+                    if message.get("role") == "tool":
+                        agent_type = "Ansari"
+
+                    del message["_id"]
                     del message["original_id"]
                     del message["original_thread_id"]
-                    del message["original_user_id"]
                     del message["migrated"]
 
                 set_values = {
                     "migrated": True,
                     "user_id": user["_id"],
+                    "agent_type": agent_type,
                     "messages": messages
                 }
 
                 operations.append(pymongo.UpdateOne(query, {"$set": set_values}))
 
+            logger.info("Saving changes...")
             results = threads_collection.bulk_write(operations)
             logger.info(f"Thread results: {results}")
 

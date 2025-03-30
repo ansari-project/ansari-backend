@@ -28,12 +28,12 @@ class SourceType(str, Enum):
     WHATSAPP = "whatsapp"
 
 
-class MessageLogger:
-    """A simplified interface to AnsariDB so that we can log messages
+class SQLMessageLogger:
+    """A simplified interface to AnsariSQLDB so that we can log messages
     without having to share details about the user_id and the thread_id
     """
 
-    def __init__(self, db: "AnsariDB", source: SourceType, user_id: UUID, thread_id: UUID) -> None:
+    def __init__(self, db: "AnsariSQLDB", source: SourceType, user_id: UUID, thread_id: UUID) -> None:
         self.db = db
         self.source = source
         self.user_id = user_id
@@ -52,7 +52,7 @@ class MessageLogger:
         self.db.append_message(self.source, self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
 
 
-class AnsariDB:
+class AnsariSQLDB:
     """Handles all database interactions."""
 
     def __init__(self, settings: Settings) -> None:
@@ -905,13 +905,13 @@ class AnsariDB:
         # Handle tool result messages (typically user messages with tool response)
         if tool_name and role == "user":
             # Parse the reference list if it exists
-            ref_list_data = json.loads(ref_list) if ref_list else []
+            ref_list_data = json.loads(ref_list) if ref_list and isinstance(ref_list, str) else ref_list
 
             # Parse tool details
             tool_use_id = None
             if tool_details:
                 try:
-                    tool_details_dict = json.loads(tool_details)
+                    tool_details_dict = json.loads(tool_details) if isinstance(tool_details, str) else tool_details
                     tool_use_id = tool_details_dict.get("id")
                 except json.JSONDecodeError:
                     pass
@@ -951,7 +951,7 @@ class AnsariDB:
             # If there's tool info, add tool use block
             if tool_name and tool_details:
                 try:
-                    tool_details_dict = json.loads(tool_details)
+                    tool_details_dict = json.loads(tool_details) if isinstance(tool_details, str) else tool_details
                     tool_id = tool_details_dict.get("id")
                     tool_input = tool_details_dict.get("args")
                     # Add tool use block only if we have valid information
