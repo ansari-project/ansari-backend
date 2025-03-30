@@ -180,47 +180,8 @@ class AnsariClaude(Ansari):
             return
 
         logger.info(f"Logging {message}")
-        content = message["content"]
-        tool_details = []
-        ref_list = []
-        tool_name = message.get("tool_name", None)
-
-        # Handle different message content formats
-        if isinstance(content, list):
-            ref_list = [block for block in content if block.get("type") == "document"]
-            logger.debug(f"Found {len(ref_list)} document blocks in message")
-
-            # Extract tool details from content for assistant messages
-            if message["role"] == "assistant":
-                tool_use_blocks = [block for block in content if block.get("type") == "tool_use"]
-                logger.debug(f"Found {len(tool_use_blocks)} tool_use blocks in assistant message")
-                # If we have tool use blocks, properly extract and format their details
-                if tool_use_blocks:
-                    tool_name = tool_use_blocks[0].get("name")
-                    tool_details = {
-                        "id": tool_use_blocks[0].get("id"),
-                        "type": "function",
-                        "function": {
-                            "name": tool_use_blocks[0].get("name"),
-                            "arguments": json.dumps(tool_use_blocks[0].get("input", {})),
-                        },
-                    }
-            # Extract tool result details for user messages
-            elif message["role"] == "user":
-                tool_result_blocks = [block for block in content if block.get("type") == "tool_result"]
-                logger.debug(f"Found {len(tool_result_blocks)} tool_result blocks in user message")
-                if tool_result_blocks:
-                    tool_details = tool_result_blocks
-
-        # Log the message with appropriate structure
         try:
-            self.message_logger.log(
-                role=message["role"],
-                content=content,
-                tool_name=tool_name,
-                tool_details=tool_details,
-                ref_list=ref_list,
-            )
+            self.message_logger.log(message)
             logger.debug(f"Successfully logged message with role: {message['role']}")
         except Exception as e:
             logger.error(f"Error logging message: {str(e)}")
@@ -544,7 +505,6 @@ class AnsariClaude(Ansari):
                                 # For logging, add tool_name
                                 if tool_calls:
                                     log_message = assistant_message.copy()
-                                    log_message["tool_name"] = tool_calls[0]["name"]
                                     self._log_message(log_message)
                                 else:
                                     self._log_message(assistant_message)

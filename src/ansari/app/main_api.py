@@ -547,7 +547,7 @@ def add_message(
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = {"role": "user", "content": req.content}
+        user_msg = {"role": "user", "content": [{"type": "text", "text": req.content}]}
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will

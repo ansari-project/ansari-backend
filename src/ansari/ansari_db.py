@@ -42,13 +42,9 @@ class MessageLogger:
 
     def log(
         self,
-        role: str,
-        content: str | list | dict,
-        tool_name: str = None,
-        tool_details: dict[str, dict] = None,
-        ref_list: list = None,
+        message,
     ) -> None:
-        self.db.append_message(self.source, self.user_id, self.thread_id, role, content, tool_name, tool_details, ref_list)
+        self.db.append_message(self.source, self.thread_id, message)
 
 
 class AnsariDB:
@@ -58,6 +54,7 @@ class AnsariDB:
         self.db_url = settings.MONGO_URL
         self.db_name = settings.MONGO_DB_NAME
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
+        self.agent = settings.AGENT
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
         # MongoClient is thread-safe with connection pooling built-in
@@ -338,7 +335,7 @@ class AnsariDB:
             }
 
             self.mongo_db["threads"].update_one(
-                {"_id": ObjectId(thread_id), "messages._id": ObjectId(message_id)}, {"$set": {"messages.$.feedback": feedback}}
+                {"_id": ObjectId(thread_id), "messages.id": ObjectId(message_id)}, {"$set": {"messages.$.feedback": feedback}}
             )
 
             return {"status": "success"}
@@ -365,6 +362,7 @@ class AnsariDB:
                     "user_id": ObjectId(user_id),
                     "name": name,
                     "initial_source": source,
+                    "agent_type": self.agent,
                     "messages": [],
                     "created_at": datetime.now(timezone.utc),
                     "updated_at": datetime.now(timezone.utc),
@@ -401,13 +399,8 @@ class AnsariDB:
     def append_message(
         self,
         source: SourceType,
-        user_id: ObjectId,
         thread_id: ObjectId,
-        role: str,
-        content: str | list | dict,
-        tool_name: str = None,
-        tool_details: dict[str, dict] = None,
-        ref_list: list = None,
+        message,
     ) -> None:
         """Append a message to the given thread.
 
@@ -418,31 +411,13 @@ class AnsariDB:
         Args:
             user_id: The user ID (ObjectId)
             thread_id: The thread ID (ObjectId)
-            role: The role of the message sender (e.g., "user" or "assistant")
-            content: The message content, can be string (if non-claude Ansari is used), list, or dict
-            tool_name: Optional name of tool used
-            tool_details: Optional details of tool call
-            ref_list: Optional list of reference documents
+            message: The message content
         """
         try:
-            new_message = {
-                "_id": ObjectId(),
-                "role": role,
-                "content": content,
-                "created_at": datetime.now(timezone.utc),
-            }
-
-            if tool_name:
-                new_message["tool_name"] = tool_name
-
-            if tool_details:
-                new_message["tool_details"] = tool_details
-
-            if ref_list:
-                new_message["ref_list"] = ref_list
-
-            if source:
-                new_message["source"] = source.value
+            new_message = {**message}
+            new_message["id"] = str(ObjectId())
+            new_message["source"] = source.value
+            new_message["created_at"] = datetime.now(timezone.utc)
 
             self.mongo_db["threads"].update_one({"_id": ObjectId(thread_id)}, {"$push": {"messages": new_message}})
 
@@ -492,7 +467,7 @@ class AnsariDB:
             thread_name = thread["name"]
             msgs = []
             for msg in thread["messages"]:
-                msgs.extend(self.convert_message_llm(msg))
+                msgs.append(self.convert_message_llm(msg))
 
             # Wrap the messages in a history object bundled with its thread name
             history = {
@@ -518,9 +493,9 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[("updated_at", -1)])
+            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[("created_at", -1)])
             if result:
-                return str(result["_id"]), result["updated_at"]
+                return str(result["_id"]), result["created_at"]
             return None, None
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -676,7 +651,7 @@ class AnsariDB:
     def convert_message(self, msg) -> dict:
         """Convert a message from database format to a displayable format.
         This means stripping things like tool usage."""
-        msg_id, role, content = msg.get("_id"), msg.get("role"), msg.get("content")
+        msg_id, role, content = msg.get("id"), msg.get("role"), msg.get("content")
 
         logger.info(f"Content is {content}")
 
@@ -691,71 +666,11 @@ class AnsariDB:
 
     def convert_message_llm(self, msg) -> list[dict]:
         """Convert a message from database format to LLM format.
-
-        This method ensures that the database-stored messages are reconstructed
-        into the proper format expected by the LLM interface, preserving all
-        necessary structure and relationships between content, tool data, and references.
         """
-        msg_id, role, content = str(msg.get("_id")), msg.get("role"), msg.get("content")
-        tool_name, tool_details, ref_list = msg.get("tool_name"), msg.get("tool_details"), msg.get("ref_list")
-
-        # Handle tool result messages (typically user messages with tool response)
-        if tool_name and role == "user":
-            tool_use_id = None
-            if tool_details:
-                tool_use_id = tool_details.get("id")
-
-            # Create a properly structured tool result message
-            result_content = []
-
-            # Add the tool result block
-            if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
-                # Content already has tool_result structure
-                result_content = content
-            else:
-                # Need to create tool_result structure
-                result_content = [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content}]
-
-            # Add reference list data
-            if ref_list:
-                result_content.extend(ref_list)
-
-            return [{"id": msg_id, "role": role, "content": result_content}]
-
-        # Handle all assistant messages (with or without tool use)
-        elif role == "assistant":
-            # For assistant messages, always use block format
-            content_blocks = []
-
-            # Add text block
-            if isinstance(content, str):
-                content_blocks.append({"type": "text", "text": content})
-            elif isinstance(content, list) and all(isinstance(block, dict) and "type" in block for block in content):
-                # Content is already in block format
-                content_blocks = content
-            else:
-                # Convert to text block
-                content_blocks.append({"type": "text", "text": str(content)})
-
-            # If there's tool info, add tool use block
-            if tool_name and tool_details:
-                tool_id = tool_details.get("id")
-                tool_input = tool_details.get("args")
-                # Add tool use block only if we have valid information
-                if tool_id and tool_name:
-                    content_blocks.append({"type": "tool_use", "id": tool_id, "name": tool_name, "input": tool_input})
-
-            return [{"id": msg_id, "role": role, "content": content_blocks}]
-
-        # Handle regular user messages without tool use
-        else:
-            # For simple user messages, use simple format
-            if isinstance(content, str):
-                # Simple text content
-                return [{"id": msg_id, "role": role, "content": content}]
-            else:
-                # Content is already structured (list or dict)
-                return [{"id": msg_id, "role": role, "content": content}]
+        return {
+            "role": msg["role"],
+            "content": msg["content"],
+        }
 
     def store_quran_answer(
         self,
