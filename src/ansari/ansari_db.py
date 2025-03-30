@@ -267,8 +267,9 @@ class AnsariDB:
 
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
-            self.mongo_db["refresh_tokens"].insert_one({"user_id": ObjectId(user_id),
-                                                        "token": token, "access_token_id": access_token_id})
+            self.mongo_db["refresh_tokens"].insert_one(
+                {"user_id": ObjectId(user_id), "token": token, "access_token_id": access_token_id}
+            )
 
             return {"status": "success", "token": token}
         except Exception as e:
@@ -311,7 +312,6 @@ class AnsariDB:
                     return None, None, None, None
                 return str(result["_id"]), result["password_hash"], result["first_name"], result["last_name"]
 
-
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
@@ -334,14 +334,12 @@ class AnsariDB:
                 "class": feedback_class,
                 "comment": comment,
                 "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.now(timezone.utc),
             }
 
-            self.mongo_db["threads"].update_one({
-                "_id": ObjectId(thread_id),
-                "messages._id": ObjectId(message_id)
-            },
-            {"$set": {"messages.$.feedback": feedback}})
+            self.mongo_db["threads"].update_one(
+                {"_id": ObjectId(thread_id), "messages._id": ObjectId(message_id)}, {"$set": {"messages.$.feedback": feedback}}
+            )
 
             return {"status": "success"}
         except Exception as e:
@@ -369,7 +367,7 @@ class AnsariDB:
                     "initial_source": source,
                     "messages": [],
                     "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": datetime.now(timezone.utc),
                 }
             )
             return {"status": "success", "thread_id": str(result.inserted_id)}
@@ -381,8 +379,11 @@ class AnsariDB:
     def get_all_threads(self, user_id):
         try:
             result = self.mongo_db["threads"].find({"user_id": ObjectId(user_id)})
-            return [{"thread_id": str(x["_id"]), "thread_name": x["name"],
-                     "updated_at": x["updated_at"]} for x in result] if result else []
+            return (
+                [{"thread_id": str(x["_id"]), "thread_name": x["name"], "updated_at": x["updated_at"]} for x in result]
+                if result
+                else []
+            )
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return []
@@ -443,7 +444,7 @@ class AnsariDB:
             if source:
                 new_message["source"] = source.value
 
-            self.mongo_db["threads"].update_one({'_id': ObjectId(thread_id)}, {'$push': {'messages': new_message}})
+            self.mongo_db["threads"].update_one({"_id": ObjectId(thread_id)}, {"$push": {"messages": new_message}})
 
         except Exception as e:
             logger.warning(f"Error appending message to database: {e}")
@@ -455,8 +456,7 @@ class AnsariDB:
         tool messages are not included.
         """
         try:
-            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id),
-                                                        "user_id": ObjectId(user_id)})
+            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -480,8 +480,7 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id),
-                                                        "user_id": ObjectId(user_id)})
+            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -519,7 +518,7 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[('updated_at', -1)])
+            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[("updated_at", -1)])
             if result:
                 return str(result["_id"]), result["updated_at"]
             return None, None
@@ -633,8 +632,9 @@ class AnsariDB:
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
-        self.mongo_db["preferences"].update_one({"user_id": ObjectId(user_id), "pref_key": key},
-                                                {"$set": {"pref_value": value}, "upsert": True})
+        self.mongo_db["preferences"].update_one(
+            {"user_id": ObjectId(user_id), "pref_key": key}, {"$set": {"pref_value": value}, "upsert": True}
+        )
 
         return {"status": "success"}
 
@@ -770,7 +770,7 @@ class AnsariDB:
                 "ayah": ayah,
                 "question": question,
                 "ansari_answer": ansari_answer,
-                "created_at": datetime.now(timezone.utc)
+                "created_at": datetime.now(timezone.utc),
             }
         )
 
@@ -792,8 +792,11 @@ class AnsariDB:
 
         """
         try:
-            result = self.mongo_db["quran_answers"].find_one({"surah": surah, "ayah": ayah, "question": question}).order_by(
-                [("created_at", -1), ("_id", -1)])
+            result = (
+                self.mongo_db["quran_answers"]
+                .find_one({"surah": surah, "ayah": ayah, "question": question})
+                .order_by([("created_at", -1), ("_id", -1)])
+            )
             if result:
                 return result["ansari_answer"]
             return None
