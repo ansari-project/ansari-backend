@@ -54,7 +54,6 @@ class AnsariDB:
         self.db_url = settings.MONGO_URL
         self.db_name = settings.MONGO_DB_NAME
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
-        self.agent = settings.AGENT
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
         # MongoClient is thread-safe with connection pooling built-in
@@ -362,7 +361,6 @@ class AnsariDB:
                     "user_id": ObjectId(user_id),
                     "name": name,
                     "initial_source": source,
-                    "agent_type": self.agent,
                     "messages": [],
                     "created_at": datetime.now(timezone.utc),
                     "updated_at": datetime.now(timezone.utc),
