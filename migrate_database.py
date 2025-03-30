@@ -121,25 +121,37 @@ def migrate_database():
                 logger.info(f"{i} Migrating: {str(thread["_id"])}")
                 query = {"_id": thread["_id"]}
 
+                if thread.get("original_user_id") is None:
+                    logger.warning(f"Thread {str(thread['_id'])} does not have an original user ID.")
+                    continue
+
                 user = users_collection.find_one({"original_id": thread["original_user_id"]})
                 messages = list(messages_collection.find({"original_thread_id": thread["original_id"]})
                                 .sort("created_at", pymongo.ASCENDING))
 
-                agent_type = "AnsariClaude"
+                thread_messages = []
                 for message in messages:
                     if message.get("role") == "tool":
-                        agent_type = "Ansari"
+                        continue
+
+                    content = message.get("content")
+                    if isinstance(content, list) and any(block.get("type") == "tool_use" for block in content):
+                        continue
+
+                    if isinstance(content, list) and any(block.get("type") == "tool_result" for block in content):
+                        continue
 
                     del message["_id"]
                     del message["original_id"]
                     del message["original_thread_id"]
                     del message["migrated"]
 
+                    thread_messages.append(message)
+
                 set_values = {
                     "migrated": True,
                     "user_id": user["_id"],
-                    "agent_type": agent_type,
-                    "messages": messages
+                    "messages": thread_messages
                 }
 
                 operations.append(pymongo.UpdateOne(query, {"$set": set_values}))
