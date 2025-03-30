@@ -68,6 +68,7 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
 
 db = AnsariDB(get_settings())
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("FastAPI startup")
