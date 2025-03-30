@@ -508,20 +508,52 @@ class AnsariClaude(Ansari):
 
                 if hasattr(chunk.delta, "stop_reason"):
                     logger.debug(f"Message delta has stop_reason: {chunk.delta.stop_reason}")
-                    # Handle both "end_turn" and "tool_use" stop reasons the same way
+                    # Both stop reasons need different handling
                     if chunk.delta.stop_reason in ["end_turn", "tool_use"]:
                         if response_finished:
-                            logger.warning(
-                                f"Received {chunk.delta.stop_reason} stop_reason but response already finished - skipping"
-                            )
+                            stop_reason = chunk.delta.stop_reason
+                            logger.warning(f"Received {stop_reason} stop_reason but response already finished - skipping")
                         else:
-                            logger.info(f"Message delta has stop_reason {chunk.delta.stop_reason} - finishing response")
-                            # The same finishing logic as message_stop will happen here
-                            # This handles the production case where message_stop isn't sent
-                            citations_text = self._finish_response(assistant_text, tool_calls)
+                            logger.info(f"Message delta has stop_reason {chunk.delta.stop_reason}")
+
+                            if chunk.delta.stop_reason == "end_turn":
+                                # For end_turn, create a final assistant message with text and tool calls
+                                citations_text = self._finish_response(assistant_text, tool_calls)
+                                if citations_text:
+                                    yield citations_text
+
+                                # Process any tool calls - the tool use is already in the assistant message
+                                self._process_tool_calls(tool_calls)
+
+                            elif chunk.delta.stop_reason == "tool_use" and tool_calls:
+                                # For tool_use, we need to create an assistant message with JUST the tool
+                                # This is critical to maintain the tool_use -> tool_result relationship
+                                logger.info("Adding assistant message with tool_use (no text content)")
+
+                                # Create content blocks with only the tool_use blocks
+                                tool_content = []
+                                for tc in tool_calls:
+                                    tool_content.append(tc)
+
+                                # Add assistant message with just tool_use (no text block)
+                                assistant_message = {"role": "assistant", "content": tool_content}
+
+                                # Add to message history
+                                self.message_history.append(assistant_message)
+
+                                # For logging, add tool_name
+                                if tool_calls:
+                                    log_message = assistant_message.copy()
+                                    log_message["tool_name"] = tool_calls[0]["name"]
+                                    self._log_message(log_message)
+                                else:
+                                    self._log_message(assistant_message)
+
+                                # Now process the tool calls
+                                self._process_tool_calls(tool_calls)
+
+                            # Mark as finished to prevent duplicate processing
                             response_finished = True
-                            if citations_text:
-                                yield citations_text
                 elif hasattr(chunk.delta, "text"):
                     text = chunk.delta.text
                     assistant_text += text
@@ -535,23 +567,131 @@ class AnsariClaude(Ansari):
                     logger.warning("Received message_stop but response already finished - skipping")
                 else:
                     logger.info("Message_stop chunk received - finishing response")
-                    # Call the extracted method to handle message completion
-                    citations_text = self._finish_response(assistant_text, tool_calls)
+
+                    if assistant_text:
+                        # If we have text content, create a complete assistant message with text and tools
+                        citations_text = self._finish_response(assistant_text, tool_calls)
+                        if citations_text:
+                            yield citations_text
+                    elif tool_calls:
+                        # If we only have tool calls and no text, create an assistant message with JUST tools
+                        # This avoids empty text blocks but maintains tool_use -> tool_result relationship
+                        logger.info("Creating assistant message with just tool calls (no text)")
+
+                        # Create content with only the tool_use blocks
+                        tool_content = []
+                        for tc in tool_calls:
+                            tool_content.append(tc)
+
+                        # Add assistant message with just tool_use (no text block)
+                        assistant_message = {"role": "assistant", "content": tool_content}
+
+                        # Add to message history
+                        self.message_history.append(assistant_message)
+
+                        # For logging, add tool_name
+                        log_message = assistant_message.copy()
+                        log_message["tool_name"] = tool_calls[0]["name"]
+                        self._log_message(log_message)
+
+                        # Process the tool calls
+                        self._process_tool_calls(tool_calls)
+
                     response_finished = True
-                    if citations_text:
-                        yield citations_text
+
+    def _process_tool_calls(self, tool_calls):
+        """Process a list of tool calls and add results to message history.
+
+        This is a helper method extracted to avoid code duplication between
+        different handlers (tool_use, message_stop, etc.)
+
+        Args:
+            tool_calls: List of tool calls to process
+        """
+        if not tool_calls:
+            return
+
+        for tc in tool_calls:
+            try:
+                # Process the tool call
+                (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
+
+                logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
+
+                # Process references - ALWAYS apply special formatting
+                document_blocks = []
+                if reference_list and len(reference_list) > 0:
+                    document_blocks = copy.deepcopy(reference_list)
+
+                    # Always apply special processing for all tools
+                    for doc in document_blocks:
+                        if "source" in doc and "data" in doc["source"]:
+                            try:
+                                multilingual_data = parse_multilingual_data(doc["source"]["data"])
+                                arabic_text = multilingual_data.get("ar", "")
+                                english_text = multilingual_data.get("en", "")
+
+                                text_list = []
+                                if arabic_text:
+                                    text_list.append(f"Arabic: {arabic_text}")
+                                if english_text:
+                                    text_list.append(f"English: {english_text}")
+
+                                doc["source"]["data"] = "\n\n".join(text_list)
+                            except json.JSONDecodeError:
+                                logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
+
+                # Add tool result message
+                self.message_history.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tc["id"],
+                                "content": "Please see the references below.",
+                            }
+                        ]
+                        + document_blocks,
+                    }
+                )
+
+                # Log the tool result message
+                self._log_message(self.message_history[-1])
+
+            except Exception as e:
+                logger.error(f"Error processing tool call: {str(e)}")
+                # Add error as tool result
+                self.message_history.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tc["id"],
+                                "content": str(e),
+                            }
+                        ],
+                    }
+                )
+                # Log the error message
+                self._log_message(self.message_history[-1])
 
     def _finish_response(self, assistant_text, tool_calls):
-        """Handle the completion of a response, adding citations and processing tool calls.
+        """Handle the completion of a response, adding citations and finalizing the assistant message.
 
-        This method is called when a message stops, via any of these events:
-        - message_stop chunk
+        This method is called when a message completely finishes (not for tool_use pauses).
+        It creates an assistant message with the accumulated text and tool calls.
+        Called via:
+        - message_stop chunk (when there is text content or no tool calls)
         - message_delta with stop_reason 'end_turn'
-        - message_delta with stop_reason 'tool_use'
+
+        Note: For tool_use stop reason, tool calls are processed directly without
+        creating an assistant message, avoiding empty text blocks.
 
         Args:
             assistant_text: The accumulated text from the assistant
-            tool_calls: List of tool calls to process
+            tool_calls: List of tool calls to include in the assistant message
 
         Returns:
             The citations text that was added, if any, or None
@@ -691,83 +831,10 @@ class AnsariClaude(Ansari):
             self._log_message(self.message_history[-1])
 
         # Process any accumulated tool calls
-        # Note: We only create a user message if there were tool calls?
+        # Note: This is now handled by the helper method to avoid duplication
         if tool_calls:
             logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
-            for tc in tool_calls:
-                try:
-                    # Process the tool call
-                    (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
-
-                    logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
-
-                    # Check what type of data we're dealing with
-                    document_blocks = []
-                    logger.debug(f"Reference list type: {type(reference_list)}")
-                    if reference_list and len(reference_list) > 0:
-                        logger.debug(f"First reference item type: {type(reference_list[0])}")
-
-                    # All references are now dictionaries, so we can directly use them
-                    document_blocks = copy.deepcopy(reference_list)
-                    if (
-                        tc["name"] in ["search_quran", "search_hadith", "search_mawsuah"]
-                    ) and document_blocks:
-                        for doc in document_blocks:
-                            if "source" in doc and "data" in doc["source"]:
-                                try:
-                                    multilingual_data = parse_multilingual_data(doc["source"]["data"])
-                                    arabic_text = multilingual_data.get("ar", "")
-                                    english_text = multilingual_data.get("en", "")
-
-                                    text_list = []
-                                    if arabic_text:
-                                        text_list.append(f"Arabic: {arabic_text}")
-                                    if english_text:
-                                        text_list.append(f"English: {english_text}")
-
-                                    doc["source"]["data"] = "\n\n".join(text_list)
-
-                                except json.JSONDecodeError:
-                                    logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
-
-                    # Store the tool call details in the assistant message for proper reconstruction
-                    # This ensures the database has the tool_use data needed for replay
-                    # We'll use these values directly when needed
-
-                    # Add tool result and document blocks in the same message
-                    self.message_history.append(
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tc["id"],
-                                    "content": "Please see the references below.",
-                                }
-                            ]
-                            + document_blocks,
-                        }
-                    )
-                    # Log the tool result message with tool details to ensure proper saving
-                    self._log_message(self.message_history[-1])
-
-                except Exception as e:
-                    logger.error(f"Error processing tool call: {str(e)}")
-                    # Add error as tool result
-                    self.message_history.append(
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tc["id"],
-                                    "content": [{"type": "text", "text": str(e)}],
-                                }
-                            ],
-                        }
-                    )
-                    # Log the error message
-                    self._log_message(self.message_history[-1])
+            self._process_tool_calls(tool_calls)
 
         return citations_text
 
