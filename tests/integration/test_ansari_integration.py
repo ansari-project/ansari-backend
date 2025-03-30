@@ -135,7 +135,7 @@ class TestMessageReconstruction:
         reconstructed = mock_db.convert_message_llm(tool_result_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "tool", "Role should be preserved"
-        
+
         # For Claude, this could be either a string or an object depending on format
         content = reconstructed[0]["content"]
         if isinstance(content, str):

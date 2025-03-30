@@ -134,11 +134,15 @@ class TestMessageReconstruction:
         mock_db = MockDatabase()
 
         # Test Case 1: Empty content
+        # We now replace empty text blocks with a placeholder message
         empty_content_msg = ("assistant", json.dumps([{"type": "text", "text": ""}]), None, None, None)
         reconstructed = mock_db.convert_message_llm(empty_content_msg)
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "assistant", "Role should be preserved"
         assert isinstance(reconstructed[0]["content"], list), "Content should be a list"
+
+        # No specific assertion on the text content, since our implementation now replaces
+        # empty text blocks with a placeholder message to avoid Claude API 400 errors
 
         # Test Case 2: Only tool use with no text content
         tool_only_msg = (
@@ -166,9 +170,9 @@ class TestMessageReconstruction:
         assert len(reconstructed) == 1, "Should have one reconstructed message"
         assert reconstructed[0]["role"] == "user", "Role should be preserved"
         assert isinstance(reconstructed[0]["content"], list), "Content should be a list"
-        assert any(
-            block.get("type") == "tool_result" for block in reconstructed[0]["content"]
-        ), "Should have tool result block"
+        assert any(block.get("type") == "tool_result" for block in reconstructed[0]["content"]), (
+            "Should have tool result block"
+        )
         assert any(block.get("type") == "document" for block in reconstructed[0]["content"]), "Should have document block"
 
 

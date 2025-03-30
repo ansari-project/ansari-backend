@@ -73,7 +73,7 @@ class TestCitationFormatting(unittest.TestCase):
                     if item["lang"] == "ar":
                         self.assertTrue(
                             item["text"] == mock_results[0]["text"] or item["text"] == mock_results[1]["text"],
-                            f"Expected Arabic text to match mock data, but got: {item['text']}"
+                            f"Expected Arabic text to match mock data, but got: {item['text']}",
                         )
             except json.JSONDecodeError:
                 self.fail(f"Data should be valid JSON but got: {data}")
@@ -140,12 +140,12 @@ class TestCitationFormatting(unittest.TestCase):
                     if item["lang"] == "ar":
                         self.assertTrue(
                             item["text"] == mock_results[0]["ar_text"] or item["text"] == mock_results[1]["ar_text"],
-                            f"Expected Arabic text to match mock data, but got: {item['text']}"
+                            f"Expected Arabic text to match mock data, but got: {item['text']}",
                         )
                     elif item["lang"] == "en":
                         self.assertTrue(
                             item["text"] == mock_results[0]["en_text"] or item["text"] == mock_results[1]["en_text"],
-                            f"Expected English text to match mock data, but got: {item['text']}"
+                            f"Expected English text to match mock data, but got: {item['text']}",
                         )
             except json.JSONDecodeError:
                 self.fail(f"Data should be valid JSON but got: {data}")

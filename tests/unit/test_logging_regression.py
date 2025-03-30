@@ -34,18 +34,15 @@ def test_logging_changes_dont_break_basic_functionality():
         claude.client = MagicMock()
 
         # Set up a simple message history
-        claude.message_history = [
-            {"role": "user", "content": "Hello, world!"}
-        ]
+        claude.message_history = [{"role": "user", "content": "Hello, world!"}]
 
         # Mock the API response to avoid actual API calls
         claude.process_one_round = MagicMock(side_effect=lambda: [])
 
         # Add an assistant response
-        claude.message_history.append({
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Hello! How can I help you today?"}]
-        })
+        claude.message_history.append(
+            {"role": "assistant", "content": [{"type": "text", "text": "Hello! How can I help you today?"}]}
+        )
 
         # Verify basic validation works
         assert claude.validate_message(claude.message_history[-1])

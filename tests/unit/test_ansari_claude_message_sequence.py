@@ -75,17 +75,16 @@ def test_message_sequence_with_tool_use():
         # Mock the API response to avoid actual API calls
         mock_response = MagicMock()
         claude.client.messages.create.return_value = mock_response
-        
+
         # Create a more sophisticated mock for process_one_round
         # This will append an assistant message to message_history to break the loop
         def mock_process_one_round(*args, **kwargs):
             # Add an assistant message to break the loop in process_message_history
-            claude.message_history.append({
-                "role": "assistant",
-                "content": [{"type": "text", "text": "I've processed your request."}]
-            })
+            claude.message_history.append(
+                {"role": "assistant", "content": [{"type": "text", "text": "I've processed your request."}]}
+            )
             return ["I've processed your request."]
-            
+
         claude.process_one_round = MagicMock(side_effect=mock_process_one_round)
 
         # Run the message processing

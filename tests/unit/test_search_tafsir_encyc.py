@@ -36,31 +36,31 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.95
+                    "score": 0.95,
                 }
             ]
         }
-        
+
         # Patch the run method to return mock results
         monkeypatch.setattr(self.search_tool, "run", lambda *args, **kwargs: mock_results)
-        
+
         # Call the method
         results = self.search_tool.run("مرجان", limit=3)
-        
+
         # Basic validation of results
         assert "results" in results
         assert len(results["results"]) == 1
-        
+
         # Check the structure of the first result
         first_result = results["results"][0]
         # Check for node structure which contains the text
         assert "node" in first_result
         assert "text" in first_result["node"]
         assert "score" in first_result
-        
+
         # Check for metadata
         assert "node" in first_result
         assert "metadata" in first_result["node"]
@@ -77,20 +77,20 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.90
+                    "score": 0.90,
                 }
             ]
         }
-        
+
         # Patch the run method to return mock results
         monkeypatch.setattr(self.search_tool, "run", lambda *args, **kwargs: mock_results)
-        
+
         # Call the method
         results = self.search_tool.run("coral in Quran", limit=3)
-        
+
         # Basic validation of results
         assert "results" in results
         assert len(results["results"]) == 1
@@ -107,21 +107,21 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.95
+                    "score": 0.95,
                 }
             ]
         }
-        
+
         # Format the results
         formatted = self.search_tool.format_as_ref_list(mock_raw_results)
-        
+
         # Validate the formatted results
         assert isinstance(formatted, list)
         assert len(formatted) == 1
-        
+
         # Check the content of the first formatted result
         if formatted and not isinstance(formatted[0], str):
             first_formatted = formatted[0]
@@ -145,24 +145,24 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.95
+                    "score": 0.95,
                 }
             ]
         }
-        
+
         # Patch the run method
         monkeypatch.setattr(self.search_tool, "run", lambda *args, **kwargs: mock_results)
-        
+
         # Call the method
         result_string = self.search_tool.run_as_string("مرجان", limit=2)
-        
+
         # Validate the result string
         assert isinstance(result_string, str)
         assert len(result_string) > 0
-        
+
         # Since we're using mocks and the actual formatting logic is in the class being tested,
         # we can only do basic validation here
 
@@ -192,29 +192,29 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.95
+                    "score": 0.95,
                 }
             ]
         }
-        
+
         # Format the results for tool result
         formatted = self.search_tool.format_as_tool_result(mock_raw_results)
-        
+
         # Validate the formatted results
         assert isinstance(formatted, dict)
-        
+
         # Check structure for array type result
         assert formatted["type"] == "array"
         assert "items" in formatted
-        
+
         # Check content of items
         items = formatted["items"]
         assert isinstance(items, list)
         assert len(items) > 0
-        
+
         # Check first item structure
         first_item = items[0]
         assert first_item["type"] == "text"
@@ -232,23 +232,23 @@ class TestSearchTafsirEncyc:
                         "metadata": {
                             "bookId": "tafsir_encyc",
                             "chapters": [{"title": "Chapter 1"}],
-                            "pages": [{"volume": "1", "page": "123"}]
-                        }
+                            "pages": [{"volume": "1", "page": "123"}],
+                        },
                     },
-                    "score": 0.95
+                    "score": 0.95,
                 }
             ]
         }
-        
+
         # Format as tool response
         tool_response = self.search_tool.format_tool_response(mock_raw_results)
-        
+
         # For Claude, the tool_result content should be a string
         assert isinstance(tool_response, str)
-        
+
         # With results, the message should indicate there are results
         assert "Please see the included reference list" in tool_response
-        
+
         # Also test with empty results
         empty_results = {"results": []}
         empty_response = self.search_tool.format_tool_response(empty_results)
