@@ -84,7 +84,11 @@ Follow the instructions [here](https://devcenter.heroku.com/articles/local-setup
 
 ## Make sure you have Python 3 installed
 
-Do a `% python -V` to checck that you have python 3 installed. If you get an error or the version starts with a 2, follow the instructions [here](https://realpython.com/installing-python/).
+Do a `% python -V` to check that you have python 3 installed. If you get an error or the version starts with a 2, follow the instructions [here](https://realpython.com/installing-python/).
+
+## Make sure you have uv installed
+
+Follow the instructions [here](https://docs.astral.sh/uv/getting-started/installation/).
 
 ## Download the repository
 
@@ -96,14 +100,14 @@ Do a `% python -V` to checck that you have python 3 installed. If you get an err
 ## Create a python virtual environment and activate it.
 
 ```bash
-% python -m venv .venv
-% source .venv/bin/activate
+% uv venv
+% source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
 ## Install dependencies
 
 ```bash
-% pip install -r requirements.txt
+% uv sync
 ```
 
 ## Set the appropriate environment variables
@@ -128,12 +132,10 @@ Optional environment variable(s):
 
 ### Running as a backend service
 
-We use `uvicorn` to run the service.
+We use `fastapi` to run the service.
 
 ```bash
-% # Make sure to load environment variables:
-% source .env
-% uvicorn main_api:app --reload # Reload automatically reloads python files as you edit.
+% fastapi dev src/ansari/app/main_api.py # Automatically reloads the server when you make changes to your code.
 ```
 
 This starts a service on port 8000. You can check it's up by checking at [http://localhost:8000/docs](http://localhost:8000/docs) which gives you a nice interface to the API.
