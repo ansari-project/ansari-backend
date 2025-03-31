@@ -131,7 +131,7 @@ def migrate_database():
 
                 thread_messages = []
                 for message in messages:
-                    if message.get("role") == "tool":
+                    if message.get("role") == "tool" or message.get("role") == "function":
                         continue
 
                     content = message.get("content")
