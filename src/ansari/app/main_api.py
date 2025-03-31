@@ -21,6 +21,7 @@ import logging
 import os
 
 import sentry_sdk
+from sentry_sdk.types import Event, Hint
 from contextlib import asynccontextmanager
 from diskcache import FanoutCache
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -46,6 +47,19 @@ logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
 
 if get_settings().SENTRY_DSN and deployment_type != "development":
+
+    ignore_errors=[
+        "HTTP exception: 401",
+        "HTTP exception: 403",
+    ]
+
+    def sentry_before_send(event: Event, hint: Hint) -> Event | None:
+        logentry = event.get("logentry")
+        if logentry and any(error in logentry.get("message", "") for error in ignore_errors):
+            return None
+
+        return event
+
     sentry_sdk.init(
         dsn=get_settings().SENTRY_DSN,
         environment=deployment_type,
@@ -59,11 +73,7 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
         # of sampled transactions.
         # We recommend adjusting this value in production.
         profiles_sample_rate=0.2 if deployment_type == "production" else 1.0,
-        ignore_errors=[
-            "Invalid token type",
-            "Token has expired",
-            "Could not validate credentials",
-        ],
+        before_send=sentry_before_send,
     )
 
 db = AnsariDB(get_settings())
@@ -331,7 +341,7 @@ async def refresh_token(
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         # Verify it's a refresh token
-        if token_params.get("token_type") != "refresh":
+        if token_params.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
         # Verify the token is still valid in the database
@@ -382,7 +392,7 @@ async def refresh_token(
         return {"status": "success", **new_tokens}
     except Exception as e:
         logger.critical(f"Error: {e}")
-        raise HTTPException(status_code=500)
+        raise
 
 
 @app.get("/api/v2/users/me")
