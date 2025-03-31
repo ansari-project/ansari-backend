@@ -331,7 +331,7 @@ async def refresh_token(
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         # Verify it's a refresh token
-        if token_params.get("token_type") != "refresh":
+        if token_params.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
         # Verify the token is still valid in the database
