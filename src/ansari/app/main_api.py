@@ -345,7 +345,7 @@ async def refresh_token(
             raise HTTPException(status_code=401, detail="Invalid token type")
 
         # Verify the token is still valid in the database
-        if not db.is_refresh_token_valid(old_refresh_token, token_params["user_id"]):
+        if not db.validate_token(request):
             raise HTTPException(status_code=401, detail="Token has been revoked")
 
         # Generate new tokens
