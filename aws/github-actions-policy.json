@@ -1,0 +1,41 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Sid": "VisualEditor0",
+          "Effect": "Allow",
+          "Action": "apprunner:*",
+          "Resource": "*"
+      },
+      {
+          "Sid": "VisualEditor1",
+          "Effect": "Allow",
+          "Action":[
+              "iam:PassRole",
+              "iam:CreateServiceLinkedRole"
+          ],
+          "Resource": "*"
+      },
+      {
+          "Sid": "VisualEditor2",
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Resource": "arn:aws:iam::<aws_account_id>:role/CustomAppRunnerServiceRole"
+      },
+      {
+          "Sid": "VisualEditor3",
+          "Effect": "Allow",
+          "Action": [
+              "ecr:GetDownloadUrlForLayer",
+              "ecr:BatchGetImage",
+              "ecr:BatchCheckLayerAvailability",
+              "ecr:PutImage",
+              "ecr:InitiateLayerUpload",
+              "ecr:UploadLayerPart",
+              "ecr:CompleteLayerUpload",
+              "ecr:GetAuthorizationToken"
+          ],
+          "Resource": "*"
+      }
+  ]
+}
