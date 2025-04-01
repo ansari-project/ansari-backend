@@ -492,9 +492,8 @@ class AnsariClaude(Ansari):
                                     logger.error(f"Error in tool call processing: {str(e)}")
                                     # Track in Sentry
                                     if get_settings().SENTRY_DSN:
-                                        with sentry_sdk.push_scope() as scope:
-                                            scope.set_tag("error_type", "tool_processing_failure")
-                                            sentry_sdk.capture_exception(e)
+                                        sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                        sentry_sdk.capture_exception(e)
 
                             elif chunk.delta.stop_reason == "tool_use" and tool_calls:
                                 # For tool_use, we need to create an assistant message with JUST the tool
@@ -525,9 +524,8 @@ class AnsariClaude(Ansari):
                                     logger.error(f"Error in tool call processing: {str(e)}")
                                     # Track in Sentry
                                     if get_settings().SENTRY_DSN:
-                                        with sentry_sdk.push_scope() as scope:
-                                            scope.set_tag("error_type", "tool_processing_failure")
-                                            sentry_sdk.capture_exception(e)
+                                        sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                        sentry_sdk.capture_exception(e)
 
                             # Mark as finished to prevent duplicate processing
                             response_finished = True
@@ -578,9 +576,8 @@ class AnsariClaude(Ansari):
                             logger.error(f"Error in tool call processing: {str(e)}")
                             # Track in Sentry
                             if get_settings().SENTRY_DSN:
-                                with sentry_sdk.push_scope() as scope:
-                                    scope.set_tag("error_type", "tool_processing_failure")
-                                    sentry_sdk.capture_exception(e)
+                                sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                sentry_sdk.capture_exception(e)
 
                     response_finished = True
 
@@ -648,13 +645,12 @@ class AnsariClaude(Ansari):
                 logger.error(f"Error processing tool call: {str(e)}")
                 # Track tool errors in Sentry
                 if get_settings().SENTRY_DSN:
-                    with sentry_sdk.push_scope() as scope:
-                        scope.set_tag("error_type", "tool_call_failure")
-                        scope.set_tag("tool_name", tc["name"])
-                        scope.set_context(
-                            "tool_details", {"tool_id": tc["id"], "tool_name": tc["name"], "tool_input": tc["input"]}
-                        )
-                        sentry_sdk.capture_exception(e)
+                    sentry_sdk.set_tag("error_type", "tool_call_failure")
+                    sentry_sdk.set_tag("tool_name", tc["name"])
+                    sentry_sdk.set_context(
+                        "tool_details", {"tool_id": tc["id"], "tool_name": tc["name"], "tool_input": tc["input"]}
+                    )
+                    sentry_sdk.capture_exception(e)
 
                 # Add error as tool result
                 error_message = {
@@ -836,9 +832,8 @@ class AnsariClaude(Ansari):
                 logger.error(f"Error in tool call processing: {str(e)}")
                 # Track in Sentry
                 if get_settings().SENTRY_DSN:
-                    with sentry_sdk.push_scope() as scope:
-                        scope.set_tag("error_type", "tool_processing_failure")
-                        sentry_sdk.capture_exception(e)
+                    sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                    sentry_sdk.capture_exception(e)
 
         return citations_text
 
@@ -1064,9 +1059,8 @@ class AnsariClaude(Ansari):
                 logger.error(f"Error in process_one_round: {str(e)}")
                 # Track in Sentry
                 if get_settings().SENTRY_DSN:
-                    with sentry_sdk.push_scope() as scope:
-                        scope.set_tag("error_type", "process_round_failure")
-                        sentry_sdk.capture_exception(e)
+                    sentry_sdk.set_tag("error_type", "process_round_failure")
+                    sentry_sdk.capture_exception(e)
 
                 # Add an error message to the conversation
                 error_message = {
@@ -1074,7 +1068,8 @@ class AnsariClaude(Ansari):
                     "content": [
                         {
                             "type": "text",
-                            "text": "I encountered a problem processing your request. Please try again or rephrase your question.",
+                            "text": "I encountered a problem processing your request. "
+                            + "Please try again or rephrase your question.",
                         }
                     ],
                 }
