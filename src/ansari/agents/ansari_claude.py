@@ -4,10 +4,12 @@ import json
 import time
 from typing import Generator
 
+import sentry_sdk
+
 from ansari.agents.ansari import Ansari
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
-from ansari.config import Settings
+from ansari.config import Settings, get_settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
 from ansari.util.general_helpers import get_language_from_text, trim_citation_title
@@ -484,7 +486,14 @@ class AnsariClaude(Ansari):
                                     yield citations_text
 
                                 # Process any tool calls - the tool use is already in the assistant message
-                                self._process_tool_calls(tool_calls)
+                                try:
+                                    self._process_tool_calls(tool_calls)
+                                except Exception as e:
+                                    logger.error(f"Error in tool call processing: {str(e)}")
+                                    # Track in Sentry
+                                    if get_settings().SENTRY_DSN:
+                                        sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                        sentry_sdk.capture_exception(e)
 
                             elif chunk.delta.stop_reason == "tool_use" and tool_calls:
                                 # For tool_use, we need to create an assistant message with JUST the tool
@@ -503,14 +512,20 @@ class AnsariClaude(Ansari):
                                 self.message_history.append(assistant_message)
 
                                 # For logging, add tool_name
+                                log_message = assistant_message.copy()
                                 if tool_calls:
-                                    log_message = assistant_message.copy()
-                                    self._log_message(log_message)
-                                else:
-                                    self._log_message(assistant_message)
+                                    log_message["tool_name"] = tool_calls[0]["name"]
+                                self._log_message(log_message)
 
                                 # Now process the tool calls
-                                self._process_tool_calls(tool_calls)
+                                try:
+                                    self._process_tool_calls(tool_calls)
+                                except Exception as e:
+                                    logger.error(f"Error in tool call processing: {str(e)}")
+                                    # Track in Sentry
+                                    if get_settings().SENTRY_DSN:
+                                        sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                        sentry_sdk.capture_exception(e)
 
                             # Mark as finished to prevent duplicate processing
                             response_finished = True
@@ -555,7 +570,14 @@ class AnsariClaude(Ansari):
                         self._log_message(log_message)
 
                         # Process the tool calls
-                        self._process_tool_calls(tool_calls)
+                        try:
+                            self._process_tool_calls(tool_calls)
+                        except Exception as e:
+                            logger.error(f"Error in tool call processing: {str(e)}")
+                            # Track in Sentry
+                            if get_settings().SENTRY_DSN:
+                                sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                                sentry_sdk.capture_exception(e)
 
                     response_finished = True
 
@@ -621,19 +643,27 @@ class AnsariClaude(Ansari):
 
             except Exception as e:
                 logger.error(f"Error processing tool call: {str(e)}")
+                # Track tool errors in Sentry
+                if get_settings().SENTRY_DSN:
+                    sentry_sdk.set_tag("error_type", "tool_call_failure")
+                    sentry_sdk.set_tag("tool_name", tc["name"])
+                    sentry_sdk.set_context(
+                        "tool_details", {"tool_id": tc["id"], "tool_name": tc["name"], "tool_input": tc["input"]}
+                    )
+                    sentry_sdk.capture_exception(e)
+
                 # Add error as tool result
-                self.message_history.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tc["id"],
-                                "content": str(e),
-                            }
-                        ],
-                    }
-                )
+                error_message = {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tc["id"],
+                            "content": str(e),
+                        }
+                    ],
+                }
+                self.message_history.append(error_message)
                 # Log the error message
                 self._log_message(self.message_history[-1])
 
@@ -796,7 +826,14 @@ class AnsariClaude(Ansari):
         # Note: This is now handled by the helper method to avoid duplication
         if tool_calls:
             logger.debug(f"Processing {len(tool_calls)} accumulated tool calls")
-            self._process_tool_calls(tool_calls)
+            try:
+                self._process_tool_calls(tool_calls)
+            except Exception as e:
+                logger.error(f"Error in tool call processing: {str(e)}")
+                # Track in Sentry
+                if get_settings().SENTRY_DSN:
+                    sentry_sdk.set_tag("error_type", "tool_processing_failure")
+                    sentry_sdk.capture_exception(e)
 
         return citations_text
 
@@ -1020,6 +1057,24 @@ class AnsariClaude(Ansari):
                     logger.warning("Message history is empty after process_one_round!")
             except Exception as e:
                 logger.error(f"Error in process_one_round: {str(e)}")
+                # Track in Sentry
+                if get_settings().SENTRY_DSN:
+                    sentry_sdk.set_tag("error_type", "process_round_failure")
+                    sentry_sdk.capture_exception(e)
+
+                # Add an error message to the conversation
+                error_message = {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "I encountered a problem processing your request. "
+                            + "Please try again or rephrase your question.",
+                        }
+                    ],
+                }
+                self.message_history.append(error_message)
+                self._log_message(error_message)
                 # Don't raise - log and continue to avoid breaking the loop
 
             count += 1
