@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List, Any
 from ansari.tools.search_vectara import SearchVectara
 from ansari.util.translation import format_multilingual_data
+from ansari.util.general_helpers import trim_citation_title
 
 TOOL_NAME = "search_mawsuah"
 
@@ -65,7 +66,7 @@ class SearchMawsuah(SearchVectara):
             # Note: Mawsuah only returns results in Arabic, so we only have Arabic text here.
             # The English translation will be added later by AnsariClaude when a citation is actually used.
             doc["source"]["data"] = format_multilingual_data({"ar": text})
-            doc["title"] = "Encyclopedia of Islamic Jurisprudence"
+            doc["title"] = trim_citation_title("Encyclopedia of Islamic Jurisprudence")
             doc["citations"] = {"enabled": True}
 
         return documents

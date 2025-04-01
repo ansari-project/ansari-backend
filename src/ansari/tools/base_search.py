@@ -104,6 +104,7 @@ class BaseSearchTool(ABC):
         if document.get("type") != "document" or "source" not in document:
             return str(document)
 
+        # Use the title as is - it should already be trimmed by the individual search tools
         title = document.get("title", "")
         data = document["source"].get("data", "")
         context = document.get("context", "")

@@ -2,6 +2,7 @@ from ansari.tools.search_usul import SearchUsul
 from ansari.config import get_settings
 from typing import Dict, Any, List
 from ansari.ansari_logger import get_logger
+from ansari.util.general_helpers import trim_citation_title
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -196,7 +197,7 @@ class SearchTafsirEncyc(SearchUsul):
             if chapter_info:
                 title_parts.append(f"Chapter: {chapter_info}")
 
-            title = ", ".join(title_parts)
+            title = trim_citation_title(", ".join(title_parts))
 
             # Content is just the text
             data = text

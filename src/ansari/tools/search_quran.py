@@ -1,6 +1,7 @@
 import requests
 from ansari.ansari_logger import get_logger
 from ansari.util.translation import format_multilingual_data
+from ansari.util.general_helpers import trim_citation_title
 
 logger = get_logger(__name__)
 KALEMAT_BASE_URL = "https://api.kalimat.dev/search"
@@ -102,8 +103,8 @@ class SearchQuran:
             arabic = result.get("text", "")
             english = result.get("en_text", "")
 
-            # Create citation title
-            title = f"Quran {id}"
+            # Create citation title and trim to safe length
+            title = trim_citation_title(f"Quran {id}")
 
             # Format both Arabic and English texts in multilingual JSON format
             # This is expected by the base_search.py documentation

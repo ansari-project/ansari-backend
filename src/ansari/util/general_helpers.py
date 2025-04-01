@@ -210,3 +210,22 @@ def get_language_direction_from_text(text: str) -> Literal["ltr", "rtl"]:
     except Exception as e:
         logger.warning(f'Failure detecting language direction (so will return "ltr" instead) Details: {e}')
         return "ltr"
+
+
+def trim_citation_title(title: str, max_length: int = 450) -> str:
+    """Trims a citation title to a safe length to prevent API crashes.
+
+    Anthropic's API crashes when titles exceed 500 characters, so we trim them
+    to a safe default of 450 characters to provide a buffer.
+
+    Args:
+        title (str): The title to trim
+        max_length (int): Maximum length for the title, defaults to 450 characters
+
+    Returns:
+        str: The trimmed title, with ellipsis if it was trimmed
+    """
+    if not title or len(title) <= max_length:
+        return title
+
+    return title[:max_length] + "..."

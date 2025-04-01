@@ -74,8 +74,8 @@ def pretty_print_results(results: Any, output_format: str) -> None:
             console.print(Panel(format_json(results["tool_result"]), title="Tool Result", border_style="green"))
             if "response_message" in results:
                 console.print(Panel(results["response_message"], title="Response Message", border_style="yellow"))
-        else:
-            console.print(results)
+            else:
+                console.print(results)
 
 
 def create_search_tool(tool_name: str) -> Any:
