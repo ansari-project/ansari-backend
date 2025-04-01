@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action":[
+          "ssm:DescribeParameters"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action":[
+        "ssm:GetParameters",
+        "ssm:GetParameter",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:<region>:<aws_account_id>:parameter/app-runtime/*"
+      ]
+    }
+  ]
+}

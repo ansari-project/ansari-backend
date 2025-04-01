@@ -1,15 +1,15 @@
-name: Staging Deployment (AWS App Runner)
+name: Production Deployment (AWS App Runner)
 
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: staging-aws
+    environment: production-aws
 
     steps:
       - name: Checkout
@@ -44,8 +44,7 @@ jobs:
         id: deploy-apprunner
         uses: awslabs/amazon-app-runner-deploy@main
         env:
-          DEPLOYMENT_TYPE: staging
-          LOGGING_LEVEL: DEBUG
+          DEPLOYMENT_TYPE: production
           MONGO_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-url') }}
           MONGO_DB_NAME: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-db-name') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
@@ -69,7 +68,7 @@ jobs:
           WHATSAPP_CHAT_RETENTION_HOURS: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-chat-retention-hours') }}
 
         with:
-          service: ansari-staging-backend
+          service: ansari-production-backend
           image: ${{ steps.build-image.outputs.image }}
           access-role-arn: ${{ secrets.SERVICE_ROLE_ARN }}
           region: ${{ secrets.AWS_REGION }}
@@ -79,7 +78,6 @@ jobs:
           wait-for-service-stability-seconds: 1200
           copy-env-vars: |
             DEPLOYMENT_TYPE
-            LOGGING_LEVEL
           copy-secret-env-vars: |
             MONGO_URL
             MONGO_DB_NAME
