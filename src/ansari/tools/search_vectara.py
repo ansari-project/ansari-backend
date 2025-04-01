@@ -2,6 +2,7 @@ import logging
 import json
 
 import requests
+from ansari.util.general_helpers import trim_citation_title
 
 
 # Set up logging
@@ -145,7 +146,7 @@ class SearchVectara:
             # Temporary placeholder.
             # Nasty hack. TODO(mwk): Fix this
             volume = result.get("document_id", "").replace(".txt", "")
-            title = "Encyclopedia of Islamic Jurisprudence, Volume " + volume
+            title = trim_citation_title("Encyclopedia of Islamic Jurisprudence, Volume " + volume)
 
             # Get the text content
             text = result.get("text", "")

@@ -1,6 +1,7 @@
 import requests
 import logging
 from ansari.util.translation import format_multilingual_data
+from ansari.util.general_helpers import trim_citation_title
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -86,11 +87,14 @@ class SearchHadith:
 
             # Create citation title (including grade if available)
             title = (
-                f"{source_book} - Chapter {chapter}: {chapter_name[:300]}, "
+                f"{source_book} - Chapter {chapter}: {chapter_name}, "
                 f"Section {section_number}: {section_name}, Hadith {hadith}, LK id {id}"
             )
             if grade:
                 title += f" (Grade: {grade})"
+
+            # Trim title to prevent Anthropic API crashes with long titles
+            title = trim_citation_title(title)
 
             # Format both Arabic and English texts in multilingual JSON format
             # This is expected by the base_search.py documentation

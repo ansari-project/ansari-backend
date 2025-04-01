@@ -10,7 +10,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
-from ansari.util.general_helpers import get_language_from_text
+from ansari.util.general_helpers import get_language_from_text, trim_citation_title
 
 # Set up logging
 logger = get_logger(__name__)
@@ -667,6 +667,8 @@ class AnsariClaude(Ansari):
             for i, citation in enumerate(self.citations, 1):
                 cited_text = getattr(citation, "cited_text", "")
                 title = getattr(citation, "document_title", "")
+                # Title is already trimmed by the search tools, but trim again in case of any direct citations
+                title = trim_citation_title(title)
                 citations_text += f"[{i}] {title}:\n"
 
                 # First, check if the citation text has already been processed

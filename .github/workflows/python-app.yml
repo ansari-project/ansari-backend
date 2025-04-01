@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Set up environment variables and secrets required for the workflow.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       KALEMAT_API_KEY: ${{ secrets.KALEMAT_API_KEY }}
       VECTARA_API_KEY: ${{ secrets.VECTARA_API_KEY }}
@@ -31,22 +32,8 @@ jobs:
       WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ secrets.WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK }}
       PYTHONPATH: src
 
-    # Use a Python 3.10 container and set up a PostgreSQL service for the database.
+    # Use a Python 3.10 container
     container: python:3.10
-    services:
-      postgres:
-        image: postgres:latest
-        env:
-          POSTGRES_PASSWORD: postgres
-          PGPASSWORD: postgres
-        ports:
-          # Using non-default Postgres port to avoid conflicts between local DB and local GitHub Actions testing using `act`
-          - "5433:5432"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
 
@@ -66,21 +53,6 @@ jobs:
         uv pip install --system ruff pytest pytest-asyncio pytest-cov 
         if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
 
-    # Install the PostgreSQL client.
-    - name: Install PostgreSQL client
-      run: |
-        apt-get update
-        apt-get install --yes --no-install-recommends postgresql-client
-
-    # Create database tables by running SQL scripts.
-    - name: Create tables
-      env:
-        PGPASSWORD: postgres
-        POSTGRES_PASSWORD: postgres
-      run: |
-        for sql_file in sql/*.sql; do
-          psql -h postgres -p 5432 -U postgres -d postgres -f "$sql_file"
-        done
 
     # Lint the code using `ruff` and stop the build if there are lint errors.
     - name: Lint with ruff
@@ -91,9 +63,6 @@ jobs:
     # Run tests using `pytest` and generate a coverage report.
     - name: Test with pytest
       env:
-        PGPASSWORD: postgres
-        POSTGRES_PASSWORD: postgres
-        DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
         SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
       run: |
         pytest --capture=tee-sys --cov=.

@@ -2,6 +2,7 @@ import requests
 from typing import Dict, List, Any
 from ansari.tools.base_search import BaseSearchTool
 from ansari.config import get_settings
+from ansari.util.general_helpers import trim_citation_title
 
 settings = get_settings()
 
@@ -189,7 +190,7 @@ class SearchUsul(BaseSearchTool):
             if node_id and node_id != "Unknown":
                 title_parts.append(f"ID: {node_id}")
 
-            title = ", ".join(title_parts)
+            title = trim_citation_title(", ".join(title_parts))
 
             # Add chapter info to the data if available
             if chapter_info:
