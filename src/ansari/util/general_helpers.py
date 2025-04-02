@@ -21,8 +21,8 @@ def get_extended_origins(settings: Settings = Depends(get_settings)):
     # Also, if we don't execute the code below, we'll get a "400 Bad Request" error when
     # trying to access the API from the local frontend
     if get_settings().DEV_MODE:
-        # Change "3000" to the port of your frontend server (3000 is the default there)
-        local_origin = "http://localhost:3000"
+        # Change "8081" to the port of your frontend server (8081 is the default used by the Metro bundler)
+        local_origin = "http://localhost:8081"
         zrok_origin = get_settings().ZROK_SHARE_TOKEN.get_secret_value() + ".share.zrok.io"
 
         if local_origin not in origins:

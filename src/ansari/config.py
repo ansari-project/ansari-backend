@@ -66,7 +66,6 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: SecretStr
     ANTHROPIC_API_KEY: SecretStr
-    PGPASSWORD: SecretStr = Field(default="password")
     KALEMAT_API_KEY: SecretStr
 
     VECTARA_API_KEY: SecretStr
