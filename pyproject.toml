@@ -10,7 +10,7 @@ authors = [
     { name = "Ansari Project", email = "feedback@ansari.chat" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.13"
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -23,28 +23,37 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
+    "anthropic",
     "bcrypt",
+    "build",
+    "discord.py",
     "diskcache",
     "email-validator",
-    "fastapi",
+    "fastapi[standard]",
+    "gunicorn",
     "jinja2",
     "langdetect",
     "litellm>=1.59.6,<1.59.9",
     "loguru",
+    "pymongo",
     "openai",
     "pandas",
     "psycopg2-binary",
     "pydantic_settings",
     "pyjwt",
+    "pytest-asyncio",
+    "pytest-mock",
+    "pytest-xdist",
     "rich",
     "sendgrid",
     "sentry-sdk[fastapi]",
+    "setuptools",
     "tenacity",
     "tiktoken",
     "typer",
     "uvicorn",
+    "wheel",
     "zxcvbn",
-    "anthropic",
 ]
 
 [project.urls]
@@ -69,7 +78,7 @@ lint.ignore = [
 ]
 lint.mccabe.max-complexity = 10
 
-[tool.ruff.format]    
+[tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "double"
 # Like Black, indent with spaces, rather than tabs.
@@ -78,4 +87,3 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
-    
