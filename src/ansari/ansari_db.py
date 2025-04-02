@@ -1,6 +1,6 @@
 import json
 import logging
-from bson import ObjectId
+from bson import CodecOptions, ObjectId
 from pymongo import MongoClient
 
 from datetime import datetime, timedelta, timezone
@@ -56,6 +56,7 @@ class AnsariDB:
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
+        self.bson_codec_options = CodecOptions(tz_aware = True)
         # MongoClient is thread-safe with connection pooling built-in
         self.mongo_connection = MongoClient(self.db_url)
         self.mongo_db = self.mongo_connection[self.db_name]
@@ -64,6 +65,9 @@ class AnsariDB:
 
     def close(self):
         self.mongo_connection.close()
+
+    def get_collection(self, collection_name: str):
+        return self.mongo_db.get_collection(collection_name, codec_options=self.bson_codec_options)
 
     def hash_password(self, password):
         # Hash a password with a randomly-generated salt
@@ -129,7 +133,7 @@ class AnsariDB:
 
     def _validate_token_in_db(self, user_id: ObjectId, token: str, collection_name: str) -> bool:
         try:
-            result = self.mongo_db[collection_name].find_one({"user_id": ObjectId(user_id), "token": token})
+            result = self.get_collection(collection_name).find_one({"user_id": ObjectId(user_id), "token": token})
             return result is not None
         except Exception:
             logger.exception("Database error during token validation")
@@ -215,7 +219,7 @@ class AnsariDB:
                 "updated_at": datetime.now(timezone.utc),
             }
 
-            self.mongo_db["users"].insert_one(new_user)
+            self.get_collection("users").insert_one(new_user)
 
             return {"status": "success"}
         except Exception as e:
@@ -242,7 +246,7 @@ class AnsariDB:
 
             col_name = "email" if email else "phone_num"
             param = email.strip().lower() if email else phone_num
-            result = self.mongo_db["users"].find_one({col_name: param})
+            result = self.get_collection("users").find_one({col_name: param})
             return result is not None
         except Exception as e:
             logger.debug(f"Warning (possible error): {e}")
@@ -250,7 +254,7 @@ class AnsariDB:
 
     def save_access_token(self, user_id, token):
         try:
-            result = self.mongo_db["access_tokens"].insert_one({"user_id": ObjectId(user_id), "token": token})
+            result = self.get_collection("access_tokens").insert_one({"user_id": ObjectId(user_id), "token": token})
             logger.info(f"Result is {result}")
             return {
                 "status": "success",
@@ -263,7 +267,7 @@ class AnsariDB:
 
     def save_refresh_token(self, user_id, token, access_token_id):
         try:
-            self.mongo_db["refresh_tokens"].insert_one(
+            self.get_collection("refresh_tokens").insert_one(
                 {"user_id": ObjectId(user_id), "token": token, "access_token_id": access_token_id}
             )
 
@@ -274,7 +278,7 @@ class AnsariDB:
 
     def save_reset_token(self, user_id, token):
         try:
-            self.mongo_db["reset_tokens"].insert_one({"user_id": ObjectId(user_id), "token": token})
+            self.get_collection("reset_tokens").insert_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success", "token": token}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -298,12 +302,12 @@ class AnsariDB:
         """
         try:
             if source == SourceType.WHATSAPP:
-                result = self.mongo_db["users"].find_one({"phone_num": phone_num, "source": source.value})
+                result = self.get_collection("users").find_one({"phone_num": phone_num, "source": source.value})
                 if result is None:
                     return None
                 return str(result["_id"])
             else:
-                result = self.mongo_db["users"].find_one({"email": email.strip().lower()})
+                result = self.get_collection("users").find_one({"email": email.strip().lower()})
                 if result is None:
                     return None, None, None, None
                 return str(result["_id"]), result["password_hash"], result["first_name"], result["last_name"]
@@ -314,7 +318,7 @@ class AnsariDB:
 
     def retrieve_user_info_by_user_id(self, id):
         try:
-            result = self.mongo_db["users"].find_one({"_id": ObjectId(id)})
+            result = self.get_collection("users").find_one({"_id": ObjectId(id)})
 
             if result:
                 return str(result["_id"]), result["email"], result["first_name"], result["last_name"]
@@ -333,7 +337,7 @@ class AnsariDB:
                 "updated_at": datetime.now(timezone.utc),
             }
 
-            self.mongo_db["threads"].update_one(
+            self.get_collection("threads").update_one(
                 {"_id": ObjectId(thread_id), "messages.id": ObjectId(message_id)}, {"$set": {"messages.$.feedback": feedback}}
             )
 
@@ -356,7 +360,7 @@ class AnsariDB:
         try:
             # Use the unified threads table with the initial_source field
             name = thread_name if thread_name else None
-            result = self.mongo_db["threads"].insert_one(
+            result = self.get_collection("threads").insert_one(
                 {
                     "user_id": ObjectId(user_id),
                     "name": name,
@@ -374,7 +378,7 @@ class AnsariDB:
 
     def get_all_threads(self, user_id):
         try:
-            result = self.mongo_db["threads"].find({"user_id": ObjectId(user_id)})
+            result = self.get_collection("threads").find({"user_id": ObjectId(user_id)})
             return (
                 [{"thread_id": str(x["_id"]), "thread_name": x["name"], "updated_at": x["updated_at"]} for x in result]
                 if result
@@ -387,7 +391,7 @@ class AnsariDB:
     def set_thread_name(self, thread_id, user_id, thread_name):
         try:
             truncated_thread_name = thread_name[: get_settings().MAX_THREAD_NAME_LENGTH]
-            self.mongo_db["threads"].update_one({"_id": ObjectId(thread_id)}, {"$set": {"name": truncated_thread_name}})
+            self.get_collection("threads").update_one({"_id": ObjectId(thread_id)}, {"$set": {"name": truncated_thread_name}})
 
             return {"status": "success"}
         except Exception as e:
@@ -417,7 +421,9 @@ class AnsariDB:
             new_message["source"] = source.value
             new_message["created_at"] = datetime.now(timezone.utc)
 
-            self.mongo_db["threads"].update_one({"_id": ObjectId(thread_id)}, {"$push": {"messages": new_message}})
+            self.get_collection("threads").update_one({"_id": ObjectId(thread_id)}, {
+                "$push": {"messages": new_message},
+            })
 
         except Exception as e:
             logger.warning(f"Error appending message to database: {e}")
@@ -429,7 +435,7 @@ class AnsariDB:
         tool messages are not included.
         """
         try:
-            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
+            thread = self.get_collection("threads").find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -453,7 +459,7 @@ class AnsariDB:
         """
         try:
             # We need to check user_id to make sure that the user has access to the thread.
-            thread = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
+            thread = self.get_collection("threads").find_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
 
             if not thread:
                 raise HTTPException(
@@ -491,7 +497,7 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"user_id": ObjectId(user_id)}, sort=[("created_at", -1)])
+            result = self.get_collection("threads").find_one({"user_id": ObjectId(user_id)}, sort=[("created_at", -1)])
             if result:
                 return str(result["_id"]), result["created_at"]
             return None, None
@@ -508,7 +514,7 @@ class AnsariDB:
             # First we retrieve the thread.
             thread = self.get_thread(thread_id, user_id)
             logger.info(f"Thread is {json.dumps(thread)}")
-            result = self.mongo_db["share"].insert_one({"content": thread})
+            result = self.get_collection("share").insert_one({"content": thread})
             logger.info(f"Result is {result}")
             return str(result.inserted_id)
         except Exception as e:
@@ -518,7 +524,7 @@ class AnsariDB:
     def get_snapshot(self, share_uuid):
         """Retrieve a snapshot of a thread."""
         try:
-            result = self.mongo_db["share"].find_one({"_id": ObjectId(share_uuid)})
+            result = self.get_collection("share").find_one({"_id": ObjectId(share_uuid)})
             if result:
                 # Deserialize json string
                 return json.loads(result)
@@ -531,8 +537,8 @@ class AnsariDB:
         try:
             # We need to ensure that the user_id has access to the thread.
             # We must delete the messages associated with the thread first.
-            self.mongo_db["messages"].delete_many({"thread_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
-            self.mongo_db["threads"].delete_one({"_id": ObjectId(thread_id)})
+            self.get_collection("messages").delete_many({"thread_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
+            self.get_collection("threads").delete_one({"_id": ObjectId(thread_id)})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -552,15 +558,15 @@ class AnsariDB:
         """
         try:
             # Retrieve the associated access_token_id
-            result = self.mongo_db["refresh_tokens"].find_one({"token": refresh_token})
+            result = self.get_collection("refresh_tokens").find_one({"token": refresh_token})
             if result is None:
                 raise HTTPException(
                     status_code=401,
                     detail="Couldn't find refresh_token in the database.",
                 )
 
-            self.mongo_db["refresh_tokens"].delete_one({"_id": result["_id"]})
-            self.mongo_db["access_tokens"].delete_one({"_id": result["access_token_id"]})
+            self.get_collection("refresh_tokens").delete_one({"_id": result["_id"]})
+            self.get_collection("access_tokens").delete_one({"_id": result["access_token_id"]})
             return {"status": "success"}
         except psycopg2.Error as e:
             logging.critical(f"Error: {e}")
@@ -568,7 +574,7 @@ class AnsariDB:
 
     def delete_access_token(self, user_id, token):
         try:
-            self.mongo_db["access_tokens"].delete_one({"user_id": ObjectId(user_id), "token": token})
+            self.get_collection("access_tokens").delete_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -586,9 +592,9 @@ class AnsariDB:
                 "access_tokens",
                 "reset_tokens",
             ]:
-                self.mongo_db[collection_name].delete_many({"user_id": obj_id})
+                self.get_collection(collection_name).delete_many({"user_id": obj_id})
 
-            self.mongo_db["users"].delete_one({"_id": obj_id})
+            self.get_collection("users").delete_one({"_id": obj_id})
 
             return {"status": "success"}
         except Exception as e:
@@ -598,26 +604,26 @@ class AnsariDB:
     def logout(self, user_id, token):
         try:
             for collection_name in ["refresh_tokens", "access_tokens"]:
-                self.mongo_db[collection_name].delete_one({"user_id": ObjectId(user_id), "token": token})
+                self.get_collection(collection_name).delete_one({"user_id": ObjectId(user_id), "token": token})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
     def set_pref(self, user_id, key, value):
-        self.mongo_db["preferences"].update_one(
+        self.get_collection("preferences").update_one(
             {"user_id": ObjectId(user_id), "pref_key": key}, {"$set": {"pref_value": value}, "upsert": True}
         )
 
         return {"status": "success"}
 
     def get_prefs(self, user_id):
-        result = self.mongo_db["preferences"].find({"user_id": ObjectId(user_id)})
+        result = self.get_collection("preferences").find({"user_id": ObjectId(user_id)})
         return result
 
     def update_password(self, user_id, new_password_hash):
         try:
-            self.mongo_db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": {"password_hash": new_password_hash}})
+            self.get_collection("users").update_one({"_id": ObjectId(user_id)}, {"$set": {"password_hash": new_password_hash}})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -639,7 +645,7 @@ class AnsariDB:
             ValueError: If no fields are provided to update.
         """
         try:
-            self.mongo_db["users"].update_one({"phone_num": phone_num}, {"$set": db_cols_to_vals})
+            self.get_collection("users").update_one({"phone_num": phone_num}, {"$set": db_cols_to_vals})
 
             return {"status": "success"}
         except Exception as e:
@@ -677,7 +683,7 @@ class AnsariDB:
         question: str,
         ansari_answer: str,
     ):
-        self.mongo_db["quran_answers"].insert_one(
+        self.get_collection("quran_answers").insert_one(
             {
                 "surah": surah,
                 "ayah": ayah,
@@ -706,7 +712,7 @@ class AnsariDB:
         """
         try:
             result = (
-                self.mongo_db["quran_answers"]
+                self.get_collection("quran_answers")
                 .find_one({"surah": surah, "ayah": ayah, "question": question})
                 .order_by([("created_at", -1), ("_id", -1)])
             )
@@ -728,7 +734,7 @@ class AnsariDB:
             Optional[ObjectId]: The user ID associated with the thread, or None if the thread doesn't exist.
         """
         try:
-            result = self.mongo_db["threads"].find_one({"_id": ObjectId(thread_id)})
+            result = self.get_collection("threads").find_one({"_id": ObjectId(thread_id)})
             if result:
                 return str(result["user_id"])
             return None
