@@ -245,7 +245,7 @@ class AnsariDB:
             result = self.mongo_db["users"].find_one({col_name: param})
             return result is not None
         except Exception as e:
-            logger.debuge(f"Warning (possible error): {e}")
+            logger.debug(f"Warning (possible error): {e}")
             return False
 
     def save_access_token(self, user_id, token):
