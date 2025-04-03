@@ -423,6 +423,7 @@ class AnsariDB:
 
             self.get_collection("threads").update_one({"_id": ObjectId(thread_id)}, {
                 "$push": {"messages": new_message},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
             })
 
         except Exception as e:
@@ -497,9 +498,9 @@ class AnsariDB:
                                                     Returns (None, None) if no threads are found.
         """
         try:
-            result = self.get_collection("threads").find_one({"user_id": ObjectId(user_id)}, sort=[("created_at", -1)])
+            result = self.get_collection("threads").find_one({"user_id": ObjectId(user_id)}, sort=[("updated_at", -1)])
             if result:
-                return str(result["_id"]), result["created_at"]
+                return str(result["_id"]), result["updated_at"]
             return None, None
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -508,7 +509,7 @@ class AnsariDB:
     def snapshot_thread(self, thread_id, user_id):
         """Snapshot a thread at the current time and make it
         shareable with another user.
-        Returns: a uuid representing the thread.
+        Returns: an id representing the thread.
         """
         try:
             # First we retrieve the thread.
@@ -521,13 +522,12 @@ class AnsariDB:
             logger.warning(f"Warning (possible error): {e}")
             return {"status": "failure", "error": str(e)}
 
-    def get_snapshot(self, share_uuid):
+    def get_snapshot(self, share_id):
         """Retrieve a snapshot of a thread."""
         try:
-            result = self.get_collection("share").find_one({"_id": ObjectId(share_uuid)})
+            result = self.get_collection("share").find_one({"_id": ObjectId(share_id)})
             if result:
-                # Deserialize json string
-                return json.loads(result)
+                return result["content"]
             return {}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -535,10 +535,7 @@ class AnsariDB:
 
     def delete_thread(self, thread_id, user_id):
         try:
-            # We need to ensure that the user_id has access to the thread.
-            # We must delete the messages associated with the thread first.
-            self.get_collection("messages").delete_many({"thread_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
-            self.get_collection("threads").delete_one({"_id": ObjectId(thread_id)})
+            self.get_collection("threads").delete_one({"_id": ObjectId(thread_id), "user_id": ObjectId(user_id)})
             return {"status": "success"}
         except Exception as e:
             logger.warning(f"Warning (possible error): {e}")
@@ -584,9 +581,6 @@ class AnsariDB:
         try:
             obj_id = ObjectId(user_id)
             for collection_name in [
-                "preferences",
-                "feedback",
-                "messages",
                 "threads",
                 "refresh_tokens",
                 "access_tokens",

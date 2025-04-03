@@ -590,22 +590,22 @@ def share_thread(
     if user_id_for_thread != token_params["user_id"]:
         raise HTTPException(status_code=403, detail="You are not allowed to share this thread")
     try:
-        share_uuid = db.snapshot_thread(thread_id, token_params["user_id"])
-        return {"status": "success", "share_uuid": share_uuid}
+        share_id = db.snapshot_thread(thread_id, token_params["user_id"])
+        return {"status": "success", "share_id": share_id}
     except Exception as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500)
 
 
-@app.get("/api/v2/share/{share_uuid_str}")
+@app.get("/api/v2/share/{share_id_str}")
 def get_snapshot(
-    share_uuid_str: str,
+    share_id_str: str,
     filter_content: bool = True,
 ):
     """Take a snapshot of a thread at this time and make it shareable."""
-    logger.info(f"Incoming share_uuid is {share_uuid_str}")
+    logger.info(f"Incoming share_id is {share_id_str}")
     try:
-        content = db.get_snapshot(share_uuid_str)
+        content = db.get_snapshot(share_id_str)
 
         # Filter out tool results, documents, and tool uses if requested
         if filter_content and content and "messages" in content:

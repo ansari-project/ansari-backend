@@ -1,7 +1,7 @@
 # Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp interactions
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 
 import httpx
@@ -183,7 +183,7 @@ class WhatsAppPresenter:
         if last_message_time is None:
             passed_time = float("inf")
         else:
-            passed_time = (datetime.now() - last_message_time).total_seconds()
+            passed_time = (datetime.now(timezone.utc) - last_message_time).total_seconds()
 
         # Log the time passed since the last message
         if passed_time < 60:
@@ -324,8 +324,7 @@ class WhatsAppPresenter:
                 + str(len(msg_history_for_debugging))
             )
 
-            # Append the user's message to the history retrieved from the DB
-            user_msg = db.convert_message_llm(["user", incoming_txt_msg, None, None, None])[0]
+            user_msg = {"role": "user", "content": [{"type": "text", "text": incoming_txt_msg}]}
             msg_history.append(user_msg)
 
             message_logger = MessageLogger(db, SourceType.WHATSAPP, user_id_whatsapp, thread_id)
