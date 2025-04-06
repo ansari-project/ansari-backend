@@ -790,8 +790,9 @@ class AnsariClaude(Ansari):
         if content_blocks:
             message_content = content_blocks
         else:
-            # If no content blocks, use a single empty text element
-            message_content = [{"type": "text", "text": ""}]
+            # If no content blocks, use a fallback non-empty text element
+            # Claude API requires text content blocks to be non-empty
+            message_content = [{"type": "text", "text": "I'm processing your request."}]
 
         # Create the assistant message for the message history
         # Don't include tool_name in the message sent to Claude API
