@@ -194,6 +194,17 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = Field(default="claude-3-7-sonnet-latest")
     LOGGING_LEVEL: str = Field(default="INFO")
     DEV_MODE: bool = Field(default=False)
+    
+    # Application settings
+    MAINTENANCE_MODE: bool = Field(default=False)
+    
+    # iOS app build versions
+    IOS_MINIMUM_BUILD_VERSION: int = Field(default=1)
+    IOS_LATEST_BUILD_VERSION: int = Field(default=1)
+    
+    # Android app build versions
+    ANDROID_MINIMUM_BUILD_VERSION: int = Field(default=1)
+    ANDROID_LATEST_BUILD_VERSION: int = Field(default=1)
 
     @field_validator("ORIGINS")
     def parse_origins(cls, v):
