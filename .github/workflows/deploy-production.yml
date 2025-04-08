@@ -45,6 +45,7 @@ jobs:
         uses: awslabs/amazon-app-runner-deploy@main
         env:
           DEPLOYMENT_TYPE: production
+          LOGGING_LEVEL: INFO
           MONGO_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-url') }}
           MONGO_DB_NAME: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-db-name') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
@@ -67,6 +68,11 @@ jobs:
           WHATSAPP_API_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-api-version') }}
           WHATSAPP_CHAT_RETENTION_HOURS: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-chat-retention-hours') }}
 
+          MAINTENANCE_MODE: ${{ format('{0}{1}', secrets.SSM_ROOT, 'maintenance-mode') }}
+          IOS_MINIMUM_BUILD_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'ios-minimum-build-version') }}
+          IOS_LATEST_BUILD_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'ios-latest-build-version') }}
+          ANDROID_MINIMUM_BUILD_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'android-minimum-build-version') }}
+          ANDROID_LATEST_BUILD_VERSION: ${{ format('{0}{1}', secrets.SSM_ROOT, 'android-latest-build-version') }}
         with:
           service: ansari-production-backend
           image: ${{ steps.build-image.outputs.image }}
@@ -78,6 +84,7 @@ jobs:
           wait-for-service-stability-seconds: 1200
           copy-env-vars: |
             DEPLOYMENT_TYPE
+            LOGGING_LEVEL
           copy-secret-env-vars: |
             MONGO_URL
             MONGO_DB_NAME
@@ -100,6 +107,12 @@ jobs:
             WHATSAPP_API_VERSION
             WHATSAPP_ENABLED
             WHATSAPP_CHAT_RETENTION_HOURS
+
+            MAINTENANCE_MODE
+            IOS_MINIMUM_BUILD_VERSION
+            IOS_LATEST_BUILD_VERSION
+            ANDROID_MINIMUM_BUILD_VERSION
+            ANDROID_LATEST_BUILD_VERSION
           instance-role-arn: ${{ secrets.INSTANCE_ROLE_ARN }}
 
       - name: App Runner URL
