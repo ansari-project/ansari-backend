@@ -337,8 +337,12 @@ class AnsariDB:
                 "updated_at": datetime.now(timezone.utc),
             }
 
-            self.get_collection("threads").update_one(
-                {"_id": ObjectId(thread_id), "messages.id": ObjectId(message_id)}, {"$set": {"messages.$.feedback": feedback}}
+            self.get_collection("threads").update_one({
+                    "_id": ObjectId(thread_id),
+                    "user_id": ObjectId(user_id),
+                    "messages.id": message_id
+                },
+                {"$set": {"messages.$.feedback": feedback}}
             )
 
             return {"status": "success"}
