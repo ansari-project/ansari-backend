@@ -87,45 +87,39 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
         Response: HTTP response with status code 200.
 
     """
-    # Wait for the incoming webhook message to be received as JSON
-    data = await request.json()
-
-    if get_settings().DEV_MODE:
-        if "statuses" in (value := data.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {})):
-            recipient_id = data["entry"][0]["changes"][0]["value"]["statuses"][0].get("recipient_id") or "unknown"
-            # logger.debug(f"Incoming whatsapp webhook status from {recipient_id}")
-            pass
-        else:
-            recipient_id = ((messages := (value.get("messages", []) or [])) and messages[0].get("from")) or "unknown"
-            logger.debug(f"Incoming whatsapp webhook message from {recipient_id}")
 
     # # Logging the origin (host) of the incoming webhook message
     # logger.debug(f"ORIGIN of the incoming webhook message: {json.dumps(request, indent=4)}")
 
-    # Terminate if incoming webhook message is empty/invalid/msg-status-update(sent,delivered,read)
+    # Wait for the incoming webhook message to be received as JSON
+    data = await request.json()
+
+    # Extract all relevant data in one go
     try:
-        result = await presenter.extract_relevant_whatsapp_message_details(data)
+        (
+            is_status,
+            from_whatsapp_number,
+            incoming_msg_type,
+            incoming_msg_body,
+            message_id,
+        ) = await presenter.extract_relevant_whatsapp_message_details(data)
     except Exception as e:
         logger.error(f"Error extracting message details: {e}")
         return Response(status_code=200)
-    else:
-        if isinstance(result, str):
-            return Response(status_code=200)
 
-    # Get relevant info from Meta's API
-    (
-        from_whatsapp_number,
-        incoming_msg_type,
-        incoming_msg_body,
-    ) = result
+    if not is_status:
+        logger.debug(f"Incoming whatsapp webhook message from {from_whatsapp_number}")
+    else:
+        # NOTE: This is a status message (e.g., "delivered"), not a user message, so doesn't need processing
+        return Response(status_code=200)
 
     # Workaround while locally developing:
     #   don't process other dev's whatsapp recepient phone nums coming from staging env.
     #   (as both stage Meta app / local-.env-file have same testing number)
-    dev_num_sub_str = "<your dev. number>"
+    dev_num_sub_str = "YOUR_DEV_PHONE_NUM"
     if get_settings().DEV_MODE and dev_num_sub_str not in from_whatsapp_number:
         logger.debug(
-            f"Incoming message from {from_whatsapp_number} (doesn't have {dev_num_sub_str}). \
+            f"Incoming message from {from_whatsapp_number} (doesn't have this sub-str: {dev_num_sub_str}). \
             Therefore, will not process it as it's not cur. dev."
         )
         return Response(status_code=200)
@@ -183,10 +177,20 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
     #         f"Ack: {incoming_msg_text}",
     #     )
 
-    # Send a typing indicator to the sender
-    # Side note: As of 2024-12-21, Meta's WhatsApp API does not support typing indicators
-    # Source: Search "typing indicator whatsapp api" on Google
-    background_tasks.add_task(presenter.send_whatsapp_message, from_whatsapp_number, "...")
+    # Send a typing indicator if message_id is available,
+    # otherwise send a placeholder message (should never happen)
+    if message_id:
+        background_tasks.add_task(
+            presenter.send_whatsapp_typing_indicator,
+            from_whatsapp_number,
+            message_id,
+        )
+    else:
+        background_tasks.add_task(
+            presenter.send_whatsapp_message,
+            from_whatsapp_number,
+            "...",
+        )
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
     background_tasks.add_task(
