@@ -95,7 +95,7 @@ class Ansari:
                 if m:
                     yield m
 
-    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
+    def replace_message_history(self, message_history: list[dict], use_tool=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -106,23 +106,19 @@ class Ansari:
             {"role": "system", "content": self.sys_msg},
         ] + message_history
 
-        # Return/Yield Ansari's response to the user
-        # TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
-        for m in self.process_message_history(use_tool, stream=stream):
+        # Yield Ansari's response to the user
+        for m in self.process_message_history(use_tool):
             if m:
                 yield m
 
     def get_completion(self, **kwargs):
         return litellm.completion(**kwargs)
 
-    def process_message_history(self, use_tool=True, stream=True):
-        """
-        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
-        """
+    def process_message_history(self, use_tool=True):
         common_params = {
             "model": self.model,
             "messages": self.message_history,
-            "stream": stream,
+            "stream": True,
             "stream_options": {"include_usage": True},
             "timeout": 30.0,
             "temperature": 0.0,
@@ -225,14 +221,11 @@ class Ansari:
         else:
             raise Exception("Invalid response mode: " + response_mode)
 
-    def process_one_round(self, use_tool=True, stream=True):
-        """
-        TODO(odyash) later (good_first_issue): `stream == False` is not implemented yet; so it has to stay `True`
-        """
+    def process_one_round(self, use_tool=True):
         common_params = {
             "model": self.model,
             "messages": self.message_history,
-            "stream": stream,
+            "stream": True,
             "stream_options": {"include_usage": True},
             "timeout": 30.0,
             "temperature": 0.0,

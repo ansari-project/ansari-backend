@@ -166,9 +166,14 @@ class AnsariClaude(Ansari):
         This ensures that the messages logged to the database match what's in the message_history.
         The database will store this in a flattened format which will be reconstructed during retrieval.
         """
+        role = message.get("role", "Unknown")
+        tool_name = message.get("tool_name")
+        tool_name_log = " (tool_name=" + tool_name + ")" if tool_name else ""
+        content = message.get("content")
+
         logger.debug(
-            f"_log_message called with message role: {message.get('role')}, "
-            f"content type: {type(message.get('content'))}, "
+            f"_log_message called with message role: {role}{tool_name_log}, "
+            f"content type: {type(content)}, "
             f"message_history length: {len(self.message_history)}"
         )
 
@@ -189,7 +194,7 @@ class AnsariClaude(Ansari):
             logger.error(f"Error logging message: {str(e)}")
             logger.error(f"Message that failed to log: {message}")
 
-    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
+    def replace_message_history(self, message_history: list[dict], use_tool=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
@@ -205,7 +210,8 @@ class AnsariClaude(Ansari):
 
         self.message_history = cleaned_history
 
-        for m in self.process_message_history(use_tool, stream):
+        # Yield Ansari's response to the user
+        for m in self.process_message_history(use_tool):
             if m:
                 yield m
 
@@ -267,12 +273,116 @@ class AnsariClaude(Ansari):
         reference_list = tool_instance.format_as_ref_list(results)
 
         if not reference_list:
+            logger.warning(f"No references found for tool call: {tool_name}")
             return (tool_result, [])
 
         logger.info(f"Got {len(reference_list)} results from {tool_name}")
 
         # Return results
         return (tool_result, reference_list)
+
+    def _separate_tool_result_from_preceding_text(self):
+        """
+        Corner case: if we our current history is like this:
+
+        ```json
+        [
+
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "QUESTION THAT WILL MAKE LLM USE A TOOL"
+                    }
+                ]
+            },
+        ]
+        ```
+
+        Then, when we enter process_one_round(), the following will happen (logs):
+        * Processing chunk #1 of type: message_start
+        * Processing chunk #2 of type: content_block_start
+        * Content block #1 start: text
+        * Content block start but not a tool use: ...
+        * Processing chunk #3 of type: content_block_delta
+        * Adding text delta: 'START OF LLM RESPONSE' (truncated)
+        * Processing chunk #...
+        * Adding text delta: ...
+        * ...
+        * Adding text delta: 'TOOL RESULT:'
+        * Processing chunk #8 of type: content_block_stop
+        * Content block stop received
+        * Processing chunk #9 of type: content_block_start
+        * Content block #2 start: tool_use
+        * ...
+
+        so then, after the output of tool call is added to self.message_history, it will be like this:
+        ```json
+        [
+
+            {
+                ...
+                        "text": "QUESTION THAT WILL MAKE LLM USE A TOOL"
+                ...
+            },
+
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01CQJoWaPFZYNjrzjdLsxEeZ",
+                        "name": "search_mawsuah",
+                        "input": {
+                            "query": "\u062d\u0643\u0645 ..."
+                        }
+                    }
+                ]
+            },
+
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_01CQJoWaPFZYNjrzjdLsxEeZ",
+                        "content": "Please see the references below."
+                    },
+                    {
+                        "type": "document",
+                        ...
+                    }
+                ]
+            }
+        ]
+        ```
+
+        Then, when we enter process_one_round(), the following will happen (logs):
+        * Processing chunk #1 of type: message_start
+        * Processing chunk #2 of type: content_block_start
+        * Content block #1 start: text
+        * Content block start but not a tool use: ...
+        * Processing chunk #3 of type: content_block_delta
+        * Adding text delta: 'START OF LLM RESPONSE (PARAPHRASED FROM TOOL RESULT)' (truncated)
+
+        So, "TOOL RESULT:" (at the top) will be directly concatenated to "START OF ...".
+        But we want to leave `\n\n` between them, so that's what this function does.
+
+        Therefore, this function should prefix the start of an assistant response IFF:
+        * The last message in the history is a "tool_result"
+        * Content block's type is "start" (that's where this function will be called)
+        """
+
+        if (
+            (msg := self.message_history[-1])
+            and (content := msg.get("content"))
+            and len(content) > 0
+            and (content[0].get("type", "") == "tool_result")
+        ):
+            return "\n\n"
+        else:
+            return ""
 
     def process_one_round(self) -> Generator[str, None, None]:
         """Process one round of conversation.
@@ -290,7 +400,16 @@ class AnsariClaude(Ansari):
         prompt_mgr = PromptMgr()
         system_prompt = prompt_mgr.bind("system_msg_claude").render()
 
-        logger.info(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
+        # Log the `self.message_history`
+        if get_settings().DEV_MODE:
+            # In DEV_MODE, log the full message history to a file for inspection
+            json_file_path = "./logs/last_msg_hist.json"
+            with open(json_file_path, "w") as f:
+                json.dump(self.message_history, f, indent=4)
+            logger.debug(f"Dumped full message history to {json_file_path}")
+        else:
+            # In production, log the message history in the terminal
+            logger.info(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
 
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
@@ -350,6 +469,13 @@ class AnsariClaude(Ansari):
                 if hasattr(e, "__dict__"):
                     logger.error(f"Error details: {e.__dict__}")
 
+                # If in DEV_MODE and it's the first failure, dump message history to file
+                if get_settings().DEV_MODE and failures == 1:
+                    json_file_path = "./logs/last_err_msg_hist.json"
+                    with open(json_file_path, "w") as f:
+                        json.dump(self.message_history, f, indent=4)
+                    logger.info(f"Dumped message history to {json_file_path}")
+
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Max retries exceeded")
                     raise
@@ -381,8 +507,8 @@ class AnsariClaude(Ansari):
         - If it's a content block start and it's a tool call, capture the key parameters of the tool call.
         - If it's a content block delta that is text, add the text to the assistant's message.
         - If it's a content block delta that is a citation, add the citation to the citations list and
-         yield a string that represents the citation.
-         - If it's tool parameters, accumulate the tool paramters into the current tool.
+            yield a string that represents the citation.
+        - If it's tool parameters, accumulate the tool paramters into the current tool.
 
         """
         logger.debug("Starting to process response stream")
@@ -422,6 +548,12 @@ class AnsariClaude(Ansari):
                     logger.debug(f"Starting tool call: {current_tool}")
                 else:
                     logger.debug(f"Content block start but not a tool use: {chunk}")
+                    if (newline := self._separate_tool_result_from_preceding_text()) and assistant_text == "":
+                        # If we have a newline to separate, add it to the assistant text
+                        assistant_text += newline
+                        logger.debug(
+                            f"Adding `{newline}` to start of assistant text (to separate it from previous content block)"
+                        )
 
             elif chunk.type == "content_block_delta":
                 if hasattr(chunk.delta, "text"):
@@ -623,20 +755,44 @@ class AnsariClaude(Ansari):
                             except json.JSONDecodeError:
                                 logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
 
-                # Add tool result message
-                self.message_history.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tc["id"],
-                                "content": "Please see the references below.",
-                            }
-                        ]
-                        + document_blocks,
-                    }
-                )
+                # Validation check: If an old "tool_result" message (OF THE SAME TOOL CALL ID)
+                # is already appended to self.message_history (from a previous _process_tool_calls() call),
+                # then tool result is getting duplicated (i.e., old document_blocks is same as new ones)
+                #   so don't append it
+                # Corner case: In very rare cases, the old tool_result message will contain a single element in "contents":
+                #   "Please see the references below." (i.e., no document_blocks are added).
+                #   If so, then (and only then): we append new document_blocks to old "tool_result" message
+                # NOTE: We're doing this as Claude's API requires a message history to have
+                #   a SINGLE "tool_result" message (i.e., dict) directly after a SINGLE "tool_use" message
+                if (
+                    (c := self.message_history[-1].get("content"))
+                    and isinstance(c, list)
+                    and len(c) > 0
+                    and c[0].get("type", "") == "tool_result"
+                    and c[0].get("tool_use_id", "") == tc["id"]  # <- most important condition check
+                ):
+                    if len(c) == 1:
+                        logger.debug(f"appending {len(document_blocks)} to last tool_result message")
+                        self.message_history[-1]["content"].append(document_blocks)
+                    else:
+                        logger.warning("last message in history is already a 'tool_result' message; Skipping... ")
+                    continue
+                else:
+                    # Add tool result message
+                    logger.debug("Adding a 'tool_result' message to history")
+                    self.message_history.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tc["id"],
+                                    "content": "Please see the references below.",
+                                }
+                            ]
+                            + document_blocks,
+                        }
+                    )
 
                 # Log the tool result message
                 self._log_message(self.message_history[-1])
@@ -790,9 +946,8 @@ class AnsariClaude(Ansari):
         if content_blocks:
             message_content = content_blocks
         else:
-            # If no content blocks, use a fallback non-empty text element
-            # Claude API requires text content blocks to be non-empty
-            message_content = [{"type": "text", "text": "I'm processing your request."}]
+            # If no content blocks, use a single empty text element
+            message_content = [{"type": "text", "text": ""}]
 
         # Create the assistant message for the message history
         # Don't include tool_name in the message sent to Claude API
@@ -902,7 +1057,7 @@ class AnsariClaude(Ansari):
 
         return limited_history
 
-    def process_message_history(self, use_tool=True, stream=True):
+    def process_message_history(self, use_tool=True):
         """
         This is the main loop that processes the message history.
         It yields from the process_one_round method until the last message is an assistant message.

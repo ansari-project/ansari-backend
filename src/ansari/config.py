@@ -176,7 +176,7 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
     WHATSAPP_ENABLED: bool = Field(default=True)
-    WHATSAPP_API_VERSION: str | None = Field(default="v21.0")
+    WHATSAPP_API_VERSION: str | None = Field(default="v22.0")
     WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
     WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
     WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
@@ -194,14 +194,14 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = Field(default="claude-3-7-sonnet-latest")
     LOGGING_LEVEL: str = Field(default="INFO")
     DEV_MODE: bool = Field(default=False)
-    
+
     # Application settings
     MAINTENANCE_MODE: bool = Field(default=False)
-    
+
     # iOS app build versions
     IOS_MINIMUM_BUILD_VERSION: int = Field(default=1)
     IOS_LATEST_BUILD_VERSION: int = Field(default=1)
-    
+
     # Android app build versions
     ANDROID_MINIMUM_BUILD_VERSION: int = Field(default=1)
     ANDROID_LATEST_BUILD_VERSION: int = Field(default=1)

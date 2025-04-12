@@ -1,0 +1,56 @@
+[ // This is a dummy example, so don't focus on the content of the messages
+  {
+    "role": "user",
+    "content": "Can you search for information about machine learning?"
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll search for information about machine learning for you."
+      },
+      {
+        "type": "tool_use",
+        "id": "tool-123456",
+        "name": "search_database",
+        "input": {
+          "query": "machine learning",
+          "limit": 3
+        }
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "tool-123456",
+        "content": "{\"results\": [{\"title\": \"Introduction to ML\", \"url\": \"https://example.com/ml1\"}, {\"title\": \"Deep Learning Fundamentals\", \"url\": \"https://example.com/ml2\"}]}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Based on my search, here are some resources about machine learning:\n\n1. Introduction to ML - This resource covers the basics of machine learning algorithms and techniques.\n2. Deep Learning Fundamentals - This focuses on neural networks and deep learning approaches."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": "Can you explain neural networks in more detail?"
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Neural networks are computational models inspired by the human brain. They consist of layers of interconnected nodes or \"neurons\" that process information.\n\nThe basic structure includes:\n\n1. Input layer: Receives initial data\n2. Hidden layers: Perform computations on inputs\n3. Output layer: Produces the final result\n\nEach connection between neurons has a weight that gets adjusted during training[1]."
+      }
+    ]
+  }
+]

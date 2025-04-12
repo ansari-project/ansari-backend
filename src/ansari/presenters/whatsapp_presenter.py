@@ -36,17 +36,18 @@ class WhatsAppPresenter:
     async def extract_relevant_whatsapp_message_details(
         self,
         body: dict[str, Any],
-    ) -> tuple[str, str, str] | str | None:
+    ) -> tuple[str, str, dict] | str:
         """Extracts relevant whatsapp message details from the incoming webhook payload.
 
         Args:
             body (Dict[str, Any]): The JSON body of the incoming request.
 
         Returns:
-            Optional[Tuple[str, str, str]]: A tuple containing the business phone number ID,
-            the sender's WhatsApp number and the their message (if the extraction is successful).
-            Returns None if the extraction fails.
+            Union[tuple, str]: A tuple of (user_whatsapp_number, incoming_msg_type, incoming_msg_body)
+                if successful, or an error message string if it's a status update or other invalid data.
 
+        Raises:
+            Exception: If the payload structure is invalid or unsupported.
         """
         # logger.debug(f"Received payload from WhatsApp user:\n{body}")
 
@@ -70,8 +71,11 @@ class WhatsAppPresenter:
             # logger.debug(
             #     f"WhatsApp status update received:\n({status} at {timestamp}.)",
             # )
-            return "status update"
+            return True, None, None, None, None
+        else:
+            is_status = False
 
+        # should never be entered
         if "messages" not in value:
             error_msg = f"Unsupported message type received from WhatsApp user:\n{body}"
             logger.error(
@@ -81,6 +85,8 @@ class WhatsAppPresenter:
 
         incoming_msg = value["messages"][0]
 
+        # Extract and store the message ID for use in send_whatsapp_typing_indicator
+        message_id = incoming_msg.get("id")
         # Extract the phone number of the WhatsApp sender
         user_whatsapp_number = incoming_msg["from"]
         # Meta API note: Meta sends "errors" key when receiving unsupported message types
@@ -91,11 +97,7 @@ class WhatsAppPresenter:
 
         logger.info(f"Received a supported whatsapp message from {user_whatsapp_number}: {incoming_msg_body}")
 
-        return (
-            user_whatsapp_number,
-            incoming_msg_type,
-            incoming_msg_body,
-        )
+        return (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id)
 
     async def check_and_register_user(
         self,
@@ -141,6 +143,44 @@ class WhatsAppPresenter:
             logger.error(f"Failed to register new whatsapp user: {user_whatsapp_number}")
             return False
 
+    async def send_whatsapp_typing_indicator(
+        self,
+        user_whatsapp_number: str,
+        message_id: str,
+    ) -> None:
+        """Sends a typing indicator to the WhatsApp sender.
+
+        Args:
+            user_whatsapp_number (str): The sender's WhatsApp number.
+            message_id (str): The ID of the message being replied to.
+
+        """
+        url = self.meta_api_url
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                logger.debug(f"SENDING TYPING INDICATOR REQUEST TO: {url}")
+
+                json_data = {
+                    "messaging_product": "whatsapp",
+                    "status": "read",
+                    "message_id": message_id,
+                    "typing_indicator": {"type": "text"},
+                }
+
+                response = await client.post(url, headers=headers, json=json_data)
+                response.raise_for_status()  # Raise an exception for HTTP errors
+
+                logger.debug(f"Sent typing indicator to WhatsApp user {user_whatsapp_number}")
+
+        except Exception as e:
+            logger.error(f"Error sending typing indicator: {e}. Details are in next log.")
+            logger.exception(e)
+
     async def send_whatsapp_message(
         self,
         user_whatsapp_number: str,
@@ -154,27 +194,36 @@ class WhatsAppPresenter:
 
         """
         url = self.meta_api_url
-        # Temp fix to work around the the maximum length for Whatsapp text messages (4096 characters)
-        msg_body = msg_body[:4000]
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
-        json_data = {
-            "messaging_product": "whatsapp",
-            "to": user_whatsapp_number,
-            "text": {"body": msg_body},
-        }
+
+        # Split the message if it exceeds WhatsApp's character limit
+        message_parts = self._split_long_messages(msg_body)
 
         try:
             async with httpx.AsyncClient() as client:
                 logger.debug(f"SENDING REQUEST TO: {url}")
-                response = await client.post(url, headers=headers, json=json_data)
-                response.raise_for_status()  # Raise an exception for HTTP errors
-                if msg_body != "...":
-                    logger.info(
-                        f"Ansari responsded to WhatsApp user: {user_whatsapp_number} with:\n{msg_body}",
-                    )
+
+                logger.info(
+                    f"Ansari responded to WhatsApp user {user_whatsapp_number} with the following message part(s):\n\n"
+                )
+
+                # If we have multiple parts, send them sequentially
+                for part in message_parts:
+                    json_data = {
+                        "messaging_product": "whatsapp",
+                        "to": user_whatsapp_number,
+                        "text": {"body": part},
+                    }
+
+                    response = await client.post(url, headers=headers, json=json_data)
+                    response.raise_for_status()  # Raise an exception for HTTP errors
+
+                    if msg_body != "...":
+                        logger.info("\n".join(f"[Part {i + 1}]: \n{part}" for i, part in enumerate(message_parts)))
+
         except Exception as e:
             logger.error(f"Error sending message: {e}. Details are in next log.")
             logger.exception(e)
@@ -204,52 +253,345 @@ class WhatsAppPresenter:
 
     def _get_whatsapp_markdown(self, msg: str) -> str:
         """Convert conventional markdown syntax to WhatsApp's markdown syntax"""
-
         msg_direction = get_language_direction_from_text(msg)
 
-        # Replace text surrounded with single "*" with "_"
-        #   (as WhatsApp doesn't support italic text with "*"; it uses "_" instead)
+        # Process standard markdown syntax
+        msg = self._convert_italic_syntax(msg)
+        msg = self._convert_bold_syntax(msg)
+        msg = self._convert_headers(msg)
+
+        # Process lists based on text direction
+        if msg_direction in ["ltr", "rtl"]:
+            msg = self._format_nested_lists(msg)
+
+        return msg
+
+    def _convert_italic_syntax(self, text: str) -> str:
+        """Convert markdown italic syntax (*text*) to WhatsApp italic syntax (_text_)"""
         # Regex details:
         # (?<![\*_])  # Negative lookbehind: Ensures that the '*' is not preceded by '*' or '_'
         # \*          # Matches a literal '*'
         # ([^\*_]+?)  # Non-greedy match: Captures one or more characters that are not '*' or '_'
-        #   "Captures" mean it can be obtained via \1 in the replacement string
         # \*          # Matches a literal '*'
         # (?![\*_])   # Negative lookahead: Ensures that the '*' is not followed by '*' or '_'
+        #
+        # This pattern carefully identifies standalone italic markers (*text*) while avoiding
+        # matching bold markers (**text**) or mixed formatting.
         pattern = re.compile(r"(?<![\*_])\*([^\*_]+?)\*(?![\*_])")
-        msg = pattern.sub(r"_\1_", msg)
+        return pattern.sub(r"_\1_", text)
 
-        # Replace "**" (markdown bold) with "*" (whatsapp bold)
-        msg = msg.replace("**", "*")
+    def _convert_bold_syntax(self, text: str) -> str:
+        """Convert markdown bold syntax (**text**) to WhatsApp bold syntax (*text*)"""
+        return text.replace("**", "*")
 
-        # Match headers (#*) (that doesn't have a space before it (i.e., in the middle of a text))
-        #   where there's text directly after them
-        # NOTE: the `\**_*` part is to neglect any */_ in the returned group (.*?)
+    def _convert_headers(self, text: str) -> str:
+        """Convert markdown headers to WhatsApp's bold+italic format"""
+        # Process headers with content directly after them
+        # (?! )     # Ensures there's no space before the hash (avoiding matching in middle of text)
+        # #+ \**_*  # Matches one or more hash symbols and ignores any bold/italic markers already present
+        # (.*?)     # Captures the header text (non-greedy)
+        # \**_*\n   # Matches any trailing formatting markers and the newline
+        # (?!\n)    # Ensures the newline isn't followed by another newline (i.e., not an isolated header)
         pattern = re.compile(r"(?! )#+ \**_*(.*?)\**_*\n(?!\n)")
+        text = pattern.sub(r"*_\1_*\n\n", text)
 
-        # Replace them with bold (*) and italic (_) markdown syntax
-        #   and add extra newline (to leave space between header and content)
-        msg = pattern.sub(r"*_\1_*\n\n", msg)
-
-        # Match headers (#*) (that doesn't have a space before it (i.e., in the middle of a text))
-        #   where there's another newline directly after them
-        # NOTE: the `\**_*` part is to neglect any */_ in the returned group (.*?)
+        # Process headers with empty line after them
         pattern = re.compile(r"(?! )#+ \**_*(.*?)\**_*\n\n")
+        return pattern.sub(r"*_\1_*\n\n", text)
 
-        # Replace them with bold (*) and italic (_) markdown syntax
-        msg = pattern.sub(r"*_\1_*\n\n", msg)
+    def _format_nested_lists(self, text: str) -> str:
+        """
+        Format only nested lists/bullet points with WhatsApp's special formatting.
 
-        # As nested text always appears in left side, even if text is RTL, which could be confusing to the reader,
-        #   we decided to manipulate the nesting symbols (i.e., \d+\. , * , - , etc) so that they appear in right side
-        # NOTE: added "ltr" for consistency of formatting across different languages
-        if msg_direction in ["ltr", "rtl"]:
-            # Replace lines that start with (possibly indented) "- " or "* " with "-- "
-            msg = re.sub(r"(\s*)[\*-] ", r"\1-- ", msg)
+        This handles:
+        1. Nested bullet points within numbered lists
+        2. Nested numbered lists within bullet points
+        3. Purely nested bullet points
+        4. Purely nested numbered lists
 
-            # Replace the dot numbered lists (1. , etc.) with a dash (e.g., 1 - )
-            msg = re.sub(r"(\s*)(\d+)(\.) ", r"\1\2 - ", msg, flags=re.MULTILINE)
+        Simple (non-nested) lists retain their original formatting.
+        """
+        lines = text.split("\n")
+        processed_lines = []
+        in_nested_section = False
+        nested_section_indent = 0
 
-        return msg
+        for i, line in enumerate(lines):
+            # Check for indentation to detect nesting
+            indent_match = re.match(r"^(\s+)", line) if line.strip() else None
+            current_indent = len(indent_match.group(1)) if indent_match else 0
+
+            # Check if this is a list item (numbered or bullet)
+            is_numbered_item = re.match(r"^\s*\d+\.\s", line)
+            is_bullet_item = re.match(r"^\s*[\*-]\s", line)
+
+            # Determine if we're entering, in, or exiting a nested section
+            if (is_numbered_item or is_bullet_item) and current_indent > 0:
+                # This is a nested item
+                if not in_nested_section:
+                    in_nested_section = True
+                    nested_section_indent = current_indent
+
+                # Format nested items
+                if is_numbered_item:
+                    # Convert nested numbered list format: "  1. Item" -> "  1 - Item"
+                    line = re.sub(r"(\s*)(\d+)(\.) ", r"\1\2 - ", line)
+                elif is_bullet_item:
+                    # Convert nested bullet format: "  - Item" or "  * Item" -> "  -- Item"
+                    line = re.sub(r"(\s*)[\*-] ", r"\1-- ", line)
+
+            elif in_nested_section and current_indent < nested_section_indent:
+                # We're exiting the nested section
+                in_nested_section = False
+
+            # For non-nested items, leave them as they are
+            processed_lines.append(line)
+
+        return "\n".join(processed_lines)
+
+    def _split_long_messages(self, msg_body: str) -> list[str]:
+        """Split long messages into smaller chunks based on formatted headers or other patterns.
+
+        This method implements a multi-level splitting strategy for messages that exceed
+        WhatsApp's character limit (4000):
+        1. First tries to split by header pattern (*_HEADER_*)
+        2. If that's not possible, tries to split by bold text (*BOLD*)
+        3. Finally falls back to paragraph-based splitting
+
+        Args:
+            msg_body (str): The message body to split if necessary
+
+        Returns:
+            list[str]: A list of message chunks that can be sent separately
+        """
+        # WhatsApp character limit
+        MAX_LENGTH = 4000
+
+        # If message is already under the limit, return it as is
+        if len(msg_body) <= MAX_LENGTH:
+            return [msg_body]
+
+        # Strategy 1: Try to split by formatted headers (*_HEADER_*)
+        header_chunks = self._split_by_headers(msg_body, MAX_LENGTH)
+        if len(header_chunks) > 1:
+            return header_chunks
+
+        # Strategy 2: Try to split by bold formatting (*BOLD*)
+        bold_chunks = self._split_by_bold_text(msg_body, MAX_LENGTH)
+        if len(bold_chunks) > 1:
+            return bold_chunks
+
+        # Strategy 3: Fall back to paragraph-based splitting
+        return self._split_by_paragraphs(msg_body, MAX_LENGTH)
+
+    def _split_by_headers(self, text: str, max_length: int) -> list[str]:
+        """Split text by formatted header pattern (*_HEADER_*).
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by headers
+
+        Example:
+            >>> text = "Text before header\n*_First Header_*\nText\n\n*_Second Header_*\nMore text"
+            >>> _split_by_headers(text, 1000)
+            ['Text before header', '*_First Header_*\nText', '*_Second Header_*\nMore text']
+        """
+        # Look for *_HEADER_* pattern
+        header_pattern = re.compile(r"\*_[^*_]+_\*")
+        headers = list(header_pattern.finditer(text))
+
+        # If we don't have multiple headers, we can't split effectively
+        if not headers or len(headers) <= 1:
+            return [text]
+
+        chunks = []
+
+        # Process each header as a potential chunk boundary
+        for i, match in enumerate(headers):
+            # For the first header, handle any text that comes before it
+            if i == 0 and match.start() > 0:
+                prefix = text[: match.start()]
+
+                # Always include the text before the first header in its own message(s)
+                # If it's too long, recursively split it
+                if len(prefix) <= max_length:
+                    chunks.append(prefix)
+                else:
+                    # If prefix is too long, split it using paragraph-based splitting
+                    prefix_chunks = self._split_by_paragraphs(prefix, max_length)
+                    chunks.extend(prefix_chunks)
+
+            # Determine the end position for the chunk containing this header
+            end_pos = headers[i + 1].start() if i < len(headers) - 1 else len(text)
+            chunk = text[match.start() : end_pos]
+
+            # If chunk fits within limit, add it directly
+            if len(chunk) <= max_length:
+                chunks.append(chunk)
+            else:
+                # Otherwise, try more aggressive splitting for this chunk
+                # First try bold formatting, then paragraphs
+                sub_chunks = self._split_by_bold_text(chunk, max_length)
+                chunks.extend(sub_chunks)
+
+        return chunks
+
+    def _split_by_bold_text(self, text: str, max_length: int) -> list[str]:
+        """Split text by looking for bold formatting (*TEXT*) patterns.
+
+        This function splits text at bold formatting markers (*TEXT*) when the text
+        exceeds the maximum length. It treats each bold pattern as a potential
+        break point, always keeping the bold text with the content that follows it.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by bold formatting
+
+        Example:
+            >>> text = "Some intro text\n*First bold section*\nMiddle content\n*Second bold*\nMore text"
+            >>> _split_by_bold_text(text, 30)
+            ['Some intro text', '*First bold section*\nMiddle content', '*Second bold*\nMore text']
+        """
+        if len(text) <= max_length:
+            return [text]
+
+        # Find *TEXT* patterns
+        bold_pattern = re.compile(r"\*[^*]+\*")
+        bold_matches = list(bold_pattern.finditer(text))
+
+        # If we don't have enough bold patterns for effective splitting
+        if not bold_matches or len(bold_matches) <= 1:
+            return self._split_by_paragraphs(text, max_length)
+
+        chunks = []
+
+        # Process each bold pattern as a potential chunk boundary
+        for i, match in enumerate(bold_matches):
+            # For the first bold pattern, handle any text that comes before it
+            if i == 0 and match.start() > 0:
+                prefix = text[: match.start()]
+
+                # Always include the text before the first bold pattern in its own message(s)
+                # If it's too long, recursively split it
+                if len(prefix) <= max_length:
+                    chunks.append(prefix)
+                else:
+                    # If prefix is too long, split it using paragraph-based splitting
+                    prefix_chunks = self._split_by_paragraphs(prefix, max_length)
+                    chunks.extend(prefix_chunks)
+
+            # Determine the end position for the chunk containing this bold pattern
+            end_pos = bold_matches[i + 1].start() if i < len(bold_matches) - 1 else len(text)
+            chunk = text[match.start() : end_pos]
+
+            # If chunk fits within limit, add it directly
+            if len(chunk) <= max_length:
+                chunks.append(chunk)
+            else:
+                # Otherwise, fall back to paragraph splitting for this chunk
+                sub_chunks = self._split_by_paragraphs(chunk, max_length)
+                chunks.extend(sub_chunks)
+
+        return chunks
+
+    def _split_by_paragraphs(self, text: str, max_length: int) -> list[str]:
+        """Split text by paragraphs or fall back to fixed-size chunks if needed.
+
+        This method attempts to split text at natural paragraph breaks (double newlines). If paragraphs themselves are
+        too long, it uses fixed-size chunk splitting as a fallback.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by paragraphs or fixed chunks
+
+        Example:
+            >>> text = "This is paragraph 1.\\n\\nThis is paragraph 2.\\n\\nThis is a very long paragraph 3 that exceeds"
+            >>> text += " the maximum length and will need to be split."
+            >>> _split_by_paragraphs(text, 50)
+            ['This is paragraph 1.', 'This is paragraph 2.', 'This is a very long paragraph 3 that exceeds the',
+                ' maximum length and will need to be split.']
+        """
+        if len(text) <= max_length:
+            return [text]
+
+        chunks = []
+
+        # Try splitting by paragraphs first (double newlines)
+        paragraphs = re.split(r"\n\n+", text)
+
+        if len(paragraphs) > 1:
+            current = ""
+
+            for para in paragraphs:
+                # If adding this paragraph would exceed the limit
+                if current and len(current) + len(para) + 2 > max_length:
+                    chunks.append(current)
+                    current = ""
+
+                # If paragraph itself is too long, split it using fixed chunks
+                if len(para) > max_length:
+                    # Add any accumulated text first
+                    if current:
+                        chunks.append(current)
+                        current = ""
+
+                    # Use fixed-size chunk splitting for long paragraphs
+                    para_chunks = self._split_by_fixed_chunks(para, max_length)
+                    chunks.extend(para_chunks)
+                else:
+                    # Add paragraph to current chunk with proper separator
+                    if current:
+                        current += "\n\n" + para
+                    else:
+                        current = para
+
+            # Don't forget the last chunk
+            if current:
+                chunks.append(current)
+
+            return chunks
+        else:
+            # If text doesn't have paragraphs, use fixed-size chunk splitting
+            return self._split_by_fixed_chunks(text, max_length)
+
+    def _split_by_fixed_chunks(self, text: str, max_length: int) -> list[str]:
+        """Split text into fixed-size chunks of maximum length.
+
+        This is the simplest fallback approach, which just takes chunks of
+        max_length characters until the entire text is processed.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks of maximum length
+
+        Example:
+            >>> text = "This is a very long text that exceeds the maximum allowed length"
+            >>> _split_by_fixed_chunks(text, 20)
+            ['This is a very long ', 'text that exceeds the', ' maximum allowed len', 'gth']
+        """
+        # If text is already under the limit, return it as is
+        if len(text) <= max_length:
+            return [text]
+
+        chunks = []
+
+        # Simply take max_length characters at a time
+        for i in range(0, len(text), max_length):
+            chunks.append(text[i : i + max_length])
+
+        return chunks
 
     async def handle_text_message(
         self,
@@ -337,9 +679,7 @@ class WhatsAppPresenter:
             #   log (i.e., append) the message history's last user message to DB,
             #   process the history,
             #   log (i.e., append) Ansari's output to DB,
-            # TODO(odyash, good_first_issue): change `stream` to False (and remove comprehensive loop)
-            #   when `Ansari` is capable of handling it
-            response = [tok for tok in agent.replace_message_history(msg_history, stream=True) if tok]
+            response = [tok for tok in agent.replace_message_history(msg_history)]
             response = "".join(response)
 
             # Convert conventional markdown syntax to WhatsApp's markdown syntax

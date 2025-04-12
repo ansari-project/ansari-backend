@@ -1,0 +1,20 @@
+{
+  "type": "content_block_start | content_block_delta | content_block_stop | message_delta | message_stop",
+  "content_block": {
+    "type": "text | tool_use",
+    "id": "tool-123456",
+    "name": "search_database"
+  },
+  "delta": {
+    "text": "Here's information about your query...",
+    "partial_json": "{ \"query\": \"ma",
+    "type": "citations_delta",
+    "citation": {
+      "start": 23,
+      "end": 45,
+      "number": 1,
+      "text": "according to source X..."
+    },
+    "stop_reason": "end_turn | tool_use"
+  }
+}

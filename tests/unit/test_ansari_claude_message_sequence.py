@@ -92,7 +92,7 @@ def test_message_sequence_with_tool_use():
         original_history = [msg.copy() for msg in claude.message_history]
 
         # Process the message history
-        list(claude.process_message_history(use_tool=False, stream=False))
+        list(claude.process_message_history(use_tool=False))
 
         # Check that the message history structure was preserved
         processed_history = claude.message_history
@@ -125,15 +125,15 @@ def test_message_sequence_with_tool_use():
                 orig_result_blocks = [b for b in orig["content"] if b.get("type") == "tool_result"]
                 processed_result_blocks = [b for b in processed["content"] if b.get("type") == "tool_result"]
 
-                assert len(orig_result_blocks) == len(processed_result_blocks), (
-                    f"Tool result blocks count mismatch at message {i}"
-                )
+                assert len(orig_result_blocks) == len(
+                    processed_result_blocks
+                ), f"Tool result blocks count mismatch at message {i}"
 
                 # If there are result blocks, check that IDs are preserved
                 if orig_result_blocks:
-                    assert orig_result_blocks[0]["tool_use_id"] == processed_result_blocks[0]["tool_use_id"], (
-                        f"Tool result ID mismatch at message {i}"
-                    )
+                    assert (
+                        orig_result_blocks[0]["tool_use_id"] == processed_result_blocks[0]["tool_use_id"]
+                    ), f"Tool result ID mismatch at message {i}"
 
         print("All assertions passed - message sequence with tool use/result is correctly processed!")
 
