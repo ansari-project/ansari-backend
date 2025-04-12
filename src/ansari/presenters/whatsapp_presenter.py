@@ -154,27 +154,36 @@ class WhatsAppPresenter:
 
         """
         url = self.meta_api_url
-        # Temp fix to work around the the maximum length for Whatsapp text messages (4096 characters)
-        msg_body = msg_body[:4000]
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
-        json_data = {
-            "messaging_product": "whatsapp",
-            "to": user_whatsapp_number,
-            "text": {"body": msg_body},
-        }
+
+        # Split the message if it exceeds WhatsApp's character limit
+        message_parts = self._split_long_messages(msg_body)
 
         try:
             async with httpx.AsyncClient() as client:
                 logger.debug(f"SENDING REQUEST TO: {url}")
-                response = await client.post(url, headers=headers, json=json_data)
-                response.raise_for_status()  # Raise an exception for HTTP errors
-                if msg_body != "...":
-                    logger.info(
-                        f"Ansari responsded to WhatsApp user: {user_whatsapp_number} with:\n{msg_body}",
-                    )
+
+                logger.info(
+                    f"Ansari responded to WhatsApp user {user_whatsapp_number} with the following message part(s):\n\n"
+                )
+
+                # If we have multiple parts, send them sequentially
+                for part in message_parts:
+                    json_data = {
+                        "messaging_product": "whatsapp",
+                        "to": user_whatsapp_number,
+                        "text": {"body": part},
+                    }
+
+                    response = await client.post(url, headers=headers, json=json_data)
+                    response.raise_for_status()  # Raise an exception for HTTP errors
+
+                    if msg_body != "...":
+                        logger.info("\n".join(f"[Part {i + 1}]: \n{part}" for i, part in enumerate(message_parts)))
+
         except Exception as e:
             logger.error(f"Error sending message: {e}. Details are in next log.")
             logger.exception(e)
@@ -250,6 +259,255 @@ class WhatsAppPresenter:
             msg = re.sub(r"(\s*)(\d+)(\.) ", r"\1\2 - ", msg, flags=re.MULTILINE)
 
         return msg
+
+    def _split_long_messages(self, msg_body: str) -> list[str]:
+        """Split long messages into smaller chunks based on formatted headers or other patterns.
+
+        This method implements a multi-level splitting strategy for messages that exceed
+        WhatsApp's character limit (4000):
+        1. First tries to split by header pattern (*_HEADER_*)
+        2. If that's not possible, tries to split by bold text (*BOLD*)
+        3. Finally falls back to paragraph-based splitting
+
+        Args:
+            msg_body (str): The message body to split if necessary
+
+        Returns:
+            list[str]: A list of message chunks that can be sent separately
+
+        Example:
+            >>> msg = "*_First Header_*\nSome text here...\n\n*_Second Header_*\nMore text..."
+            >>> _split_long_messages(msg)
+            ['*_First Header_*\nSome text here...', '*_Second Header_*\nMore text...']
+        """
+        # WhatsApp character limit
+        MAX_LENGTH = 4000
+
+        # If message is already under the limit, return it as is
+        if len(msg_body) <= MAX_LENGTH:
+            return [msg_body]
+
+        # Strategy 1: Try to split by formatted headers (*_HEADER_*)
+        header_chunks = self._split_by_headers(msg_body, MAX_LENGTH)
+        if len(header_chunks) > 1:
+            return header_chunks
+
+        # Strategy 2: Try to split by bold formatting (*BOLD*)
+        bold_chunks = self._split_by_bold_text(msg_body, MAX_LENGTH)
+        if len(bold_chunks) > 1:
+            return bold_chunks
+
+        # Strategy 3: Fall back to paragraph-based splitting
+        return self._split_by_paragraphs(msg_body, MAX_LENGTH)
+
+    def _split_by_headers(self, text: str, max_length: int) -> list[str]:
+        """Split text by formatted header pattern (*_HEADER_*).
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by headers
+
+        Example:
+            >>> text = "Text before header\n*_First Header_*\nText\n\n*_Second Header_*\nMore text"
+            >>> _split_by_headers(text, 1000)
+            ['Text before header', '*_First Header_*\nText', '*_Second Header_*\nMore text']
+        """
+        # Look for *_HEADER_* pattern
+        header_pattern = re.compile(r"\*_[^*_]+_\*")
+        headers = list(header_pattern.finditer(text))
+
+        # If we don't have multiple headers, we can't split effectively
+        if not headers or len(headers) <= 1:
+            return [text]
+
+        chunks = []
+
+        # Process each header as a potential chunk boundary
+        for i, match in enumerate(headers):
+            # For the first header, handle any text that comes before it
+            if i == 0 and match.start() > 0:
+                prefix = text[: match.start()]
+
+                # Always include the text before the first header in its own message(s)
+                # If it's too long, recursively split it
+                if len(prefix) <= max_length:
+                    chunks.append(prefix)
+                else:
+                    # If prefix is too long, split it using paragraph-based splitting
+                    prefix_chunks = self._split_by_paragraphs(prefix, max_length)
+                    chunks.extend(prefix_chunks)
+
+            # Determine the end position for the chunk containing this header
+            end_pos = headers[i + 1].start() if i < len(headers) - 1 else len(text)
+            chunk = text[match.start() : end_pos]
+
+            # If chunk fits within limit, add it directly
+            if len(chunk) <= max_length:
+                chunks.append(chunk)
+            else:
+                # Otherwise, try more aggressive splitting for this chunk
+                # First try bold formatting, then paragraphs
+                sub_chunks = self._split_by_bold_text(chunk, max_length)
+                chunks.extend(sub_chunks)
+
+        return chunks
+
+    def _split_by_bold_text(self, text: str, max_length: int) -> list[str]:
+        """Split text by looking for bold formatting (*TEXT*) patterns.
+
+        This function splits text at bold formatting markers (*TEXT*) when the text
+        exceeds the maximum length. It treats each bold pattern as a potential
+        break point, always keeping the bold text with the content that follows it.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by bold formatting
+
+        Example:
+            >>> text = "Some intro text\n*First bold section*\nMiddle content\n*Second bold*\nMore text"
+            >>> _split_by_bold_text(text, 30)
+            ['Some intro text', '*First bold section*\nMiddle content', '*Second bold*\nMore text']
+        """
+        if len(text) <= max_length:
+            return [text]
+
+        # Find *TEXT* patterns
+        bold_pattern = re.compile(r"\*[^*]+\*")
+        bold_matches = list(bold_pattern.finditer(text))
+
+        # If we don't have enough bold patterns for effective splitting
+        if not bold_matches or len(bold_matches) <= 1:
+            return self._split_by_paragraphs(text, max_length)
+
+        chunks = []
+
+        # Process each bold pattern as a potential chunk boundary
+        for i, match in enumerate(bold_matches):
+            # For the first bold pattern, handle any text that comes before it
+            if i == 0 and match.start() > 0:
+                prefix = text[: match.start()]
+
+                # Always include the text before the first bold pattern in its own message(s)
+                # If it's too long, recursively split it
+                if len(prefix) <= max_length:
+                    chunks.append(prefix)
+                else:
+                    # If prefix is too long, split it using paragraph-based splitting
+                    prefix_chunks = self._split_by_paragraphs(prefix, max_length)
+                    chunks.extend(prefix_chunks)
+
+            # Determine the end position for the chunk containing this bold pattern
+            end_pos = bold_matches[i + 1].start() if i < len(bold_matches) - 1 else len(text)
+            chunk = text[match.start() : end_pos]
+
+            # If chunk fits within limit, add it directly
+            if len(chunk) <= max_length:
+                chunks.append(chunk)
+            else:
+                # Otherwise, fall back to paragraph splitting for this chunk
+                sub_chunks = self._split_by_paragraphs(chunk, max_length)
+                chunks.extend(sub_chunks)
+
+        return chunks
+
+    def _split_by_paragraphs(self, text: str, max_length: int) -> list[str]:
+        """Split text by paragraphs or fall back to fixed-size chunks if needed.
+
+        This method attempts to split text at natural paragraph breaks (double newlines). If paragraphs themselves are
+        too long, it uses fixed-size chunk splitting as a fallback.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks split by paragraphs or fixed chunks
+
+        Example:
+            >>> text = "This is paragraph 1.\\n\\nThis is paragraph 2.\\n\\nThis is a very long paragraph 3 that exceeds"
+            >>> text += " the maximum length and will need to be split."
+            >>> _split_by_paragraphs(text, 50)
+            ['This is paragraph 1.', 'This is paragraph 2.', 'This is a very long paragraph 3 that exceeds the',
+                ' maximum length and will need to be split.']
+        """
+        if len(text) <= max_length:
+            return [text]
+
+        chunks = []
+
+        # Try splitting by paragraphs first (double newlines)
+        paragraphs = re.split(r"\n\n+", text)
+
+        if len(paragraphs) > 1:
+            current = ""
+
+            for para in paragraphs:
+                # If adding this paragraph would exceed the limit
+                if current and len(current) + len(para) + 2 > max_length:
+                    chunks.append(current)
+                    current = ""
+
+                # If paragraph itself is too long, split it using fixed chunks
+                if len(para) > max_length:
+                    # Add any accumulated text first
+                    if current:
+                        chunks.append(current)
+                        current = ""
+
+                    # Use fixed-size chunk splitting for long paragraphs
+                    para_chunks = self._split_by_fixed_chunks(para, max_length)
+                    chunks.extend(para_chunks)
+                else:
+                    # Add paragraph to current chunk with proper separator
+                    if current:
+                        current += "\n\n" + para
+                    else:
+                        current = para
+
+            # Don't forget the last chunk
+            if current:
+                chunks.append(current)
+
+            return chunks
+        else:
+            # If text doesn't have paragraphs, use fixed-size chunk splitting
+            return self._split_by_fixed_chunks(text, max_length)
+
+    def _split_by_fixed_chunks(self, text: str, max_length: int) -> list[str]:
+        """Split text into fixed-size chunks of maximum length.
+
+        This is the simplest fallback approach, which just takes chunks of
+        max_length characters until the entire text is processed.
+
+        Args:
+            text (str): Text to split
+            max_length (int): Maximum allowed length of each chunk
+
+        Returns:
+            list[str]: List of text chunks of maximum length
+
+        Example:
+            >>> text = "This is a very long text that exceeds the maximum allowed length"
+            >>> _split_by_fixed_chunks(text, 20)
+            ['This is a very long ', 'text that exceeds the', ' maximum allowed len', 'gth']
+        """
+        # If text is already under the limit, return it as is
+        if len(text) <= max_length:
+            return [text]
+
+        chunks = []
+
+        # Simply take max_length characters at a time
+        for i in range(0, len(text), max_length):
+            chunks.append(text[i : i + max_length])
+
+        return chunks
 
     async def handle_text_message(
         self,
@@ -337,9 +595,7 @@ class WhatsAppPresenter:
             #   log (i.e., append) the message history's last user message to DB,
             #   process the history,
             #   log (i.e., append) Ansari's output to DB,
-            # TODO(odyash, good_first_issue): change `stream` to False (and remove comprehensive loop)
-            #   when `Ansari` is capable of handling it
-            response = [tok for tok in agent.replace_message_history(msg_history, stream=True) if tok]
+            response = [tok for tok in agent.replace_message_history(msg_history)]
             response = "".join(response)
 
             # Convert conventional markdown syntax to WhatsApp's markdown syntax

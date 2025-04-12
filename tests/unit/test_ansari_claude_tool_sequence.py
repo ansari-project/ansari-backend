@@ -66,7 +66,7 @@ def test_process_message_history_with_tools():
         claude.process_one_round = MagicMock(side_effect=add_assistant_response)
 
         # Run the message processing
-        list(claude.process_message_history(use_tool=False, stream=False))
+        list(claude.process_message_history(use_tool=False))
 
         # Verify the results
         processed_history = claude.message_history
