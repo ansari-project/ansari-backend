@@ -234,6 +234,9 @@ async def register_user(req: RegisterRequest):
             last_name=req.last_name,
             password_hash=password_hash,
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500)
@@ -817,6 +820,9 @@ async def update_password(
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
         db.update_password(token_params["email"], password_hash)
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500)
@@ -843,9 +849,99 @@ async def reset_password(req: PasswordReset):
             )
         db.update_password(token_params["user_id"], password_hash)
         return {"status": "success"}
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.critical(f"Error: {e}")
         raise HTTPException(status_code=500)
+
+
+class AppVersionCheckRequest(BaseModel):
+    platform: str  # 'web', 'ios', or 'android'
+    native_application_version: str
+    native_build_version: str
+
+
+@app.post("/api/v2/app-check")
+async def check_app_version(
+    req: AppVersionCheckRequest,
+    settings: Settings = Depends(get_settings),
+):
+    """Check if the application version is up to date.
+
+    Returns:
+        - maintenance_mode: Whether the application is in maintenance mode
+        - update_available: Whether a new update is available for the app
+        - force_update_required: Whether the current application version is too old and requires an update
+    """
+    try:
+        # Default response values
+        maintenance_mode = False
+        update_available = False
+        force_update_required = False
+
+        # Check maintenance mode - applies to all platforms
+        if hasattr(settings, "MAINTENANCE_MODE"):
+            maintenance_mode = settings.MAINTENANCE_MODE
+
+        # If platform is web, we only check maintenance mode
+        if req.platform.lower() == "web":
+            return {
+                "maintenance_mode": maintenance_mode,
+                "update_available": False,
+                "force_update_required": False
+            }
+
+        # For mobile platforms, validate build version first
+        try:
+            build_version = int(req.native_build_version)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid native_build_version: must be a valid integer"
+            )
+
+        # Handle iOS platform
+        if req.platform.lower() == "ios":
+            if hasattr(settings, "IOS_MINIMUM_BUILD_VERSION") and hasattr(settings, "IOS_LATEST_BUILD_VERSION"):
+                # Check if app is below minimum required version
+                if build_version < settings.IOS_MINIMUM_BUILD_VERSION:
+                    force_update_required = True
+
+                # Check if update is available
+                if build_version < settings.IOS_LATEST_BUILD_VERSION:
+                    update_available = True
+
+        # Handle Android platform
+        elif req.platform.lower() == "android":
+            if hasattr(settings, "ANDROID_MINIMUM_BUILD_VERSION") and hasattr(settings, "ANDROID_LATEST_BUILD_VERSION"):
+                # Check if app is below minimum required version
+                if build_version < settings.ANDROID_MINIMUM_BUILD_VERSION:
+                    force_update_required = True
+
+                # Check if update is available
+                if build_version < settings.ANDROID_LATEST_BUILD_VERSION:
+                    update_available = True
+
+        # Invalid platform
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid platform: must be 'web', 'ios', or 'android'"
+            )
+
+        return {
+            "maintenance_mode": maintenance_mode,
+            "update_available": update_available,
+            "force_update_required": force_update_required
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.critical(f"Error in app version check: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/api/v1/complete")
