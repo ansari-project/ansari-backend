@@ -2,10 +2,8 @@
 
 import logging
 import os
-import sys
 import re
 import time
-from typing import Optional
 
 from rich.console import Console
 from rich.logging import RichHandler
