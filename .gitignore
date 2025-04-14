@@ -10,6 +10,7 @@ docs/recordings/*
 etc/
 example_projects/
 lib/
+logs/
 share/
 src/ansari_backend.egg-info/*
 tmp/
