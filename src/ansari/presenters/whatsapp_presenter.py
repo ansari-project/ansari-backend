@@ -1,6 +1,8 @@
 # Unlike other files, the presenter's role here is just to provide functions for handling WhatsApp interactions
 
 import re
+import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 
@@ -16,35 +18,71 @@ from ansari.util.general_helpers import get_language_direction_from_text, get_la
 logger = get_logger(__name__)
 
 # Initialize the DB and agent
-# TODO(odyash): A question for others: should I refer `db` of this file and `main_api.py` to a single instance of AnsariDB?
-#    instead of duplicating `db` instances? Will this cost more resources?
 db = AnsariDB(get_settings())
 
 
 class WhatsAppPresenter:
     def __init__(
         self,
-        agent: Ansari,
-        access_token,
-        business_phone_number_id,
-        api_version="v21.0",
+        agent: Ansari | None = None,
+        access_token: str | None = None,
+        business_phone_number_id: str | None = None,
+        api_version: str = "v22.0",
+        user_whatsapp_number: str | None = None,
+        incoming_msg_type: str | None = None,
+        incoming_msg_body: dict | None = None,
+        message_id: str | None = None,
     ):
-        self.settings = agent.settings
+        if agent:
+            self.settings = agent.settings
+        else:
+            self.settings = get_settings()
+
         self.access_token = access_token
+        self.business_phone_number_id = business_phone_number_id
+        self.api_version = api_version
         self.meta_api_url = f"https://graph.facebook.com/{api_version}/{business_phone_number_id}/messages"
+
+        # User-specific fields
+        self.user_whatsapp_number = user_whatsapp_number
+        self.incoming_msg_type = incoming_msg_type
+        self.incoming_msg_body = incoming_msg_body
+        self.message_id = message_id
+        self.typing_indicator_task = None
+        self.first_indicator_time = None
+
+    @classmethod
+    def create_user_specific_presenter(
+        cls,
+        general_presenter,
+        user_whatsapp_number: str,
+        incoming_msg_type: str,
+        incoming_msg_body: dict,
+        message_id: str,
+    ):
+        """Creates a user-specific presenter instance from a general presenter."""
+        return cls(
+            access_token=general_presenter.access_token,
+            business_phone_number_id=general_presenter.business_phone_number_id,
+            api_version=general_presenter.api_version,
+            user_whatsapp_number=user_whatsapp_number,
+            incoming_msg_type=incoming_msg_type,
+            incoming_msg_body=incoming_msg_body,
+            message_id=message_id,
+        )
 
     async def extract_relevant_whatsapp_message_details(
         self,
         body: dict[str, Any],
-    ) -> tuple[str, str, dict] | str:
+    ) -> tuple[bool, str | None, str | None, dict | None, str | None]:
         """Extracts relevant whatsapp message details from the incoming webhook payload.
 
         Args:
             body (Dict[str, Any]): The JSON body of the incoming request.
 
         Returns:
-            Union[tuple, str]: A tuple of (user_whatsapp_number, incoming_msg_type, incoming_msg_body)
-                if successful, or an error message string if it's a status update or other invalid data.
+            tuple[bool, Optional[str], Optional[str], Optional[dict], Optional[str]]:
+                A tuple of (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id)
 
         Raises:
             Exception: If the payload structure is invalid or unsupported.
@@ -99,31 +137,25 @@ class WhatsAppPresenter:
 
         return (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id)
 
-    async def check_and_register_user(
-        self,
-        user_whatsapp_number: str,
-        incoming_msg_type: str,
-        incoming_msg_body: dict,
-    ) -> None:
+    async def check_and_register_user(self) -> bool:
         """
         Checks if the user's phone number is stored in the users table.
         If not, registers the user with the preferred language.
 
-        Args:
-            user_whatsapp_number (str): The phone number of the WhatsApp sender.
-            incoming_msg_type (str): The type of the incoming message (e.g., text, location).
-            incoming_msg_body (dict): The body of the incoming message.
-
         Returns:
-            None
+            bool: True if user exists or was successfully registered, False otherwise.
         """
+        if not self.user_whatsapp_number:
+            logger.error("User WhatsApp number not set in presenter instance")
+            return False
+
         # Check if the user's phone number exists in users table
-        if db.account_exists(phone_num=user_whatsapp_number):
+        if db.account_exists(phone_num=self.user_whatsapp_number):
             return True
 
         # Else, register the user with the detected language
-        if incoming_msg_type == "text":
-            incoming_msg_text = incoming_msg_body["body"]
+        if self.incoming_msg_type == "text":
+            incoming_msg_text = self.incoming_msg_body["body"]
             user_lang = get_language_from_text(incoming_msg_text)
         else:
             # TODO(odyash, good_first_issue): use lightweight library/solution that gives us language from country code
@@ -132,29 +164,64 @@ class WhatsAppPresenter:
 
         status: Literal["success", "failure"] = db.register(
             source=SourceType.WHATSAPP,
-            phone_num=user_whatsapp_number,
+            phone_num=self.user_whatsapp_number,
             preferred_language=user_lang,
         )["status"]
 
         if status == "success":
-            logger.info(f"Registered new whatsapp user (lang: {user_lang})!: {user_whatsapp_number}")
+            logger.info(f"Registered new whatsapp user (lang: {user_lang})!: {self.user_whatsapp_number}")
             return True
         else:
-            logger.error(f"Failed to register new whatsapp user: {user_whatsapp_number}")
+            logger.error(f"Failed to register new whatsapp user: {self.user_whatsapp_number}")
             return False
 
-    async def send_whatsapp_typing_indicator(
-        self,
-        user_whatsapp_number: str,
-        message_id: str,
-    ) -> None:
-        """Sends a typing indicator to the WhatsApp sender.
+    async def send_typing_indicator_then_start_loop(self) -> None:
+        """Sends a typing indicator and starts a loop to periodically send more while processing the message."""
+        if not self.user_whatsapp_number or not self.message_id:
+            logger.error("Cannot start typing indicator loop: missing user_whatsapp_number or message_id")
+            return
 
-        Args:
-            user_whatsapp_number (str): The sender's WhatsApp number.
-            message_id (str): The ID of the message being replied to.
+        self.first_indicator_time = time.time()
 
-        """
+        # Send the initial typing indicator
+        await self._send_whatsapp_typing_indicator()
+
+        # Start an async task that will keep sending typing indicators
+        self.typing_indicator_task = asyncio.create_task(self._typing_indicator_loop())
+
+    async def _typing_indicator_loop(self) -> None:
+        """Loop that periodically sends typing indicators while processing a message."""
+        MAX_DURATION_SECONDS = 300  # 5 minutes maximum
+        INDICATOR_INTERVAL_SECONDS = 26  # Send indicator every 26 seconds
+
+        try:
+            while True:
+                logger.debug("Currently in typing indicator loop (i.e., Ansari is taking longer than usual to respond)")
+                # Sleep for the interval
+                await asyncio.sleep(INDICATOR_INTERVAL_SECONDS)
+
+                # Check if we've exceeded the maximum duration
+                elapsed_time = time.time() - self.first_indicator_time
+                if elapsed_time > MAX_DURATION_SECONDS:
+                    logger.warning(f"Typing indicator loop exceeded maximum duration of {MAX_DURATION_SECONDS}s. Stopping.")
+                    break
+
+                # If we're still processing the message, send another typing indicator
+                logger.debug(f"Sending follow-up typing indicator after {elapsed_time:.1f}s")
+                await self._send_whatsapp_typing_indicator()
+
+        except asyncio.CancelledError:
+            logger.debug("cancelling asyncio task...")
+        except Exception as e:
+            logger.error(f"Error in typing indicator loop: {e}")
+            logger.exception(e)
+
+    async def _send_whatsapp_typing_indicator(self) -> None:
+        """Sends a typing indicator to the WhatsApp sender."""
+        if not self.user_whatsapp_number or not self.message_id:
+            logger.error("Cannot send typing indicator: missing user_whatsapp_number or message_id")
+            return
+
         url = self.meta_api_url
         headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -168,31 +235,29 @@ class WhatsAppPresenter:
                 json_data = {
                     "messaging_product": "whatsapp",
                     "status": "read",
-                    "message_id": message_id,
+                    "message_id": self.message_id,
                     "typing_indicator": {"type": "text"},
                 }
 
                 response = await client.post(url, headers=headers, json=json_data)
                 response.raise_for_status()  # Raise an exception for HTTP errors
 
-                logger.debug(f"Sent typing indicator to WhatsApp user {user_whatsapp_number}")
+                logger.debug(f"Sent typing indicator to WhatsApp user {self.user_whatsapp_number}")
 
         except Exception as e:
             logger.error(f"Error sending typing indicator: {e}. Details are in next log.")
             logger.exception(e)
 
-    async def send_whatsapp_message(
-        self,
-        user_whatsapp_number: str,
-        msg_body: str,
-    ) -> None:
+    async def send_whatsapp_message(self, msg_body: str) -> None:
         """Sends a message to the WhatsApp sender.
 
         Args:
-            user_whatsapp_number (str): The sender's WhatsApp number.
             msg_body (str): The message body to be sent.
-
         """
+        if not self.user_whatsapp_number:
+            logger.error("Cannot send message: missing user_whatsapp_number")
+            return
+
         url = self.meta_api_url
         headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -202,19 +267,25 @@ class WhatsAppPresenter:
         # Split the message if it exceeds WhatsApp's character limit
         message_parts = self._split_long_messages(msg_body)
 
+        # Stop the typing indicator before sending the actual message
+        if self.typing_indicator_task and not self.typing_indicator_task.done():
+            logger.debug("Typing indicator loop was cancelled (as Ansari will respond now)")
+            self.typing_indicator_task.cancel()
+
+        # Send the message(s) to the user
         try:
             async with httpx.AsyncClient() as client:
                 logger.debug(f"SENDING REQUEST TO: {url}")
 
                 logger.info(
-                    f"Ansari responded to WhatsApp user {user_whatsapp_number} with the following message part(s):\n\n"
+                    f"Ansari responded to WhatsApp user {self.user_whatsapp_number} with the following message part(s):\n\n"
                 )
 
                 # If we have multiple parts, send them sequentially
                 for part in message_parts:
                     json_data = {
                         "messaging_product": "whatsapp",
-                        "to": user_whatsapp_number,
+                        "to": self.user_whatsapp_number,
                         "text": {"body": part},
                     }
 
@@ -223,7 +294,6 @@ class WhatsAppPresenter:
 
                     if msg_body != "...":
                         logger.info("\n".join(f"[Part {i + 1}]: \n{part}" for i, part in enumerate(message_parts)))
-
         except Exception as e:
             logger.error(f"Error sending message: {e}. Details are in next log.")
             logger.exception(e)
@@ -593,24 +663,16 @@ class WhatsAppPresenter:
 
         return chunks
 
-    async def handle_text_message(
-        self,
-        user_whatsapp_number: str,
-        incoming_txt_msg: str,
-    ) -> None:
-        """Processes the incoming text message and sends a response to the WhatsApp sender.
+    async def handle_text_message(self) -> None:
+        """Processes the incoming text message and sends a response to the WhatsApp sender."""
+        incoming_txt_msg = self.incoming_msg_body["body"]
 
-        Args:
-            user_whatsapp_number (str): The sender's WhatsApp number.
-            incoming_txt_msg (str): The incoming text message from the sender.
-
-        """
         try:
             logger.debug(f"Whatsapp user said: {incoming_txt_msg}")
 
             # Get user's ID from users_whatsapp table
             # NOTE: we're not checking for user's existence here, as we've already done that in `main_webhook()`
-            user_id_whatsapp = db.retrieve_user_info(source=SourceType.WHATSAPP, phone_num=user_whatsapp_number)
+            user_id_whatsapp = db.retrieve_user_info(source=SourceType.WHATSAPP, phone_num=self.user_whatsapp_number)
 
             # Get details of the thread that the user last interacted with (i.e., max(updated_at))
             thread_id, last_msg_time = db.get_last_message_time_whatsapp(user_id_whatsapp)
@@ -636,7 +698,6 @@ class WhatsAppPresenter:
                 if "error" in result:
                     logger.error(f"Error creating a new thread for whatsapp user ({user_id_whatsapp}): {result['error']}")
                     await self.send_whatsapp_message(
-                        user_whatsapp_number,
                         "An unexpected error occurred while creating a new chat session. Please try again later.",
                     )
                     return
@@ -653,7 +714,6 @@ class WhatsAppPresenter:
             if "messages" not in thread_name_and_history:
                 logger.error(f"Error retrieving message history for thread ({thread_id}) of user ({user_id_whatsapp})")
                 await self.send_whatsapp_message(
-                    user_whatsapp_number,
                     "An unexpected error occurred while getting your last chat session. Please try again later.",
                 )
                 return
@@ -678,9 +738,13 @@ class WhatsAppPresenter:
             # Send the thread's history to the Ansari agent which will
             #   log (i.e., append) the message history's last user message to DB,
             #   process the history,
-            #   log (i.e., append) Ansari's output to DB,
-            response = [tok for tok in agent.replace_message_history(msg_history)]
-            response = "".join(response)
+            #   log (i.e., append) Ansari's output to DB
+            response = ""
+            for token in agent.replace_message_history(msg_history):
+                # NOTE: Check the `async_await_backgroundtasks_visualized.md` file
+                #   for details on why we added this `await` line
+                await asyncio.sleep(0)
+                response += token
 
             # Convert conventional markdown syntax to WhatsApp's markdown syntax
             logger.debug(f"Response before markdown conversion: \n\n{response}")
@@ -689,67 +753,45 @@ class WhatsAppPresenter:
             # Return the response back to the WhatsApp user if it's not empty
             #   Else, send an error message to the user
             if response:
-                await self.send_whatsapp_message(user_whatsapp_number, response)
+                await self.send_whatsapp_message(response)
             else:
                 logger.warning("Response was empty. Sending error message.")
                 await self.send_whatsapp_message(
-                    user_whatsapp_number,
                     "Ansari returned an empty response. Please rephrase your question, then try again.",
                 )
         except Exception as e:
             logger.error(f"Error processing message: {e}. Details are in next log.")
             logger.exception(e)
             await self.send_whatsapp_message(
-                user_whatsapp_number,
                 "An unexpected error occurred while processing your message. Please try again later.",
             )
 
     # NOTE: This function assumes `loc_lat` and `loc_long` columns are in `users` DB table
     #   If alternative columns are used (e.g., city), the function should be updated accordingly
-    async def handle_location_message(
-        self,
-        user_whatsapp_number: str,
-        incoming_msg_body: dict,
-    ) -> None:
+    async def handle_location_message(self) -> None:
         """
         Handles an incoming location message by updating the user's location in the database
         and sending a confirmation message.
-
-        Args:
-            user_whatsapp_number (str): The phone number of the WhatsApp sender.
-            incoming_msg_body (dict): The body of the incoming location message.
-
-        Returns:
-            None
         """
-        loc = incoming_msg_body
-        db.update_user_by_phone_num(user_whatsapp_number, {"loc_lat": loc["latitude"], "loc_long": loc["longitude"]})
+
+        loc = self.incoming_msg_body
+        db.update_user_by_phone_num(self.user_whatsapp_number, {"loc_lat": loc["latitude"], "loc_long": loc["longitude"]})
         # TODO(odyash, good_first_issue): update msg below to also say something like:
         # 'Type "pt"/"prayer times" to get prayer times', then implement that feature
         await self.send_whatsapp_message(
-            user_whatsapp_number,
             "Stored your location successfully!",  # This will help us give you accurate prayer times ISA 🙌.
         )
 
     async def handle_unsupported_message(
         self,
-        user_whatsapp_number: str,
-        incoming_msg_type: str,
     ) -> None:
         """
         Handles an incoming unsupported message by sending an appropriate response.
-
-        Args:
-            user_whatsapp_number (str): The phone number of the WhatsApp sender.
-            incoming_msg_type (str): The type of the incoming message (e.g., image, video).
-
-        Returns:
-            None
         """
-        msg_type = incoming_msg_type + "s" if not incoming_msg_type.endswith("s") else incoming_msg_type
+
+        msg_type = self.incoming_msg_type + "s" if not self.incoming_msg_type.endswith("s") else self.incoming_msg_type
         msg_type = msg_type.replace("unsupporteds", "this media type")
         await self.send_whatsapp_message(
-            user_whatsapp_number,
             f"Sorry, I can't process {msg_type} yet. Please send me a text message.",
         )
 
