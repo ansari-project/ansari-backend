@@ -755,44 +755,21 @@ class AnsariClaude(Ansari):
                             except json.JSONDecodeError:
                                 logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
 
-                # Validation check: If an old "tool_result" message (OF THE SAME TOOL CALL ID)
-                # is already appended to self.message_history (from a previous _process_tool_calls() call),
-                # then tool result is getting duplicated (i.e., old document_blocks is same as new ones)
-                #   so don't append it
-                # Corner case: In very rare cases, the old tool_result message will contain a single element in "contents":
-                #   "Please see the references below." (i.e., no document_blocks are added).
-                #   If so, then (and only then): we append new document_blocks to old "tool_result" message
-                # NOTE: We're doing this as Claude's API requires a message history to have
-                #   a SINGLE "tool_result" message (i.e., dict) directly after a SINGLE "tool_use" message
-                if (
-                    (c := self.message_history[-1].get("content"))
-                    and isinstance(c, list)
-                    and len(c) > 0
-                    and c[0].get("type", "") == "tool_result"
-                    and c[0].get("tool_use_id", "") == tc["id"]  # <- most important condition check
-                ):
-                    if len(c) == 1:
-                        logger.debug(f"appending {len(document_blocks)} to last tool_result message")
-                        self.message_history[-1]["content"].append(document_blocks)
-                    else:
-                        logger.warning("last message in history is already a 'tool_result' message; Skipping... ")
-                    continue
-                else:
-                    # Add tool result message
-                    logger.debug("Adding a 'tool_result' message to history")
-                    self.message_history.append(
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tc["id"],
-                                    "content": "Please see the references below.",
-                                }
-                            ]
-                            + document_blocks,
-                        }
-                    )
+                # Add tool result message
+                logger.debug("Adding a 'tool_result' message to history")
+                self.message_history.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tc["id"],
+                                "content": "Please see the references below.",
+                            }
+                        ]
+                        + document_blocks,
+                    }
+                )
 
                 # Log the tool result message
                 self._log_message(self.message_history[-1])
@@ -946,8 +923,9 @@ class AnsariClaude(Ansari):
         if content_blocks:
             message_content = content_blocks
         else:
-            # If no content blocks, use a single empty text element
-            message_content = [{"type": "text", "text": ""}]
+            # If no content blocks, use a fallback non-empty text element
+            # Claude API requires text content blocks to be non-empty
+            message_content = [{"type": "text", "text": "I'm processing your request."}]
 
         # Create the assistant message for the message history
         # Don't include tool_name in the message sent to Claude API
