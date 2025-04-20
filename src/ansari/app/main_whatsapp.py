@@ -1,4 +1,7 @@
 # This file aims to extend `main_api.py` with FastAPI endpoints which handle incoming WhatsApp webhook messages.
+# NOTE: the `BackgroundTasks` logic is inspired by this issue and chat (respectively):
+# https://stackoverflow.com/questions/72894209/whatsapp-cloud-api-sending-old-message-inbound-notification-multiple-time-on-my
+# https://www.perplexity.ai/search/explain-fastapi-s-backgroundta-rnpU7D19QpSxp2ZOBzNUyg
 # Steps:
 #    1. Import necessary modules and configure logging.
 #    2. Create a FastAPI router to extend the main FastAPI app found in `main_api.py`.
@@ -10,8 +13,8 @@
 #    5. Define a GET endpoint to handle WhatsApp webhook verification.
 #    6. Define a POST endpoint to handle incoming WhatsApp messages.
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, Response
 
 from ansari.agents import Ansari, AnsariClaude
 from ansari.ansari_logger import get_logger
@@ -73,94 +76,109 @@ async def verification_webhook(request: Request) -> str | None:
 
 
 @router.post("/whatsapp/v1")
-async def main_webhook(request: Request) -> None:
+async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
     """Handles the incoming WhatsApp webhook message.
 
     Args:
         request (Request): The incoming HTTP request.
+        background_tasks (BackgroundTasks): The background tasks to be executed.
 
     Returns:
-        None
+        Response: HTTP response with status code 200.
 
     """
-    # Wait for the incoming webhook message to be received as JSON
-    data = await request.json()
 
     # # Logging the origin (host) of the incoming webhook message
     # logger.debug(f"ORIGIN of the incoming webhook message: {json.dumps(request, indent=4)}")
 
-    # Terminate if incoming webhook message is empty/invalid/msg-status-update(sent,delivered,read)
+    # Wait for the incoming webhook message to be received as JSON
+    data = await request.json()
+
+    # Extract all relevant data in one go using the general presenter
     try:
-        result = await presenter.extract_relevant_whatsapp_message_details(data)
-    except Exception:
-        return
-    else:
-        if isinstance(result, str):
-            return
-
-    # Get relevant info from Meta's API
-    (
-        from_whatsapp_number,
-        incoming_msg_type,
-        incoming_msg_body,
-    ) = result
-
-    if not whatsapp_enabled:
-        await presenter.send_whatsapp_message(
+        (
+            is_status,
             from_whatsapp_number,
+            incoming_msg_type,
+            incoming_msg_body,
+            message_id,
+        ) = await presenter.extract_relevant_whatsapp_message_details(data)
+    except Exception as e:
+        logger.error(f"Error extracting message details: {e}")
+        return Response(status_code=200)
+
+    # Terminate if the incoming message is a status message (e.g., "delivered")
+    if not is_status:
+        logger.debug(f"Incoming whatsapp webhook message from {from_whatsapp_number}")
+    else:
+        # NOTE: This is a status message (e.g., "delivered"), not a user message, so doesn't need processing
+        return Response(status_code=200)
+
+    # Terminate if whatsapp is not enabled (i.e., via .env configurations, etc)
+    if not whatsapp_enabled:
+        # Create a temporary user-specific presenter just to send the message
+        temp_presenter = WhatsAppPresenter.create_user_specific_presenter(presenter, from_whatsapp_number, None, None, None)
+        background_tasks.add_task(
+            temp_presenter.send_whatsapp_message,
             "Ansari for WhatsApp is down for maintenance, please try again later or visit our website at https://ansari.chat.",
         )
-        return
+        return Response(status_code=200)
 
-    # Check if the user's phone number is stored in users_whatsapp table and register if not
-    # Returns false if user's not found and thier registration fails
-    user_found: bool = await presenter.check_and_register_user(
+    # Workaround while locally developing:
+    #   don't process other dev's whatsapp recepient phone nums coming from staging env.
+    #   (as both stage Meta app / local-.env-file have same testing number)
+    dev_num_sub_str = "YOUR_DEV_PHONE_NUM"
+    if get_settings().DEV_MODE and dev_num_sub_str not in from_whatsapp_number:
+        logger.debug(
+            f"Incoming message from {from_whatsapp_number} (doesn't have this sub-str: {dev_num_sub_str}). \
+            Therefore, will not process it as it's not cur. dev."
+        )
+        return Response(status_code=200)
+
+    # Create a user-specific presenter for this message
+    user_presenter = WhatsAppPresenter.create_user_specific_presenter(
+        presenter,
         from_whatsapp_number,
         incoming_msg_type,
         incoming_msg_body,
+        message_id,
     )
+
+    # Start the typing indicator loop that will continue until message is processed
+    background_tasks.add_task(
+        user_presenter.send_typing_indicator_then_start_loop,
+    )
+
+    # Check if the user's phone number is stored in users_whatsapp table and register if not
+    # Returns false if user's not found and their registration fails
+    user_found: bool = await user_presenter.check_and_register_user()
     if not user_found:
-        await presenter.send_whatsapp_message(
-            from_whatsapp_number,
+        background_tasks.add_task(
+            user_presenter.send_whatsapp_message,
             "Sorry, we couldn't register you to our Database. Please try again later.",
         )
-        return
+        return Response(status_code=200)
 
     # Check if the incoming message is a location
     if incoming_msg_type == "location":
         # NOTE: Currently, will not handle location messages
-        await presenter.handle_unsupported_message(
-            from_whatsapp_number,
-            incoming_msg_type,
+        background_tasks.add_task(
+            user_presenter.handle_unsupported_message,
         )
-        return
+        return Response(status_code=200)
 
     # Check if the incoming message is a media type other than text
     if incoming_msg_type != "text":
-        await presenter.handle_unsupported_message(
-            from_whatsapp_number,
-            incoming_msg_type,
+        background_tasks.add_task(
+            user_presenter.handle_unsupported_message,
         )
-        return
+        return Response(status_code=200)
 
     # Rest of the code below is for processing text messages sent by the whatsapp user
-    incoming_msg_text = incoming_msg_body["body"]
-
-    # # Send acknowledgment message (only when DEV_MODE)
-    # # and if dev. doesn't need it, comment it out :]
-    # if get_settings().DEV_MODE:
-    #     await presenter.send_whatsapp_message(
-    #         from_whatsapp_number,
-    #         f"Ack: {incoming_msg_text}",
-    #     )
-
-    # Send a typing indicator to the sender
-    # Side note: As of 2024-12-21, Meta's WhatsApp API does not support typing indicators
-    # Source: Search "typing indicator whatsapp api" on Google
-    await presenter.send_whatsapp_message(from_whatsapp_number, "...")
 
     # Actual code to process the incoming message using Ansari agent then reply to the sender
-    await presenter.handle_text_message(
-        from_whatsapp_number,
-        incoming_msg_text,
+    background_tasks.add_task(
+        user_presenter.handle_text_message,
     )
+
+    return Response(status_code=200)

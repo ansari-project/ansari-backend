@@ -1,0 +1,66 @@
+(manually inserted log) ------------------------------------------------------------------------------ FastAPI receives a message from a whatsapp user on /whatsapp/v1 endpoint, so the event loop picks the `main_webhook()` to be executed now ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ Execution in `main_webhook()` starts ------------------------------------------------------------------------------
+2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! Before `background_tasks -> send_typing_indicator_then_start_loop`
+2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! After `background_tasks -> send_typing_indicator_then_start_loop`
+2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! Before `background_tasks -> handle_text_message`
+2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! After `background_tasks -> handle_text_message`
+(manually inserted log) ------------------------------------------------------------------------------ Execution in `main_webhook()` ends ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ Now, the event loop picks up (i.e., runs) the 1st task (i.e., async func.) that was in queue, which is "send_typing_indicator_then_start_loop", since it's the 1st task added by FastAPI's "BackgroundTasks" ------------------------------------------------------------------------------
+2025-04-20 07:56:22 | DEBUG | ansari.presenters.whatsapp_presenter:send_typing_indicator_then_start_loop:187 | ! Before `await self._send_whatsapp_typing_indicator()` in (send_typing_indicator_then_start_loop())
+2025-04-20 07:56:22 | DEBUG | ansari.presenters.whatsapp_presenter:_send_whatsapp_typing_indicator:252 | ! Before `await client.post()` in (_send_whatsapp_typing_indicator())
+2025-04-20 07:56:23 | DEBUG | ansari.presenters.whatsapp_presenter:_send_whatsapp_typing_indicator:254 | ! After `await client.post()` in (_send_whatsapp_typing_indicator())
+2025-04-20 07:56:23 | DEBUG | ansari.presenters.whatsapp_presenter:send_typing_indicator_then_start_loop:189 | ! After `await self._send_whatsapp_typing_indicator()` in (send_typing_indicator_then_start_loop())
+2025-04-20 07:56:23 | DEBUG | ansari.presenters.whatsapp_presenter:send_typing_indicator_then_start_loop:192 | ! Before `asyncio.create_task(self._typing_indicator_loop())` in (send_typing_indicator_then_start_loop())
+2025-04-20 07:56:23 | DEBUG | ansari.presenters.whatsapp_presenter:send_typing_indicator_then_start_loop:194 | ! After `asyncio.create_task(self._typing_indicator_loop())` in (send_typing_indicator_then_start_loop())
+(manually inserted log) ------------------------------------------------------------------------------ Now, the "_typing_indicator_loop()" task is created and added to the queue (i.e., event loop) as the 3rd task to be executed ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ i.e., that `create_task` method is basically saying: "I'll `await` the creation of this new 3rd task (inside 1st task), so run other tasks until they await or finish" ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ Therefore, the event loop can now switch tasks by picking up the 2nd task in queue, which is "handle_text_message()", since it's the 2nd task added by FastAPI's "BackgroundTasks" ------------------------------------------------------------------------------
+2025-04-20 07:56:24 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:762 | ! Before first call to `agent.replace_message_history()` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 starts (Remember, we're in "handle_text_message()" right now) ------------------------------------------------------------------------------
+2025-04-20 07:56:25 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration->0>` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 pauses, and the 3rd task (i.e., "_typing_indicator_loop()") starts  ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ Why? as the code has reached an `await` line (i.e., await asyncio.sleep(0)), so the event loop checks if there are other tasks to be resumed, and finds 3rd task ready to be continued, so control will go to it  ------------------------------------------------------------------------------
+2025-04-20 07:56:25 | DEBUG | ansari.presenters.whatsapp_presenter:_typing_indicator_loop:204 | ! Before `asyncio.sleep(26)` in (_typing_indicator_loop())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 (i.e., 2nd task) continues, as 3rd task is now `await`ing for a long time (26 seconds) ------------------------------------------------------------------------------
+2025-04-20 07:56:25 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration->0>` (in handle_text_message())
+2025-04-20 07:56:26 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:56:27 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:56:52 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration->68>` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 pauses, as 3rd task has finished `await`ing for 26 seconds so code will resume from there ------------------------------------------------------------------------------
+2025-04-20 07:56:52 | DEBUG | ansari.presenters.whatsapp_presenter:_typing_indicator_loop:207 | ! After `asyncio.sleep(26)` in (_typing_indicator_loop())
+2025-04-20 07:56:52 | DEBUG | ansari.presenters.whatsapp_presenter:_typing_indicator_loop:217 | ! Before `await self._send_whatsapp_typing_indicator()` in (_typing_indicator_loop())
+2025-04-20 07:56:52 | DEBUG | ansari.presenters.whatsapp_presenter:_send_whatsapp_typing_indicator:252 | ! Before `await client.post()` in (_send_whatsapp_typing_indicator())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 resumes ------------------------------------------------------------------------------
+2025-04-20 07:56:52 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration->68>` (in handle_text_message())
+2025-04-20 07:56:53 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:56:54 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration->95>` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 pauses ------------------------------------------------------------------------------
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:_send_whatsapp_typing_indicator:254 | ! After `await client.post()` in (_send_whatsapp_typing_indicator())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 resumes ------------------------------------------------------------------------------
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration->95>` (in handle_text_message())
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration->96>` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 pauses ------------------------------------------------------------------------------
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:_typing_indicator_loop:219 | ! After `await self._send_whatsapp_typing_indicator()` in (_typing_indicator_loop())
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:_typing_indicator_loop:204 | ! Before `asyncio.sleep(26)` in (_typing_indicator_loop())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 resumes ------------------------------------------------------------------------------
+2025-04-20 07:56:56 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration->96>` (in handle_text_message())
+2025-04-20 07:56:57 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:56:58 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration -> ...` (in handle_text_message())
+2025-04-20 07:57:12 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:764 | ! Before `await asyncio.sleep(0) <iteration->208>` (in handle_text_message())
+2025-04-20 07:57:12 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:766 | ! After `await asyncio.sleep(0) <iteration->208>` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 1 finishes ------------------------------------------------------------------------------
+2025-04-20 07:57:12 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:777 | ! Before `await self.send_whatsapp_message()` (in handle_text_message())
+(manually inserted log) ------------------------------------------------------------------------------ Task 3 is still waiting the 26 seconds, so event loop doesn't pick it up ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ loop 2 starts (NOTE: this is a different loop found in "send_whatsapp_message()", not "handle_text_message()") ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ Notice how this loop doesn't get interrupted? This is because we ran "typing_indicator_task.cancel()" first, which cancelled the 3rd task ------------------------------------------------------------------------------
+2025-04-20 07:57:12 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:307 | ! Before `await client.post() <iteraction -> 0` (in send_whatsapp_message())
+2025-04-20 07:57:14 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:309 | ! After `await client.post() <iteraction -> 0` (in send_whatsapp_message())
+2025-04-20 07:57:15 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:307 | ! Before `await client.post() <iteraction -> ...` (in send_whatsapp_message())
+2025-04-20 07:57:16 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:309 | ! After `await client.post() <iteraction -> ...` (in send_whatsapp_message())
+2025-04-20 07:57:24 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:307 | ! Before `await client.post() <iteraction -> 15` (in send_whatsapp_message())
+2025-04-20 07:57:25 | DEBUG | ansari.presenters.whatsapp_presenter:send_whatsapp_message:309 | ! After `await client.post() <iteraction -> 15` (in send_whatsapp_message())
+(manually inserted log) ------------------------------------------------------------------------------ loop 2 finishes ------------------------------------------------------------------------------
+2025-04-20 07:57:25 | DEBUG | ansari.presenters.whatsapp_presenter:handle_text_message:779 | ! After `await self.send_whatsapp_message()` (in handle_text_message())
+
+
