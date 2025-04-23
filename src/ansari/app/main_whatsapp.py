@@ -102,6 +102,7 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
             incoming_msg_type,
             incoming_msg_body,
             message_id,
+            message_unix_time,
         ) = await presenter.extract_relevant_whatsapp_message_details(data)
     except Exception as e:
         logger.error(f"Error extracting message details: {e}")
@@ -117,22 +118,24 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
     # Terminate if whatsapp is not enabled (i.e., via .env configurations, etc)
     if not whatsapp_enabled:
         # Create a temporary user-specific presenter just to send the message
-        temp_presenter = WhatsAppPresenter.create_user_specific_presenter(presenter, from_whatsapp_number, None, None, None)
+        temp_presenter = WhatsAppPresenter.create_user_specific_presenter(
+            presenter, from_whatsapp_number, None, None, None, None
+        )
         background_tasks.add_task(
             temp_presenter.send_whatsapp_message,
             "Ansari for WhatsApp is down for maintenance, please try again later or visit our website at https://ansari.chat.",
         )
         return Response(status_code=200)
 
-    # Workaround while locally developing:
-    #   don't process other dev's whatsapp recepient phone nums coming from staging env.
-    #   (as both stage Meta app / local-.env-file have same testing number)
-    dev_num_sub_str = "YOUR_DEV_PHONE_NUM"
-    if get_settings().DEV_MODE and dev_num_sub_str not in from_whatsapp_number:
-        logger.debug(
-            f"Incoming message from {from_whatsapp_number} (doesn't have this sub-str: {dev_num_sub_str}). \
-            Therefore, will not process it as it's not cur. dev."
-        )
+    # Temporarycorner case while locally developing:
+    #   Since the staging server is always running,
+    #   and since we currently have the same testing number for both staging and local testing,
+    #   therefore we need an indicator that a message is meant for a dev who's testing locally now
+    #   and not for the staging server.
+    #   This is done by prefixing the message with "!d " (e.g., "!d what is ansari?")
+    # NOTE: Obviously, this temp. solution will be removed when we get a dedicated testing number for staging testing.
+    if get_settings().DEPLOYMENT_TYPE == "staging" and incoming_msg_body.get("body", "").startswith("!d "):
+        logger.debug("Incoming message is meant for a dev who's testing locally now, so will not process it in staging...")
         return Response(status_code=200)
 
     # Create a user-specific presenter for this message
@@ -142,6 +145,7 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
         incoming_msg_type,
         incoming_msg_body,
         message_id,
+        message_unix_time,
     )
 
     # Start the typing indicator loop that will continue until message is processed
@@ -156,6 +160,22 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
         background_tasks.add_task(
             user_presenter.send_whatsapp_message,
             "Sorry, we couldn't register you to our Database. Please try again later.",
+        )
+        return Response(status_code=200)
+
+    # Check if there are more than 24 hours have passed from the user's message to the current time
+    # If so, send a message to the user and return
+    if user_presenter.is_message_too_old():
+        response_msg = "Sorry, your message "
+        user_msg_start = " ".join(incoming_msg_body.get("body", "").split(" ")[:5])
+        if user_msg_start:
+            response_msg_cont = ' "' + user_msg_start + '" '
+        else:
+            response_msg_cont = " "
+        response_msg = f"Sorry, your message{response_msg_cont}is too old. Please send a new message."
+        background_tasks.add_task(
+            user_presenter.send_whatsapp_message,
+            response_msg,
         )
         return Response(status_code=200)
 

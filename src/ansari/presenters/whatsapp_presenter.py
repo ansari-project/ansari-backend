@@ -32,6 +32,7 @@ class WhatsAppPresenter:
         incoming_msg_type: str | None = None,
         incoming_msg_body: dict | None = None,
         message_id: str | None = None,
+        message_unix_time: int | None = None,
     ):
         if agent:
             self.settings = agent.settings
@@ -48,6 +49,7 @@ class WhatsAppPresenter:
         self.incoming_msg_type = incoming_msg_type
         self.incoming_msg_body = incoming_msg_body
         self.message_id = message_id
+        self.message_unix_time = message_unix_time
         self.typing_indicator_task = None
         self.first_indicator_time = None
 
@@ -59,6 +61,7 @@ class WhatsAppPresenter:
         incoming_msg_type: str,
         incoming_msg_body: dict,
         message_id: str,
+        message_unix_time: int | None = None,
     ):
         """Creates a user-specific presenter instance from a general presenter."""
         return cls(
@@ -69,20 +72,22 @@ class WhatsAppPresenter:
             incoming_msg_type=incoming_msg_type,
             incoming_msg_body=incoming_msg_body,
             message_id=message_id,
+            message_unix_time=message_unix_time,
         )
 
     async def extract_relevant_whatsapp_message_details(
         self,
         body: dict[str, Any],
-    ) -> tuple[bool, str | None, str | None, dict | None, str | None]:
+    ) -> tuple[bool, str | None, str | None, dict | None, str | None, int | None]:
         """Extracts relevant whatsapp message details from the incoming webhook payload.
 
         Args:
             body (Dict[str, Any]): The JSON body of the incoming request.
 
         Returns:
-            tuple[bool, Optional[str], Optional[str], Optional[dict], Optional[str]]:
-                A tuple of (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id)
+            tuple[bool, Optional[str], Optional[str], Optional[dict], Optional[str], Optional[int]]:
+                A tuple of:
+                (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id, message_unix_time)
 
         Raises:
             Exception: If the payload structure is invalid or unsupported.
@@ -109,7 +114,7 @@ class WhatsAppPresenter:
             # logger.debug(
             #     f"WhatsApp status update received:\n({status} at {timestamp}.)",
             # )
-            return True, None, None, None, None
+            return True, None, None, None, None, None
         else:
             is_status = False
 
@@ -127,15 +132,20 @@ class WhatsAppPresenter:
         message_id = incoming_msg.get("id")
         # Extract the phone number of the WhatsApp sender
         user_whatsapp_number = incoming_msg["from"]
+        # Extract timestamp from message (in Unix time format) and convert to int if present
+        message_unix_time_str = incoming_msg.get("timestamp")
+        message_unix_time = int(message_unix_time_str) if message_unix_time_str is not None else None
         # Meta API note: Meta sends "errors" key when receiving unsupported message types
         # (e.g., video notes, gifs sent from giphy, or polls)
+        # NOTE: This `incoming_msg["type"] in incoming_msg.keys()` is logical, as proven by examining examples of
+        # messages received from Meta cloud API here: `docs/.../meta_whatsapp_api_structure_of_a_user_incoming_msg.json`
         incoming_msg_type = incoming_msg["type"] if incoming_msg["type"] in incoming_msg.keys() else "errors"
         # Extract the message of the WhatsApp sender (could be text, image, etc.)
         incoming_msg_body = incoming_msg[incoming_msg_type]
 
         logger.info(f"Received a supported whatsapp message from {user_whatsapp_number}: {incoming_msg_body}")
 
-        return (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id)
+        return (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id, message_unix_time)
 
     async def check_and_register_user(self) -> bool:
         """
@@ -275,8 +285,6 @@ class WhatsAppPresenter:
         # Send the message(s) to the user
         try:
             async with httpx.AsyncClient() as client:
-                logger.debug(f"SENDING REQUEST TO: {url}")
-
                 logger.info(
                     f"Ansari responded to WhatsApp user {self.user_whatsapp_number} with the following message part(s):\n\n"
                 )
@@ -794,6 +802,51 @@ class WhatsAppPresenter:
         await self.send_whatsapp_message(
             f"Sorry, I can't process {msg_type} yet. Please send me a text message.",
         )
+
+    def is_message_too_old(self) -> bool:
+        """
+        Checks if the incoming message is older than the allowed threshold (24 hours).
+
+        Uses the message_unix_time attribute (timestamp in Unix time format - seconds since epoch)
+        extracted during message processing to determine if the message is too old.
+
+        Returns:
+            bool: True if the message is older than 24 hours, False otherwise
+        """
+        # Define the too old threshold (24 hours in seconds)
+        TOO_OLD_THRESHOLD = 24 * 60 * 60  # 24 hours in seconds
+
+        # If there's no timestamp, message can't be verified as too old
+        if not self.message_unix_time:
+            logger.debug("No timestamp available, cannot determine message age")
+            return False
+
+        # Convert the Unix timestamp to a datetime object
+        try:
+            msg_time = datetime.fromtimestamp(self.message_unix_time, tz=timezone.utc)
+            # Get the current time in UTC
+            current_time = datetime.now(timezone.utc)
+            # Calculate time difference in seconds
+            time_diff = (current_time - msg_time).total_seconds()
+
+            # Log the message age for debugging
+            if time_diff < 60:
+                age_logging = f"{time_diff:.1f} seconds"
+            elif time_diff < 3600:
+                age_logging = f"{time_diff / 60:.1f} minutes"
+            elif time_diff < 86400:
+                age_logging = f"{time_diff / 3600:.1f} hours"
+            else:
+                age_logging = f"{time_diff / 86400:.1f} days"
+
+            logger.debug(f"Message age: {age_logging}")
+
+            # Return True if the message is older than the threshold
+            return time_diff > TOO_OLD_THRESHOLD
+
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error parsing message timestamp: {e}")
+            return False
 
     def present(self):
         pass
