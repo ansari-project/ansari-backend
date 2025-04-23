@@ -137,6 +137,8 @@ class WhatsAppPresenter:
         message_unix_time = int(message_unix_time_str) if message_unix_time_str is not None else None
         # Meta API note: Meta sends "errors" key when receiving unsupported message types
         # (e.g., video notes, gifs sent from giphy, or polls)
+        # NOTE: This `incoming_msg["type"] in incoming_msg.keys()` is logical, as proven by examining examples of
+        # messages received from Meta cloud API here: `docs/.../meta_whatsapp_api_structure_of_a_user_incoming_msg.json`
         incoming_msg_type = incoming_msg["type"] if incoming_msg["type"] in incoming_msg.keys() else "errors"
         # Extract the message of the WhatsApp sender (could be text, image, etc.)
         incoming_msg_body = incoming_msg[incoming_msg_type]
@@ -283,8 +285,6 @@ class WhatsAppPresenter:
         # Send the message(s) to the user
         try:
             async with httpx.AsyncClient() as client:
-                logger.debug(f"SENDING REQUEST TO: {url}")
-
                 logger.info(
                     f"Ansari responded to WhatsApp user {self.user_whatsapp_number} with the following message part(s):\n\n"
                 )
