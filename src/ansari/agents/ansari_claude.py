@@ -11,7 +11,8 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 from ansari.util.prompt_mgr import PromptMgr
-from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
+from ansari.util.robust_translation import parse_multilingual_data, process_document_source_data
+from ansari.util.translation import translate_texts_parallel
 from ansari.util.general_helpers import get_language_from_text, trim_citation_title
 
 # Set up logging
@@ -38,16 +39,16 @@ class AnsariClaude(Ansari):
             import sys
             import platform
 
-            logger.info(f"Python version: {sys.version}")
-            logger.info(f"Platform: {platform.platform()}")
-            logger.info(f"Anthropic client version: {anthropic.__version__}")
+            logger.debug(f"Python version: {sys.version}")
+            logger.debug(f"Platform: {platform.platform()}")
+            logger.debug(f"Anthropic client version: {anthropic.__version__}")
 
             # Log API key configuration (safely)
             api_key_status = "Set" if hasattr(settings, "ANTHROPIC_API_KEY") and settings.ANTHROPIC_API_KEY else "Not set"
-            logger.info(f"ANTHROPIC_API_KEY status: {api_key_status}")
+            logger.debug(f"ANTHROPIC_API_KEY status: {api_key_status}")
 
             # Log model configuration
-            logger.info(f"Using model: {settings.ANTHROPIC_MODEL}")
+            logger.debug(f"Using model: {settings.ANTHROPIC_MODEL}")
         except Exception as e:
             logger.error(f"Error logging environment info: {str(e)}")
 
@@ -71,6 +72,8 @@ class AnsariClaude(Ansari):
         
         # Initialize tool usage tracking
         self.tool_usage_history = []
+        # Track historical tool calls with their parameters
+        self.tool_calls_with_args = []
 
     def validate_message(self, message):
         """Validates message structure for consistency before logging.
@@ -181,7 +184,7 @@ class AnsariClaude(Ansari):
         )
 
         if not self.message_logger:
-            logger.warning("No message_logger available, skipping message logging")
+            logger.debug("No message_logger available, skipping message logging")
             return
 
         # Validate message structure
@@ -189,7 +192,7 @@ class AnsariClaude(Ansari):
             logger.warning(f"Invalid message structure: {message}")
             return
 
-        logger.info(f"Logging {message}")
+        logger.debug(f"Logging {message}")
         try:
             self.message_logger.log(message)
             logger.debug(f"Successfully logged message with role: {message['role']}")
@@ -203,6 +206,7 @@ class AnsariClaude(Ansari):
 
         # Reset tool usage history for each new conversation
         self.tool_usage_history = []
+        self.tool_calls_with_args = []
         logger.debug("Reset tool usage history for new conversation")
 
         # Call parent implementation to process the input
@@ -217,6 +221,7 @@ class AnsariClaude(Ansari):
         """
         # Reset tool usage history for each message history replacement
         self.tool_usage_history = []
+        self.tool_calls_with_args = []
         logger.debug("Reset tool usage history for message history replacement")
         # AnsariClaude doesn't use system message, so we don't need to prefix it
         # Remove message IDs from the history before sending to Claude
@@ -325,19 +330,20 @@ class AnsariClaude(Ansari):
         
         # If any issue was found, do a full repair
         if needs_repair:
-            logger.info("Repairing message history before sending to Claude API")
+            logger.debug("Repairing message history before sending to Claude API")
             self._fix_tool_use_result_relationship()
         
-    def _check_tool_limit(self, current_tool_name):
+    def _check_tool_limit(self, current_tool_name, current_tool_args=None):
         """
         Check if adding the current tool would exceed our tool usage limits.
         
         This method checks two conditions:
-        1. If adding this tool would make 3 consecutive uses of the same tool
+        1. If adding this tool would make 4 consecutive uses of the same tool
         2. If adding this tool would exceed 5 total tool calls
         
         Args:
             current_tool_name: The name of the tool about to be used
+            current_tool_args: Optional arguments for the current tool
             
         Returns:
             bool: True if a limit would be reached, False otherwise
@@ -346,16 +352,26 @@ class AnsariClaude(Ansari):
         if not self.tool_usage_history:
             return False
             
-        # Check for same tool used consecutively 3 times (including the current one)
-        if len(self.tool_usage_history) >= 2:
-            last_two_tools = self.tool_usage_history[-2:]
-            if last_two_tools[0] == last_two_tools[1] == current_tool_name:
-                logger.warning(f"Adding {current_tool_name} would make 3 consecutive uses - limit would be reached")
+        # Check for same tool used consecutively 4 times (including the current one)
+        if len(self.tool_usage_history) >= 3:
+            last_three_tools = self.tool_usage_history[-3:]
+            if last_three_tools[0] == last_three_tools[1] == last_three_tools[2] == current_tool_name:
+                logger.warning(f"Adding {current_tool_name} would make 4 consecutive uses - limit would be reached")
+                # Log all tool usages and their parameters
+                logger.warning(f"Tool usage history: {self.tool_usage_history}")
+                # Log detailed information about each tool call
+                for i, call in enumerate(self.tool_calls_with_args):
+                    logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
                 return True
                 
-        # Check if adding this tool would exceed 5 total calls
-        if len(self.tool_usage_history) >= 4:
-            logger.warning(f"Adding {current_tool_name} would exceed total tool usage limit of 5")
+        # Check if adding this tool would exceed 10 total calls
+        if len(self.tool_usage_history) >= 9:
+            logger.warning(f"Adding {current_tool_name} would exceed total tool usage limit of 10")
+            # Log all tool usages and their parameters
+            logger.warning(f"Tool usage history: {self.tool_usage_history}")
+            # Log detailed information about each tool call
+            for i, call in enumerate(self.tool_calls_with_args):
+                logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
             return True
             
         return False
@@ -366,7 +382,7 @@ class AnsariClaude(Ansari):
         
         This method checks for:
         1. Same tool used consecutively 3+ times
-        2. Total tool usage exceeds 5 calls
+        2. Total tool usage exceeds 10 calls
         
         Returns:
             bool: True if a limit was reached and intervention was applied, False otherwise
@@ -401,9 +417,9 @@ class AnsariClaude(Ansari):
                 self._log_message(force_answer_message)
                 return True
                 
-        # Check for total tool usage exceeding 5 calls
-        if len(self.tool_usage_history) >= 5:
-            logger.warning(f"Total tool usage exceeded limit (5) - forcing answer")
+        # Check for total tool usage exceeding 10 calls
+        if len(self.tool_usage_history) >= 10:
+            logger.warning(f"Total tool usage exceeded limit (10) - forcing answer")
             
             # Add a message forcing Claude to provide a final answer
             force_answer_message = {
@@ -430,31 +446,39 @@ class AnsariClaude(Ansari):
         """Process a tool call and return its result as a list."""
         # Check if we need to force an answer due to tool usage patterns BEFORE tracking this tool
         # This prevents counting the current tool if we're already at the limit
-        if self._check_tool_limit(tool_name):
+        if self._check_tool_limit(tool_name, tool_args):
             # Return non-empty results with a standard document to avoid API errors
-            tool_limit_message = "Tool usage limit reached. Please provide a final answer with the information gathered so far."
+            tool_limit_message = "Tool usage limit reached. Please synthesize a complete answer based on the information you've already gathered, maintaining any requested format."
             logger.warning(f"Tool usage limit reached: {tool_limit_message}")
             
             # Include a minimal document to ensure there's content in the tool_result
+            # Format the tool limit message using our robust mechanism
+            tool_document = {
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": tool_limit_message
+                },
+                "title": "Tool Usage Limit Notice",
+                "context": "System message",
+                "citations": {
+                    "enabled": False
+                }
+            }
+            
+            # Process the document to ensure it's properly formatted
+            processed_document = process_document_source_data(tool_document)
+            
             return (
                 [tool_limit_message],
-                [{
-                    "type": "document",
-                    "source": {
-                        "type": "text",
-                        "media_type": "text/plain",
-                        "data": tool_limit_message
-                    },
-                    "title": "Tool Usage Limit Notice",
-                    "context": "System message",
-                    "citations": {
-                        "enabled": False
-                    }
-                }]
+                [processed_document]
             )
             
         # If we didn't hit the limit, track tool usage now
         self.tool_usage_history.append(tool_name)
+        # Also track the tool arguments
+        self.tool_calls_with_args.append({"tool": tool_name, "args": tool_args, "tool_id": tool_id})
         logger.debug(f"Tool usage history: {self.tool_usage_history}")
         
         if tool_name not in self.tool_name_to_instance:
@@ -635,7 +659,9 @@ class AnsariClaude(Ansari):
         if (
             (msg := self.message_history[-1])
             and (content := msg.get("content"))
+            and isinstance(content, list)
             and len(content) > 0
+            and isinstance(content[0], dict)
             and (content[0].get("type", "") == "tool_result")
         ):
             return "\n\n"
@@ -701,7 +727,7 @@ class AnsariClaude(Ansari):
             doc_info += "]"
         logger_params["messages"] = doc_info
         logger_params["system"] = system_prompt[:100] + "..." if len(system_prompt) > 100 else system_prompt
-        logger.info(f"API request parameters: {logger_params}")
+        logger.debug(f"API request parameters: {logger_params}")
 
         failures = 0
         response = None
@@ -713,7 +739,7 @@ class AnsariClaude(Ansari):
                 logger.debug("Calling Anthropic API...")
                 response = self.client.messages.create(**params)
                 elapsed = time.time() - start_time
-                logger.info(f"API connection established after {elapsed:.2f}s")
+                logger.debug(f"API connection established after {elapsed:.2f}s")
             except Exception as e:
                 failures += 1
                 elapsed = time.time() - start_time
@@ -728,13 +754,13 @@ class AnsariClaude(Ansari):
                     json_file_path = "./logs/last_err_msg_hist.json"
                     with open(json_file_path, "w") as f:
                         json.dump(self.message_history, f, indent=4)
-                    logger.info(f"Dumped message history to {json_file_path}")
+                    logger.debug(f"Dumped message history to {json_file_path}")
 
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Max retries exceeded")
                     raise
 
-                logger.info("Retrying in 5 seconds...")
+                logger.debug("Retrying in 5 seconds...")
                 time.sleep(5)
                 continue
 
@@ -750,7 +776,7 @@ class AnsariClaude(Ansari):
         current_tool = None  # Current tool being processed
         current_json = ""  # Accumulated JSON for current tool
 
-        logger.info("Processing response chunks")
+        logger.debug("Processing response chunks")
 
         """ Warning: This is probably the most complex code in all of Ansari.
 
@@ -793,7 +819,7 @@ class AnsariClaude(Ansari):
                     and chunk.content_block.type == "tool_use"
                 ):
                     # Start of a tool call
-                    logger.info(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
+                    logger.debug(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
                     current_tool = {
                         "type": "tool_use",
                         "id": chunk.content_block.id,
@@ -839,7 +865,7 @@ class AnsariClaude(Ansari):
                         logger.debug(f"Tool arguments: {arguments}")
                         current_tool["input"] = arguments
                         tool_calls.append(current_tool)
-                        logger.info(f"Added tool call to queue, total: {len(tool_calls)}")
+                        logger.debug(f"Added tool call to queue, total: {len(tool_calls)}")
 
                         # Reset for next tool
                         current_tool = None
@@ -863,7 +889,7 @@ class AnsariClaude(Ansari):
                             stop_reason = chunk.delta.stop_reason
                             logger.warning(f"Received {stop_reason} stop_reason but response already finished - skipping")
                         else:
-                            logger.info(f"Message delta has stop_reason {chunk.delta.stop_reason}")
+                            logger.debug(f"Message delta has stop_reason {chunk.delta.stop_reason}")
 
                             if chunk.delta.stop_reason == "end_turn":
                                 # For end_turn, create a final assistant message with text and tool calls
@@ -884,7 +910,7 @@ class AnsariClaude(Ansari):
                             elif chunk.delta.stop_reason == "tool_use" and tool_calls:
                                 # For tool_use, we need to create an assistant message with JUST the tool
                                 # This is critical to maintain the tool_use -> tool_result relationship
-                                logger.info("Adding assistant message with tool_use (no text content)")
+                                logger.debug("Adding assistant message with tool_use (no text content)")
 
                                 # Create content blocks with only the tool_use blocks
                                 tool_content = []
@@ -925,9 +951,9 @@ class AnsariClaude(Ansari):
 
             elif chunk.type == "message_stop":
                 if response_finished:
-                    logger.warning("Received message_stop but response already finished - skipping")
+                    logger.debug("Received message_stop but response already finished - skipping")
                 else:
-                    logger.info("Message_stop chunk received - finishing response")
+                    logger.debug("Message_stop chunk received - finishing response")
 
                     if assistant_text:
                         # If we have text content, create a complete assistant message with text and tools
@@ -937,7 +963,7 @@ class AnsariClaude(Ansari):
                     elif tool_calls:
                         # If we only have tool calls and no text, create an assistant message with JUST tools
                         # This avoids empty text blocks but maintains tool_use -> tool_result relationship
-                        logger.info("Creating assistant message with just tool calls (no text)")
+                        logger.debug("Creating assistant message with just tool calls (no text)")
 
                         # Create content with only the tool_use blocks
                         tool_content = []
@@ -1033,7 +1059,7 @@ class AnsariClaude(Ansari):
                 
                 # Insert it immediately after the tool_use message
                 self.message_history.insert(msg_idx + 1, fallback_result)
-                logger.info(f"Added fallback tool_result for ID {tool_id} after message {msg_idx}")
+                logger.debug(f"Added fallback tool_result for ID {tool_id} after message {msg_idx}")
                 
                 # Update the tool_result_info map with the new position
                 tool_result_info[tool_id] = msg_idx + 1
@@ -1145,12 +1171,12 @@ class AnsariClaude(Ansari):
                     
                     # Insert at the correct position
                     self.message_history.insert(use_idx + 1, result_msg)
-                    logger.info(f"Moved tool_result for ID {tool_id} to position {use_idx+1}")
+                    logger.debug(f"Moved tool_result for ID {tool_id} to position {use_idx+1}")
                     
                     # Update the tool_result_info map
                     tool_result_info[tool_id] = use_idx + 1
         
-        logger.info("Completed tool_use/tool_result relationship fix")
+        logger.debug("Completed tool_use/tool_result relationship fix")
 
     def _process_tool_calls(self, tool_calls):
         """Process a list of tool calls and add results to message history.
@@ -1169,7 +1195,7 @@ class AnsariClaude(Ansari):
                 # Process the tool call
                 (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
 
-                logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
+                logger.debug(f"Reference list: {json.dumps(reference_list, indent=2)}")
 
                 # Process references - ALWAYS apply special formatting
                 document_blocks = []
@@ -1179,20 +1205,11 @@ class AnsariClaude(Ansari):
                     # Always apply special processing for all tools
                     for doc in document_blocks:
                         if "source" in doc and "data" in doc["source"]:
-                            try:
-                                multilingual_data = parse_multilingual_data(doc["source"]["data"])
-                                arabic_text = multilingual_data.get("ar", "")
-                                english_text = multilingual_data.get("en", "")
-
-                                text_list = []
-                                if arabic_text:
-                                    text_list.append(f"Arabic: {arabic_text}")
-                                if english_text:
-                                    text_list.append(f"English: {english_text}")
-
-                                doc["source"]["data"] = "\n\n".join(text_list)
-                            except json.JSONDecodeError:
-                                logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
+                            # Use the robust document processing function
+                            processed_doc = process_document_source_data(doc)
+                            
+                            # Update the document with the processed version
+                            doc.update(processed_doc)
 
                 # CRITICAL: Ensure we always have at least one document block
                 # This prevents Claude API errors where tool_use blocks have no corresponding tool_result with document
@@ -1514,14 +1531,14 @@ class AnsariClaude(Ansari):
         It yields from the process_one_round method until the last message is an assistant message.
         The assumption coming in to this is that it ends with a user message.
         """
-        logger.info("Starting process_message_history")
+        logger.debug("Starting process_message_history")
         logger.debug(f"Initial message history length: {len(self.message_history)}")
 
         if len(self.message_history) > 0:
             logger.debug(f"Last message role: {self.message_history[-1]['role']}")
             last_role = self.message_history[-1]["role"]
             if last_role == "assistant":
-                logger.info("Message history already ends with assistant message, no processing needed")
+                logger.debug("Message history already ends with assistant message, no processing needed")
 
         count = 0
         # Store the previous state of the entire message history for simple comparison
@@ -1620,7 +1637,7 @@ class AnsariClaude(Ansari):
         # Add a max_iterations limit to prevent infinite loops
         max_iterations = 10  # Reasonable upper limit based on expected conversation flow
         while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant" and count < max_iterations:
-            logger.info(f"Processing message iteration: {count}")
+            logger.debug(f"Processing message iteration: {count}")
             logger.debug("Current message history:\n" + "-" * 60)
             for i, msg in enumerate(self.message_history):
                 logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
@@ -1688,7 +1705,7 @@ class AnsariClaude(Ansari):
             logger.debug(f"Completed iteration {count} of message processing")
 
         # Log the final state after processing completes
-        logger.info(f"Finished process_message_history after {count} iterations")
+        logger.debug(f"Finished process_message_history after {count} iterations")
         logger.debug(f"Final message history length: {len(self.message_history)}")
 
         # Check if we hit the iteration limit
@@ -1696,7 +1713,7 @@ class AnsariClaude(Ansari):
             logger.warning(f"Hit max iterations limit ({max_iterations}). Check for processing issues.")
 
         if len(self.message_history) > 0:
-            logger.info(f"Final message role: {self.message_history[-1]['role']}")
+            logger.debug(f"Final message role: {self.message_history[-1]['role']}")
             if self.message_history[-1]["role"] != "assistant":
                 logger.warning("Processing completed but final message is not from assistant!")
         else:
