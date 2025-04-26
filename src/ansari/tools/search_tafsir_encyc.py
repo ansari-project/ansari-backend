@@ -1,3 +1,4 @@
+import json
 from ansari.tools.search_usul import SearchUsul
 from ansari.config import get_settings
 from typing import Dict, Any, List
@@ -207,11 +208,35 @@ class SearchTafsirEncyc(SearchUsul):
             if score is not None:
                 context += f" (Relevance score: {score:.2f})"
 
+            # Format data for multilingual content
+            try:
+                # Check if data is already JSON formatted
+                if isinstance(data, dict):
+                    formatted_data = json.dumps(data)
+                else:
+                    # If it's Arabic text, create a multilingual JSON structure
+                    is_arabic = any('\u0600' <= c <= '\u06FF' for c in data)
+                    if is_arabic:
+                        lang_data = [
+                            {"lang": "ar", "text": data}
+                        ]
+                    else:
+                        # Assume English or other script
+                        lang_data = [
+                            {"lang": "en", "text": data}
+                        ]
+                        
+                    # Convert to JSON string
+                    formatted_data = json.dumps(lang_data)
+            except Exception as e:
+                # If anything goes wrong, fall back to using raw text
+                formatted_data = data
+                
             # Create the document object
             documents.append(
                 {
                     "type": "document",
-                    "source": {"type": "text", "media_type": "text/plain", "data": data},
+                    "source": {"type": "text", "media_type": "text/plain", "data": formatted_data},
                     "title": title,
                     "context": context,
                     "citations": {"enabled": True},
