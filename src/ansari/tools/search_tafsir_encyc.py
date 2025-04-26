@@ -4,6 +4,7 @@ from ansari.config import get_settings
 from typing import Dict, Any, List
 from ansari.ansari_logger import get_logger
 from ansari.util.general_helpers import trim_citation_title
+from ansari.util.translation import format_multilingual_data
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -217,19 +218,13 @@ class SearchTafsirEncyc(SearchUsul):
                     # If it's Arabic text, create a multilingual JSON structure
                     is_arabic = any('\u0600' <= c <= '\u06FF' for c in data)
                     if is_arabic:
-                        lang_data = [
-                            {"lang": "ar", "text": data}
-                        ]
+                        formatted_data = format_multilingual_data({"ar": data})
                     else:
                         # Assume English or other script
-                        lang_data = [
-                            {"lang": "en", "text": data}
-                        ]
-                        
-                    # Convert to JSON string
-                    formatted_data = json.dumps(lang_data)
+                        formatted_data = format_multilingual_data({"en": data})
             except Exception as e:
                 # If anything goes wrong, fall back to using raw text
+                logger.warning(f"Error formatting multilingual data: {e}")
                 formatted_data = data
                 
             # Create the document object
