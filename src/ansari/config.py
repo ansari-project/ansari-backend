@@ -174,6 +174,9 @@ class Settings(BaseSettings):
 
     DISCORD_TOKEN: SecretStr | None = Field(default=None)
     SENDGRID_API_KEY: SecretStr | None = Field(default=None)
+    MAILCHIMP_API_KEY: SecretStr | None = Field(default=None)
+    MAILCHIMP_SERVER_PREFIX: str | None = Field(default=None)
+    MAILCHIMP_LIST_ID: str | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
     WHATSAPP_ENABLED: bool = Field(default=True)
     WHATSAPP_API_VERSION: str | None = Field(default="v22.0")
