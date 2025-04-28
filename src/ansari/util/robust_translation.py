@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from ansari.util.general_helpers import get_language_from_text
 
@@ -75,7 +75,7 @@ def parse_multilingual_data(data: str) -> Dict[str, str]:
 
     except json.JSONDecodeError:
         # If JSON parsing fails, try to detect if it's Arabic text
-        logger.debug(f"JSON parsing failed, attempting language detection")
+        logger.debug("JSON parsing failed, attempting language detection")
         
         try:
             # If it contains Arabic characters, it's likely Arabic text
