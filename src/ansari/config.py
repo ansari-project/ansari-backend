@@ -41,6 +41,7 @@ class Settings(BaseSettings):
         return path
 
     DEPLOYMENT_TYPE: str = Field(default="development")
+    FRONTEND_URL: str = Field(default="https://ansari.chat")
     SENTRY_DSN: HttpUrl | None = None
 
     DATABASE_URL: PostgresDsn = Field(
