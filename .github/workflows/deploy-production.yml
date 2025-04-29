@@ -46,6 +46,7 @@ jobs:
         env:
           DEPLOYMENT_TYPE: production
           LOGGING_LEVEL: INFO
+          FRONTEND_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'frontend-url') }}
           MONGO_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-url') }}
           MONGO_DB_NAME: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-db-name') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
@@ -89,6 +90,7 @@ jobs:
             DEPLOYMENT_TYPE
             LOGGING_LEVEL
           copy-secret-env-vars: |
+            FRONTEND_URL
             MONGO_URL
             MONGO_DB_NAME
             SECRET_KEY

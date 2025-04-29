@@ -789,7 +789,7 @@ async def request_password_reset(
         # shall we also revoke login and refresh tokens?
         tenv = Environment(loader=FileSystemLoader(settings.template_dir))
         template = tenv.get_template("password_reset.html")
-        rendered_template = template.render(reset_token=reset_token)
+        rendered_template = template.render(reset_token=reset_token, frontend_url=settings.FRONTEND_URL)
         message = Mail(
             from_email=Email("feedback@ansari.chat"),
             to_emails=To(req.email),
