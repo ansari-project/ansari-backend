@@ -9,7 +9,7 @@ from ansari.config import get_settings
 
 settings = get_settings()
 
-# Set up logging
+# Set up logging.
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
