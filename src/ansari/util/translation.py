@@ -4,6 +4,8 @@ import anthropic
 from typing import Dict, Optional
 import asyncio
 import json
+import threading
+import concurrent.futures
 
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
@@ -65,9 +67,11 @@ def translate_text(
         raise
 
 
-async def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
+async def translate_texts_parallel_using_asyncio(
+    texts: list[str], target_lang: str = "en", source_lang: str = "ar"
+) -> list[str]:
     """
-    Translate multiple texts in parallel.
+    Translate multiple texts in parallel using asyncio.
 
     Args:
         texts: List of texts to translate
@@ -85,6 +89,58 @@ async def translate_texts_parallel(texts: list[str], target_lang: str = "en", so
 
     # Run all translations in parallel and return results
     return await asyncio.gather(*tasks)
+
+
+def translate_texts_parallel_using_threads(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
+    """
+    Translate multiple texts in parallel using threads instead of asyncio.
+
+    This function provides a thread-based alternative to translate_texts_parallel_using_asyncio
+    for contexts where asyncio can't be used (like when already in an event loop).
+
+    Args:
+        texts: List of texts to translate
+        target_lang: Target language code (e.g., "ar", "en")
+        source_lang: Source language code (e.g., "ar", "en")
+
+    Returns:
+        List of translations
+    """
+    if not texts:
+        return []
+
+    logger.debug(f"Using thread-based translation for {len(texts)} text(s)")
+
+    # Use ThreadPoolExecutor to parallelize the translations
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Submit all translation tasks to the executor
+        futures = [executor.submit(translate_text, text, target_lang, source_lang) for text in texts]
+
+        # Wait for all futures to complete and collect results
+        results = []
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error in thread-based translation: {e}")
+                # If translation fails, add empty string to maintain position
+                results.append("")
+
+        # Since concurrent.futures.as_completed returns results in order of completion,
+        # we need to sort results back to the original order
+        translations = []
+        futures_to_idxs = {future: i for i, future in enumerate(futures)}
+
+        # Create a list of the same length as texts, filled with None
+        translations = [None] * len(texts)
+
+        # Fill in the translations in the correct order
+        for future, result in zip(futures, results):
+            future_idx = futures_to_idxs[future]
+            translations[future_idx] = result
+
+        return translations
 
 
 def format_multilingual_data(text_entries: Dict[str, str]) -> str:

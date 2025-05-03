@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import time
+import concurrent.futures
 from typing import Generator
 
 import sentry_sdk
@@ -11,7 +12,11 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 from ansari.util.prompt_mgr import PromptMgr
-from ansari.util.translation import parse_multilingual_data, translate_texts_parallel
+from ansari.util.translation import (
+    parse_multilingual_data,
+    translate_texts_parallel_using_asyncio,
+    translate_texts_parallel_using_threads,
+)
 from ansari.util.general_helpers import get_language_from_text, trim_citation_title
 
 # Set up logging
@@ -800,6 +805,39 @@ class AnsariClaude(Ansari):
                 # Log the error message
                 self._log_message(self.message_history[-1])
 
+    def _translate_with_fallback(self, arabic_text: str, target_lang: str = "en", source_lang: str = "ar") -> str:
+        """Translate text using asyncio method first, falling back to threads if in an event loop.
+
+        This helper function attempts to translate using the asyncio-based implementation first,
+        but gracefully falls back to the thread-based implementation if it detects that it's
+        running within an existing event loop
+        (which happens if AnsariClaude's caller is a coroutine with an active event loop).
+
+        Args:
+            arabic_text: The text to translate
+            target_lang: Target language code (default: "en")
+            source_lang: Source language code (default: "ar")
+
+        Returns:
+            The translated text
+
+        Raises:
+            Exception: If translation fails for reasons other than event loop conflicts
+        """
+        # Try to run with asyncio.run
+        try:
+            return asyncio.run(translate_texts_parallel_using_asyncio([arabic_text], target_lang, source_lang))[0]
+        except RuntimeError as e:
+            # If we get "asyncio.run() cannot be called from a running event loop" error,
+            # use the thread-based approach instead
+            if "cannot be called from a running event loop" in str(e):
+                logger.info("Detected active event loop, using thread-based translation instead")
+                return translate_texts_parallel_using_threads([arabic_text], target_lang, source_lang)[0]
+            else:
+                raise
+        except Exception:
+            raise
+
     def _finish_response(self, assistant_text, tool_calls):
         """Handle the completion of a response, adding citations and finalizing the assistant message.
 
@@ -858,7 +896,7 @@ class AnsariClaude(Ansari):
                     if english_text:
                         citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
-                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                        english_translation = self._translate_with_fallback(arabic_text)
                         citations_text += f" English: {english_translation}\n\n"
 
                 except json.JSONDecodeError:
@@ -876,7 +914,7 @@ class AnsariClaude(Ansari):
 
                             # Translate to English
                             try:
-                                english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                                english_translation = self._translate_with_fallback(arabic_text)
                                 citations_text += f" English: {english_translation}\n\n"
                             except Exception as e:
                                 logger.error(f"Translation failed: {e}")
