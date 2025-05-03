@@ -46,6 +46,7 @@ jobs:
         env:
           DEPLOYMENT_TYPE: staging
           LOGGING_LEVEL: DEBUG
+          FRONTEND_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'frontend-url') }}
           MONGO_URL: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-url') }}
           MONGO_DB_NAME: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mongo-db-name') }}
           SECRET_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'secret-key') }}
@@ -53,6 +54,9 @@ jobs:
 
           OPENAI_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'openai-api-key') }}
           SENDGRID_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sendgrid-api-key') }}
+          MAILCHIMP_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mailchimp-api-key') }}
+          MAILCHIMP_SERVER_PREFIX: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mailchimp-server-prefix') }}
+          MAILCHIMP_LIST_ID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'mailchimp-list-id') }}
           ANTHROPIC_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'anthropic-api-key') }}
           KALEMAT_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'kalemat-api-key') }}
           SUNNAH_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sunnah-token') }}
@@ -86,6 +90,7 @@ jobs:
             DEPLOYMENT_TYPE
             LOGGING_LEVEL
           copy-secret-env-vars: |
+            FRONTEND_URL
             MONGO_URL
             MONGO_DB_NAME
             SECRET_KEY
@@ -93,6 +98,9 @@ jobs:
 
             OPENAI_API_KEY
             SENDGRID_API_KEY
+            MAILCHIMP_API_KEY
+            MAILCHIMP_SERVER_PREFIX
+            MAILCHIMP_LIST_ID
             ANTHROPIC_API_KEY
             KALEMAT_API_KEY
             SUNNAH_TOKEN

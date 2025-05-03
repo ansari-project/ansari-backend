@@ -12,6 +12,7 @@ from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 from ansari.util.prompt_mgr import PromptMgr
+from ansari.util.robust_translation import parse_multilingual_data, process_document_source_data
 from ansari.util.translation import (
     parse_multilingual_data,
     translate_texts_parallel_using_asyncio,
@@ -43,16 +44,16 @@ class AnsariClaude(Ansari):
             import sys
             import platform
 
-            logger.info(f"Python version: {sys.version}")
-            logger.info(f"Platform: {platform.platform()}")
-            logger.info(f"Anthropic client version: {anthropic.__version__}")
+            logger.debug(f"Python version: {sys.version}")
+            logger.debug(f"Platform: {platform.platform()}")
+            logger.debug(f"Anthropic client version: {anthropic.__version__}")
 
             # Log API key configuration (safely)
             api_key_status = "Set" if hasattr(settings, "ANTHROPIC_API_KEY") and settings.ANTHROPIC_API_KEY else "Not set"
-            logger.info(f"ANTHROPIC_API_KEY status: {api_key_status}")
+            logger.debug(f"ANTHROPIC_API_KEY status: {api_key_status}")
 
             # Log model configuration
-            logger.info(f"Using model: {settings.ANTHROPIC_MODEL}")
+            logger.debug(f"Using model: {settings.ANTHROPIC_MODEL}")
         except Exception as e:
             logger.error(f"Error logging environment info: {str(e)}")
 
@@ -73,6 +74,11 @@ class AnsariClaude(Ansari):
 
         # Initialize citation tracking
         self.citations = []
+
+        # Initialize tool usage tracking
+        self.tool_usage_history = []
+        # Track historical tool calls with their parameters
+        self.tool_calls_with_args = []
 
     def validate_message(self, message):
         """Validates message structure for consistency before logging.
@@ -183,7 +189,7 @@ class AnsariClaude(Ansari):
         )
 
         if not self.message_logger:
-            logger.warning("No message_logger available, skipping message logging")
+            logger.debug("No message_logger available, skipping message logging")
             return
 
         # Validate message structure
@@ -191,7 +197,7 @@ class AnsariClaude(Ansari):
             logger.warning(f"Invalid message structure: {message}")
             return
 
-        logger.info(f"Logging {message}")
+        logger.debug(f"Logging {message}")
         try:
             self.message_logger.log(message)
             logger.debug(f"Successfully logged message with role: {message['role']}")
@@ -199,11 +205,29 @@ class AnsariClaude(Ansari):
             logger.error(f"Error logging message: {str(e)}")
             logger.error(f"Message that failed to log: {message}")
 
-    def replace_message_history(self, message_history: list[dict], use_tool=True):
+    def process_input(self, user_input: str):
+        """Process user input and generate a response."""
+        logger.debug(f"Processing input: {user_input}")
+
+        # Reset tool usage history for each new conversation
+        self.tool_usage_history = []
+        self.tool_calls_with_args = []
+        logger.debug("Reset tool usage history for new conversation")
+
+        # Call parent implementation to process the input
+        for m in super().process_input(user_input):
+            if m:
+                yield m
+
+    def replace_message_history(self, message_history: list[dict], use_tool=True, stream=True):
         """
         Replaces the current message history (stored in Ansari) with the given message history,
         and then processes it to generate a response from Ansari.
         """
+        # Reset tool usage history for each message history replacement
+        self.tool_usage_history = []
+        self.tool_calls_with_args = []
+        logger.debug("Reset tool usage history for message history replacement")
         # AnsariClaude doesn't use system message, so we don't need to prefix it
         # Remove message IDs from the history before sending to Claude
         cleaned_history = []
@@ -254,37 +278,297 @@ class AnsariClaude(Ansari):
             "input_schema": tool["function"]["parameters"],
         }
 
+    def _validate_message_history(self):
+        """
+        Perform pre-flight validation of message history to prevent Claude API errors.
+
+        This method:
+        1. Ensures all tool_use blocks have matching tool_result blocks
+        2. Ensures all tool_result blocks have at least one document block
+        3. Ensures tool_use/tool_result pairs appear in the correct sequence
+
+        Side effect:
+            May modify self.message_history by adding missing tool_result blocks
+            or document blocks to ensure API compatibility.
+        """
+        # First check if we need any repairs at all
+        needs_repair = False
+
+        # Count tool_use blocks without matching tool_result blocks
+        tool_use_ids = set()
+        tool_result_ids = set()
+
+        # Collect all tool_use IDs
+        for msg in self.message_history:
+            if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_use" and "id" in block:
+                        tool_use_ids.add(block["id"])
+
+        # Collect all tool_result IDs
+        for msg in self.message_history:
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_result" and "tool_use_id" in block:
+                        tool_result_ids.add(block["tool_use_id"])
+
+        # Check for missing tool_result blocks
+        missing_results = tool_use_ids - tool_result_ids
+        if missing_results:
+            logger.warning(f"Found {len(missing_results)} tool_use blocks without matching tool_result blocks")
+            needs_repair = True
+
+        # Check for tool_result blocks without document blocks
+        for msg in self.message_history:
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                for tool_block in msg["content"]:
+                    if isinstance(tool_block, dict) and tool_block.get("type") == "tool_result":
+                        # Check if this message has at least one document block
+                        has_document = any(
+                            isinstance(block, dict) and block.get("type") == "document"
+                            for block in msg["content"]
+                        )
+                        if not has_document:
+                            logger.warning(f"Found tool_result without document block: {tool_block.get('tool_use_id')}")
+                            needs_repair = True
+                            break
+
+        # If any issue was found, do a full repair
+        if needs_repair:
+            logger.debug("Repairing message history before sending to Claude API")
+            self._fix_tool_use_result_relationship()
+
+    def _check_tool_limit(self, current_tool_name, current_tool_args=None):
+        """
+        Check if adding the current tool would exceed our tool usage limits.
+
+        This method checks two conditions:
+        1. If adding this tool would make 4 consecutive uses of the same tool
+        2. If adding this tool would exceed 5 total tool calls
+
+        Args:
+            current_tool_name: The name of the tool about to be used
+            current_tool_args: Optional arguments for the current tool
+
+        Returns:
+            bool: True if a limit would be reached, False otherwise
+        """
+        # If no tool usage yet, no limit reached
+        if not self.tool_usage_history:
+            return False
+
+        # Check for same tool used consecutively 4 times (including the current one)
+        if len(self.tool_usage_history) >= 3:
+            last_three_tools = self.tool_usage_history[-3:]
+            if last_three_tools[0] == last_three_tools[1] == last_three_tools[2] == current_tool_name:
+                logger.warning(f"Adding {current_tool_name} would make 4 consecutive uses - limit would be reached")
+                # Log all tool usages and their parameters
+                logger.warning(f"Tool usage history: {self.tool_usage_history}")
+                # Log detailed information about each tool call
+                for i, call in enumerate(self.tool_calls_with_args):
+                    logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
+                return True
+
+        # Check if adding this tool would exceed 10 total calls
+        if len(self.tool_usage_history) >= 9:
+            logger.warning(f"Adding {current_tool_name} would exceed total tool usage limit of 10")
+            # Log all tool usages and their parameters
+            logger.warning(f"Tool usage history: {self.tool_usage_history}")
+            # Log detailed information about each tool call
+            for i, call in enumerate(self.tool_calls_with_args):
+                logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
+            return True
+
+        return False
+
+    def _force_answer_on_tool_limit(self):
+        """
+        Check if tool usage has hit limits and force Claude to provide a final answer if needed.
+
+        This method checks for:
+        1. Same tool used consecutively 3+ times
+        2. Total tool usage exceeds 10 calls
+
+        Returns:
+            bool: True if a limit was reached and intervention was applied, False otherwise
+        """
+        # If no tool usage yet, no need to check
+        if not self.tool_usage_history:
+            return False
+
+        # Check for same tool used consecutively 3+ times
+        if len(self.tool_usage_history) >= 3:
+            last_three_tools = self.tool_usage_history[-3:]
+            if last_three_tools[0] == last_three_tools[1] == last_three_tools[2]:
+                tool_name = last_three_tools[0]
+                logger.warning(f"Same tool '{tool_name}' used 3 times consecutively - forcing answer")
+
+                # Add a message forcing Claude to provide a final answer
+                force_answer_message = {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "You've used the same search tool multiple times. Please stop searching and "
+                                "provide a complete answer based on the information you have. "
+                                "Format your answer properly with the information you've gathered so far."
+                            )
+                        }
+                    ]
+                }
+
+                self.message_history.append(force_answer_message)
+                self._log_message(force_answer_message)
+                return True
+
+        # Check for total tool usage exceeding 10 calls
+        if len(self.tool_usage_history) >= 10:
+            logger.warning("Total tool usage exceeded limit (10) - forcing answer")
+
+            # Add a message forcing Claude to provide a final answer
+            force_answer_message = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "You've made multiple tool calls. Please stop using tools and "
+                            "provide a complete answer based on the information you have. "
+                            "Format your answer properly with the information you've gathered so far."
+                        )
+                    }
+                ]
+            }
+
+            self.message_history.append(force_answer_message)
+            self._log_message(force_answer_message)
+            return True
+
+        return False
+
     def process_tool_call(self, tool_name: str, tool_args: dict, tool_id: str):
         """Process a tool call and return its result as a list."""
+        # Check if we need to force an answer due to tool usage patterns BEFORE tracking this tool
+        # This prevents counting the current tool if we're already at the limit
+        if self._check_tool_limit(tool_name, tool_args):
+            # Return non-empty results with a standard document to avoid API errors
+            tool_limit_message = """Tool usage limit reached. Please synthesize a complete answer
+            based on the information you've already gathered, maintaining any requested format."""
+            logger.warning(f"Tool usage limit reached: {tool_limit_message}")
+
+            # Include a minimal document to ensure there's content in the tool_result
+            # Format the tool limit message using our robust mechanism
+            tool_document = {
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": tool_limit_message
+                },
+                "title": "Tool Usage Limit Notice",
+                "context": "System message",
+                "citations": {
+                    "enabled": False
+                }
+            }
+
+            # Process the document to ensure it's properly formatted
+            processed_document = process_document_source_data(tool_document)
+
+            return (
+                [tool_limit_message],
+                [processed_document]
+            )
+
+        # If we didn't hit the limit, track tool usage now
+        self.tool_usage_history.append(tool_name)
+        # Also track the tool arguments
+        self.tool_calls_with_args.append({"tool": tool_name, "args": tool_args, "tool_id": tool_id})
+        logger.debug(f"Tool usage history: {self.tool_usage_history}")
+
         if tool_name not in self.tool_name_to_instance:
             logger.warning(f"Unknown tool name: {tool_name}")
-            return ([], [])
+            empty_result_message = f"Unknown tool: {tool_name}"
+            return ([empty_result_message], [{
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": empty_result_message
+                },
+                "title": "Error",
+                "context": "System message",
+                "citations": {"enabled": False}
+            }])
 
         try:
             query = tool_args["query"]  # tool_args is now a dict, not a string
-
         except KeyError as e:  # Remove JSONDecodeError since we're not parsing JSON
             logger.error(f"Failed to parse tool arguments: {e}")
             logger.error(f"Raw arguments: {tool_args}")
-            raise
+            error_message = f"Invalid tool arguments: {str(e)}"
+            return ([error_message], [{
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": error_message
+                },
+                "title": "Error",
+                "context": "System message",
+                "citations": {"enabled": False}
+            }])
 
-        tool_instance = self.tool_name_to_instance[tool_name]
+        try:
+            tool_instance = self.tool_name_to_instance[tool_name]
 
-        # Get raw results
-        results = tool_instance.run(query)
+            # Get raw results
+            results = tool_instance.run(query)
 
-        # Format results in different ways
-        tool_result = tool_instance.format_as_tool_result(results)
-        reference_list = tool_instance.format_as_ref_list(results)
+            # Format results in different ways
+            tool_result = tool_instance.format_as_tool_result(results)
+            reference_list = tool_instance.format_as_ref_list(results)
 
-        if not reference_list:
-            logger.warning(f"No references found for tool call: {tool_name}")
-            return (tool_result, [])
+            # Check for empty results - possibly due to rate limiting
+            if not reference_list:
+                logger.warning(f"No results returned for {tool_name} with query '{query}'. Possible rate limiting.")
+                empty_result_message = """No results found for this query. This might be due to rate limiting
+                if multiple searches were performed in quick succession."""
+                return (
+                    [empty_result_message],
+                    [{
+                        "type": "document",
+                        "source": {
+                            "type": "text",
+                            "media_type": "text/plain",
+                            "data": empty_result_message
+                        },
+                        "title": "No Results Found",
+                        "context": f"Search for '{query}'",
+                        "citations": {"enabled": False}
+                    }]
+                )
 
-        logger.info(f"Got {len(reference_list)} results from {tool_name}")
+            logger.debug(f"Got {len(reference_list)} results from {tool_name}")
 
-        # Return results
-        return (tool_result, reference_list)
+            # Return results
+            return (tool_result, reference_list)
+
+        except Exception as e:
+            logger.error(f"Error executing tool {tool_name}: {str(e)}")
+            error_message = f"Error executing search: {str(e)}"
+            return ([error_message], [{
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "media_type": "text/plain",
+                    "data": error_message
+                },
+                "title": "Error",
+                "context": "System message",
+                "citations": {"enabled": False}
+            }])
 
     def _separate_tool_result_from_preceding_text(self):
         """
@@ -382,7 +666,9 @@ class AnsariClaude(Ansari):
         if (
             (msg := self.message_history[-1])
             and (content := msg.get("content"))
+            and isinstance(content, list)
             and len(content) > 0
+            and isinstance(content[0], dict)
             and (content[0].get("type", "") == "tool_result")
         ):
             return "\n\n"
@@ -405,16 +691,12 @@ class AnsariClaude(Ansari):
         prompt_mgr = PromptMgr()
         system_prompt = prompt_mgr.bind("system_msg_claude").render()
 
-        # Log the `self.message_history`
-        if get_settings().DEV_MODE:
-            # In DEV_MODE, log the full message history to a file for inspection
-            json_file_path = "./logs/last_msg_hist.json"
-            with open(json_file_path, "w") as f:
-                json.dump(self.message_history, f, indent=4)
-            logger.debug(f"Dumped full message history to {json_file_path}")
-        else:
-            # In production, log the message history in the terminal
-            logger.info(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
+        # Run pre-flight validation to ensure proper tool_use/tool_result relationship
+        # This helps prevent API errors by fixing message structure before sending
+        self._validate_message_history()
+
+        # Log the final message history before sending to API
+        logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
 
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
@@ -452,7 +734,7 @@ class AnsariClaude(Ansari):
             doc_info += "]"
         logger_params["messages"] = doc_info
         logger_params["system"] = system_prompt[:100] + "..." if len(system_prompt) > 100 else system_prompt
-        logger.info(f"API request parameters: {logger_params}")
+        logger.debug(f"API request parameters: {logger_params}")
 
         failures = 0
         response = None
@@ -464,7 +746,7 @@ class AnsariClaude(Ansari):
                 logger.debug("Calling Anthropic API...")
                 response = self.client.messages.create(**params)
                 elapsed = time.time() - start_time
-                logger.info(f"API connection established after {elapsed:.2f}s")
+                logger.debug(f"API connection established after {elapsed:.2f}s")
             except Exception as e:
                 failures += 1
                 elapsed = time.time() - start_time
@@ -479,13 +761,13 @@ class AnsariClaude(Ansari):
                     json_file_path = "./logs/last_err_msg_hist.json"
                     with open(json_file_path, "w") as f:
                         json.dump(self.message_history, f, indent=4)
-                    logger.info(f"Dumped message history to {json_file_path}")
+                    logger.debug(f"Dumped message history to {json_file_path}")
 
                 if failures >= self.settings.MAX_FAILURES:
                     logger.error("Max retries exceeded")
                     raise
 
-                logger.info("Retrying in 5 seconds...")
+                logger.debug("Retrying in 5 seconds...")
                 time.sleep(5)
                 continue
 
@@ -501,7 +783,7 @@ class AnsariClaude(Ansari):
         current_tool = None  # Current tool being processed
         current_json = ""  # Accumulated JSON for current tool
 
-        logger.info("Processing response chunks")
+        logger.debug("Processing response chunks")
 
         """ Warning: This is probably the most complex code in all of Ansari.
 
@@ -544,7 +826,7 @@ class AnsariClaude(Ansari):
                     and chunk.content_block.type == "tool_use"
                 ):
                     # Start of a tool call
-                    logger.info(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
+                    logger.debug(f"Starting tool call with id: {chunk.content_block.id}, name: {chunk.content_block.name}")
                     current_tool = {
                         "type": "tool_use",
                         "id": chunk.content_block.id,
@@ -590,7 +872,7 @@ class AnsariClaude(Ansari):
                         logger.debug(f"Tool arguments: {arguments}")
                         current_tool["input"] = arguments
                         tool_calls.append(current_tool)
-                        logger.info(f"Added tool call to queue, total: {len(tool_calls)}")
+                        logger.debug(f"Added tool call to queue, total: {len(tool_calls)}")
 
                         # Reset for next tool
                         current_tool = None
@@ -614,7 +896,7 @@ class AnsariClaude(Ansari):
                             stop_reason = chunk.delta.stop_reason
                             logger.warning(f"Received {stop_reason} stop_reason but response already finished - skipping")
                         else:
-                            logger.info(f"Message delta has stop_reason {chunk.delta.stop_reason}")
+                            logger.debug(f"Message delta has stop_reason {chunk.delta.stop_reason}")
 
                             if chunk.delta.stop_reason == "end_turn":
                                 # For end_turn, create a final assistant message with text and tool calls
@@ -635,7 +917,7 @@ class AnsariClaude(Ansari):
                             elif chunk.delta.stop_reason == "tool_use" and tool_calls:
                                 # For tool_use, we need to create an assistant message with JUST the tool
                                 # This is critical to maintain the tool_use -> tool_result relationship
-                                logger.info("Adding assistant message with tool_use (no text content)")
+                                logger.debug("Adding assistant message with tool_use (no text content)")
 
                                 # Create content blocks with only the tool_use blocks
                                 tool_content = []
@@ -676,9 +958,9 @@ class AnsariClaude(Ansari):
 
             elif chunk.type == "message_stop":
                 if response_finished:
-                    logger.warning("Received message_stop but response already finished - skipping")
+                    logger.debug("Received message_stop but response already finished - skipping")
                 else:
-                    logger.info("Message_stop chunk received - finishing response")
+                    logger.debug("Message_stop chunk received - finishing response")
 
                     if assistant_text:
                         # If we have text content, create a complete assistant message with text and tools
@@ -688,7 +970,7 @@ class AnsariClaude(Ansari):
                     elif tool_calls:
                         # If we only have tool calls and no text, create an assistant message with JUST tools
                         # This avoids empty text blocks but maintains tool_use -> tool_result relationship
-                        logger.info("Creating assistant message with just tool calls (no text)")
+                        logger.debug("Creating assistant message with just tool calls (no text)")
 
                         # Create content with only the tool_use blocks
                         tool_content = []
@@ -718,6 +1000,192 @@ class AnsariClaude(Ansari):
 
                     response_finished = True
 
+    def _fix_tool_use_result_relationship(self):
+        """
+        Fix missing or misaligned tool_use and tool_result blocks in the message history.
+        This method ensures that every tool_use has a corresponding tool_result with at least
+        one document block, and that they appear in the correct sequence.
+
+        Side effect:
+            - May modify self.message_history directly
+        """
+        logger.warning("Fixing tool_use/tool_result relationship issues in message history")
+
+        # 1. First identify all tool_use blocks and their locations
+        tool_use_info = {}  # Maps tool ID to (message_idx, block) pairs
+        for msg_idx, msg in enumerate(self.message_history):
+            if msg.get("role") == "assistant" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_use" and "id" in block:
+                        tool_id = block["id"]
+                        tool_use_info[tool_id] = (msg_idx, block)
+                        logger.debug(f"Found tool_use block with ID {tool_id} at message index {msg_idx}")
+
+        # 2. Check which tool_use IDs have corresponding tool_result blocks
+        tool_result_info = {}  # Maps tool ID to message_idx
+        for msg_idx, msg in enumerate(self.message_history):
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_result" and "tool_use_id" in block:
+                        tool_id = block["tool_use_id"]
+                        tool_result_info[tool_id] = msg_idx
+                        logger.debug(f"Found tool_result block with ID {tool_id} at message index {msg_idx}")
+
+        # 3. Create fallback tool_result blocks for any tool_use without a result
+        for tool_id, (msg_idx, tool_block) in tool_use_info.items():
+            if tool_id not in tool_result_info:
+                logger.warning(f"Adding missing tool_result for tool_use ID {tool_id}")
+
+                # Get tool name for better error messages
+                tool_name = tool_block.get("name", "unknown_tool")
+
+                # Create a fallback tool_result message
+                fallback_result = {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": "Please see the references below."
+                        },
+                        {
+                            "type": "document",
+                            "source": {
+                                "type": "text",
+                                "media_type": "text/plain",
+                                "data": f"No content found for this tool call. Tool: {tool_name}"
+                            },
+                            "title": "No Results",
+                            "context": f"Tool: {tool_name}",
+                            "citations": {
+                                "enabled": False
+                            }
+                        }
+                    ]
+                }
+
+                # Insert it immediately after the tool_use message
+                self.message_history.insert(msg_idx + 1, fallback_result)
+                logger.debug(f"Added fallback tool_result for ID {tool_id} after message {msg_idx}")
+
+                # Update the tool_result_info map with the new position
+                tool_result_info[tool_id] = msg_idx + 1
+
+                # Update indices for any subsequent tool_use/result messages
+                for other_id, (other_idx, other_block) in list(tool_use_info.items()):
+                    if other_idx > msg_idx:
+                        tool_use_info[other_id] = (other_idx + 1, other_block)
+
+                for other_id, other_idx in list(tool_result_info.items()):
+                    if other_id != tool_id and other_idx > msg_idx:
+                        tool_result_info[other_id] = other_idx + 1
+
+        # 4. Remove any invalid tool_result blocks (those without matching tool_use)
+        invalid_result_indices = []
+        for msg_idx, msg in enumerate(self.message_history):
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                for block_idx, block in enumerate(msg["content"]):
+                    if isinstance(block, dict) and block.get("type") == "tool_result" and "tool_use_id" in block:
+                        tool_id = block["tool_use_id"]
+                        if tool_id not in tool_use_info:
+                            logger.warning(f"Found tool_result with ID {tool_id} but no matching tool_use block")
+                            invalid_result_indices.append((msg_idx, block_idx))
+
+        # Remove the invalid blocks (if any)
+        removed_messages = set()  # Track which messages we've removed
+        for msg_idx, block_idx in sorted(invalid_result_indices, reverse=True):
+            if msg_idx in removed_messages:
+                continue  # Skip if we've already removed this message
+
+            # For simplicity, just remove the entire message if it's just a tool_result
+            if len(self.message_history[msg_idx]["content"]) <= 2:  # tool_result + maybe a document
+                logger.warning(f"Removing invalid tool_result message at index {msg_idx}")
+                self.message_history.pop(msg_idx)
+                removed_messages.add(msg_idx)
+
+                # Update indices for all tool use/result locations
+                for tool_id, (use_idx, block) in list(tool_use_info.items()):
+                    if use_idx > msg_idx:
+                        tool_use_info[tool_id] = (use_idx - 1, block)
+
+                for tool_id, result_idx in list(tool_result_info.items()):
+                    if result_idx > msg_idx:
+                        tool_result_info[tool_id] = result_idx - 1
+            else:
+                # Otherwise just remove the specific tool_result block
+                logger.warning(f"Removing invalid tool_result block from message {msg_idx}")
+                self.message_history[msg_idx]["content"].pop(block_idx)
+
+        # 5. Ensure each tool_result has at least one document block
+        for tool_id, result_idx in tool_result_info.items():
+            # Skip if the message was removed
+            if result_idx in removed_messages:
+                continue
+
+            # Get the tool name for better error messages
+            tool_name = "unknown_tool"
+            if tool_id in tool_use_info:
+                _, tool_block = tool_use_info[tool_id]
+                tool_name = tool_block.get("name", "unknown_tool")
+
+            # Check if this result message has document blocks
+            msg = self.message_history[result_idx]
+            has_document = False
+
+            if isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "document":
+                        has_document = True
+                        break
+
+            # If no document block found, add a fallback one
+            if not has_document:
+                logger.warning(f"Adding missing document block to tool_result for ID {tool_id}")
+                fallback_doc = {
+                    "type": "document",
+                    "source": {
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": f"No content found for this query with tool: {tool_name}"
+                    },
+                    "title": "No Results",
+                    "context": f"Tool: {tool_name}",
+                    "citations": {
+                        "enabled": False
+                    }
+                }
+                self.message_history[result_idx]["content"].append(fallback_doc)
+
+        # 6. Final check - ensure tool_results are placed immediately after their tool_use blocks
+        for tool_id, (use_idx, _) in tool_use_info.items():
+            if tool_id in tool_result_info:
+                result_idx = tool_result_info[tool_id]
+
+                # If the result doesn't immediately follow the use, move it
+                if result_idx != use_idx + 1:
+                    logger.warning(f"""Tool_result for ID {tool_id} is at wrong position (found at {result_idx},
+                                   should be {use_idx+1})""")
+
+                    # Skip if the message was already removed
+                    if result_idx in removed_messages:
+                        continue
+
+                    # Get the result message
+                    result_msg = self.message_history.pop(result_idx)
+
+                    # Adjust indices if the result was before the use
+                    if result_idx < use_idx:
+                        use_idx -= 1
+
+                    # Insert at the correct position
+                    self.message_history.insert(use_idx + 1, result_msg)
+                    logger.debug(f"Moved tool_result for ID {tool_id} to position {use_idx+1}")
+
+                    # Update the tool_result_info map
+                    tool_result_info[tool_id] = use_idx + 1
+
+        logger.debug("Completed tool_use/tool_result relationship fix")
+
     def _process_tool_calls(self, tool_calls):
         """Process a list of tool calls and add results to message history.
 
@@ -735,7 +1203,7 @@ class AnsariClaude(Ansari):
                 # Process the tool call
                 (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
 
-                logger.info(f"Reference list: {json.dumps(reference_list, indent=2)}")
+                logger.debug(f"Reference list: {json.dumps(reference_list, indent=2)}")
 
                 # Process references - ALWAYS apply special formatting
                 document_blocks = []
@@ -745,22 +1213,33 @@ class AnsariClaude(Ansari):
                     # Always apply special processing for all tools
                     for doc in document_blocks:
                         if "source" in doc and "data" in doc["source"]:
-                            try:
-                                multilingual_data = parse_multilingual_data(doc["source"]["data"])
-                                arabic_text = multilingual_data.get("ar", "")
-                                english_text = multilingual_data.get("en", "")
+                            # Use the robust document processing function
+                            processed_doc = process_document_source_data(doc)
 
-                                text_list = []
-                                if arabic_text:
-                                    text_list.append(f"Arabic: {arabic_text}")
-                                if english_text:
-                                    text_list.append(f"English: {english_text}")
+                            # Update the document with the processed version
+                            doc.update(processed_doc)
 
-                                doc["source"]["data"] = "\n\n".join(text_list)
-                            except json.JSONDecodeError:
-                                logger.warning(f"Failed to parse source data to JSON for ref: {doc}")
+                # CRITICAL: Ensure we always have at least one document block
+                # This prevents Claude API errors where tool_use blocks have no corresponding tool_result with document
+                if not document_blocks:
+                    # Create a default fallback document block
+                    logger.warning(f"No document blocks found for tool {tc['name']} - adding fallback document block")
+                    fallback_message = f"No content found for the given query with tool: {tc['name']}"
+                    document_blocks = [{
+                        "type": "document",
+                        "source": {
+                            "type": "text",
+                            "media_type": "text/plain",
+                            "data": fallback_message
+                        },
+                        "title": "No Results",
+                        "context": f"Tool: {tc['name']}",
+                        "citations": {
+                            "enabled": False
+                        }
+                    }]
 
-                # Add tool result message
+                # Add tool result message with at least one document block
                 logger.debug("Adding a 'tool_result' message to history")
                 self.message_history.append(
                     {
@@ -790,7 +1269,21 @@ class AnsariClaude(Ansari):
                     )
                     sentry_sdk.capture_exception(e)
 
-                # Add error as tool result
+                # Add error as tool result, always including a document block
+                fallback_error_doc = {
+                    "type": "document",
+                    "source": {
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": f"Error processing tool: {str(e)}"
+                    },
+                    "title": "Error",
+                    "context": f"Tool: {tc['name']}",
+                    "citations": {
+                        "enabled": False
+                    }
+                }
+
                 error_message = {
                     "role": "user",
                     "content": [
@@ -799,7 +1292,7 @@ class AnsariClaude(Ansari):
                             "tool_use_id": tc["id"],
                             "content": str(e),
                         }
-                    ],
+                    ] + [fallback_error_doc],  # Always include a document block
                 }
                 self.message_history.append(error_message)
                 # Log the error message
@@ -1079,14 +1572,14 @@ class AnsariClaude(Ansari):
         It yields from the process_one_round method until the last message is an assistant message.
         The assumption coming in to this is that it ends with a user message.
         """
-        logger.info("Starting process_message_history")
+        logger.debug("Starting process_message_history")
         logger.debug(f"Initial message history length: {len(self.message_history)}")
 
         if len(self.message_history) > 0:
             logger.debug(f"Last message role: {self.message_history[-1]['role']}")
             last_role = self.message_history[-1]["role"]
             if last_role == "assistant":
-                logger.info("Message history already ends with assistant message, no processing needed")
+                logger.debug("Message history already ends with assistant message, no processing needed")
 
         count = 0
         # Store the previous state of the entire message history for simple comparison
@@ -1185,7 +1678,7 @@ class AnsariClaude(Ansari):
         # Add a max_iterations limit to prevent infinite loops
         max_iterations = 10  # Reasonable upper limit based on expected conversation flow
         while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant" and count < max_iterations:
-            logger.info(f"Processing message iteration: {count}")
+            logger.debug(f"Processing message iteration: {count}")
             logger.debug("Current message history:\n" + "-" * 60)
             for i, msg in enumerate(self.message_history):
                 logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
@@ -1253,7 +1746,7 @@ class AnsariClaude(Ansari):
             logger.debug(f"Completed iteration {count} of message processing")
 
         # Log the final state after processing completes
-        logger.info(f"Finished process_message_history after {count} iterations")
+        logger.debug(f"Finished process_message_history after {count} iterations")
         logger.debug(f"Final message history length: {len(self.message_history)}")
 
         # Check if we hit the iteration limit
@@ -1261,7 +1754,7 @@ class AnsariClaude(Ansari):
             logger.warning(f"Hit max iterations limit ({max_iterations}). Check for processing issues.")
 
         if len(self.message_history) > 0:
-            logger.info(f"Final message role: {self.message_history[-1]['role']}")
+            logger.debug(f"Final message role: {self.message_history[-1]['role']}")
             if self.message_history[-1]["role"] != "assistant":
                 logger.warning("Processing completed but final message is not from assistant!")
         else:

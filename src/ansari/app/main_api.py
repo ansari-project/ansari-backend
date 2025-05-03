@@ -41,7 +41,7 @@ from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
-from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins
+from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
 
 logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
@@ -185,6 +185,7 @@ class RegisterRequest(BaseModel):
     password: str
     first_name: str
     last_name: str
+    register_to_mail_list: bool = False
     # Left as an optional field for now to avoid breaking the frontend
     #   (I.e., the frontend doesn't send this field yet)
     source: SourceType = SourceType.WEB
@@ -227,13 +228,23 @@ async def register_user(req: RegisterRequest):
                 status_code=400,
                 detail="Password is too weak. Suggestions: " + ",".join(passwd_quality["feedback"]["suggestions"]),
             )
-        return db.register(
+
+        result = db.register(
             source=req.source,
             email=req.email,
             first_name=req.first_name,
             last_name=req.last_name,
             password_hash=password_hash,
         )
+
+        if result["status"] == "success" and req.register_to_mail_list:
+            try:
+                register_to_mailing_list(req.email, req.first_name, req.last_name)
+            except Exception as e:
+                logger.error(f"Error registering to Mailchimp: {e}")
+                sentry_sdk.capture_exception(e)
+
+        return result
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -778,7 +789,7 @@ async def request_password_reset(
         # shall we also revoke login and refresh tokens?
         tenv = Environment(loader=FileSystemLoader(settings.template_dir))
         template = tenv.get_template("password_reset.html")
-        rendered_template = template.render(reset_token=reset_token)
+        rendered_template = template.render(reset_token=reset_token, frontend_url=settings.FRONTEND_URL)
         message = Mail(
             from_email=Email("feedback@ansari.chat"),
             to_emails=To(req.email),

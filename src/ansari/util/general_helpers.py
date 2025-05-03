@@ -3,6 +3,8 @@
 import unicodedata as ud
 from typing import Literal
 
+import requests
+from requests.auth import HTTPBasicAuth
 from fastapi import Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from jwt import PyJWTError
@@ -13,6 +15,48 @@ from ansari.config import Settings, get_settings
 
 logger = get_logger(__name__)
 
+
+def register_to_mailing_list(email: str, first_name: str, last_name: str) -> bool:
+    """Register a user to Mailchimp.
+
+    Args:
+        email (str): The email address of the user.
+        first_name (str): The first name of the user.
+        last_name (str): The last name of the user.
+
+    Returns:
+        bool: True if the registration was successful, False otherwise.
+    """
+
+    api_key = get_settings().MAILCHIMP_API_KEY.get_secret_value()
+    server_prefix = get_settings().MAILCHIMP_SERVER_PREFIX
+    list_id = get_settings().MAILCHIMP_LIST_ID
+
+    url = f"https://{server_prefix}.api.mailchimp.com/3.0/lists/{list_id}/members"
+
+    data = {
+        "email_address": email,
+        "status": "subscribed",
+        "merge_fields": {
+            "FNAME": first_name,
+            "LNAME": last_name,
+        },
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    try:
+        basic_auth = HTTPBasicAuth("anystring", api_key)
+        response = requests.post(url, json=data, headers=headers, auth=basic_auth)
+        response.raise_for_status()
+
+        logger.info(f"Successfully registered {email} to Mailchimp.")
+        return True
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to register {email} to Mailchimp: {e}")
+        return False
 
 def get_extended_origins(settings: Settings = Depends(get_settings)):
     origins = get_settings().ORIGINS
