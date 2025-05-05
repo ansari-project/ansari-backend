@@ -13,11 +13,7 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.util.robust_translation import parse_multilingual_data, process_document_source_data
-from ansari.util.translation import (
-    parse_multilingual_data,
-    translate_texts_parallel_using_asyncio,
-    translate_texts_parallel_using_threads,
-)
+from ansari.util.translation import translate_texts_parallel
 from ansari.util.general_helpers import get_language_from_text, trim_citation_title
 
 # Set up logging
@@ -325,8 +321,7 @@ class AnsariClaude(Ansari):
                     if isinstance(tool_block, dict) and tool_block.get("type") == "tool_result":
                         # Check if this message has at least one document block
                         has_document = any(
-                            isinstance(block, dict) and block.get("type") == "document"
-                            for block in msg["content"]
+                            isinstance(block, dict) and block.get("type") == "document" for block in msg["content"]
                         )
                         if not has_document:
                             logger.warning(f"Found tool_result without document block: {tool_block.get('tool_use_id')}")
@@ -413,9 +408,9 @@ class AnsariClaude(Ansari):
                                 "You've used the same search tool multiple times. Please stop searching and "
                                 "provide a complete answer based on the information you have. "
                                 "Format your answer properly with the information you've gathered so far."
-                            )
+                            ),
                         }
-                    ]
+                    ],
                 }
 
                 self.message_history.append(force_answer_message)
@@ -436,9 +431,9 @@ class AnsariClaude(Ansari):
                             "You've made multiple tool calls. Please stop using tools and "
                             "provide a complete answer based on the information you have. "
                             "Format your answer properly with the information you've gathered so far."
-                        )
+                        ),
                     }
-                ]
+                ],
             }
 
             self.message_history.append(force_answer_message)
@@ -461,25 +456,16 @@ class AnsariClaude(Ansari):
             # Format the tool limit message using our robust mechanism
             tool_document = {
                 "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": tool_limit_message
-                },
+                "source": {"type": "text", "media_type": "text/plain", "data": tool_limit_message},
                 "title": "Tool Usage Limit Notice",
                 "context": "System message",
-                "citations": {
-                    "enabled": False
-                }
+                "citations": {"enabled": False},
             }
 
             # Process the document to ensure it's properly formatted
             processed_document = process_document_source_data(tool_document)
 
-            return (
-                [tool_limit_message],
-                [processed_document]
-            )
+            return ([tool_limit_message], [processed_document])
 
         # If we didn't hit the limit, track tool usage now
         self.tool_usage_history.append(tool_name)
@@ -490,17 +476,18 @@ class AnsariClaude(Ansari):
         if tool_name not in self.tool_name_to_instance:
             logger.warning(f"Unknown tool name: {tool_name}")
             empty_result_message = f"Unknown tool: {tool_name}"
-            return ([empty_result_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": empty_result_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [empty_result_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
         try:
             query = tool_args["query"]  # tool_args is now a dict, not a string
@@ -508,17 +495,18 @@ class AnsariClaude(Ansari):
             logger.error(f"Failed to parse tool arguments: {e}")
             logger.error(f"Raw arguments: {tool_args}")
             error_message = f"Invalid tool arguments: {str(e)}"
-            return ([error_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": error_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [error_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
         try:
             tool_instance = self.tool_name_to_instance[tool_name]
@@ -537,17 +525,15 @@ class AnsariClaude(Ansari):
                 if multiple searches were performed in quick succession."""
                 return (
                     [empty_result_message],
-                    [{
-                        "type": "document",
-                        "source": {
-                            "type": "text",
-                            "media_type": "text/plain",
-                            "data": empty_result_message
-                        },
-                        "title": "No Results Found",
-                        "context": f"Search for '{query}'",
-                        "citations": {"enabled": False}
-                    }]
+                    [
+                        {
+                            "type": "document",
+                            "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
+                            "title": "No Results Found",
+                            "context": f"Search for '{query}'",
+                            "citations": {"enabled": False},
+                        }
+                    ],
                 )
 
             logger.debug(f"Got {len(reference_list)} results from {tool_name}")
@@ -558,17 +544,18 @@ class AnsariClaude(Ansari):
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {str(e)}")
             error_message = f"Error executing search: {str(e)}"
-            return ([error_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": error_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [error_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
     def _separate_tool_result_from_preceding_text(self):
         """
@@ -1043,25 +1030,19 @@ class AnsariClaude(Ansari):
                 fallback_result = {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": "Please see the references below."
-                        },
+                        {"type": "tool_result", "tool_use_id": tool_id, "content": "Please see the references below."},
                         {
                             "type": "document",
                             "source": {
                                 "type": "text",
                                 "media_type": "text/plain",
-                                "data": f"No content found for this tool call. Tool: {tool_name}"
+                                "data": f"No content found for this tool call. Tool: {tool_name}",
                             },
                             "title": "No Results",
                             "context": f"Tool: {tool_name}",
-                            "citations": {
-                                "enabled": False
-                            }
-                        }
-                    ]
+                            "citations": {"enabled": False},
+                        },
+                    ],
                 }
 
                 # Insert it immediately after the tool_use message
@@ -1146,13 +1127,11 @@ class AnsariClaude(Ansari):
                     "source": {
                         "type": "text",
                         "media_type": "text/plain",
-                        "data": f"No content found for this query with tool: {tool_name}"
+                        "data": f"No content found for this query with tool: {tool_name}",
                     },
                     "title": "No Results",
                     "context": f"Tool: {tool_name}",
-                    "citations": {
-                        "enabled": False
-                    }
+                    "citations": {"enabled": False},
                 }
                 self.message_history[result_idx]["content"].append(fallback_doc)
 
@@ -1225,19 +1204,15 @@ class AnsariClaude(Ansari):
                     # Create a default fallback document block
                     logger.warning(f"No document blocks found for tool {tc['name']} - adding fallback document block")
                     fallback_message = f"No content found for the given query with tool: {tc['name']}"
-                    document_blocks = [{
-                        "type": "document",
-                        "source": {
-                            "type": "text",
-                            "media_type": "text/plain",
-                            "data": fallback_message
-                        },
-                        "title": "No Results",
-                        "context": f"Tool: {tc['name']}",
-                        "citations": {
-                            "enabled": False
+                    document_blocks = [
+                        {
+                            "type": "document",
+                            "source": {"type": "text", "media_type": "text/plain", "data": fallback_message},
+                            "title": "No Results",
+                            "context": f"Tool: {tc['name']}",
+                            "citations": {"enabled": False},
                         }
-                    }]
+                    ]
 
                 # Add tool result message with at least one document block
                 logger.debug("Adding a 'tool_result' message to history")
@@ -1272,16 +1247,10 @@ class AnsariClaude(Ansari):
                 # Add error as tool result, always including a document block
                 fallback_error_doc = {
                     "type": "document",
-                    "source": {
-                        "type": "text",
-                        "media_type": "text/plain",
-                        "data": f"Error processing tool: {str(e)}"
-                    },
+                    "source": {"type": "text", "media_type": "text/plain", "data": f"Error processing tool: {str(e)}"},
                     "title": "Error",
                     "context": f"Tool: {tc['name']}",
-                    "citations": {
-                        "enabled": False
-                    }
+                    "citations": {"enabled": False},
                 }
 
                 error_message = {
@@ -1292,44 +1261,12 @@ class AnsariClaude(Ansari):
                             "tool_use_id": tc["id"],
                             "content": str(e),
                         }
-                    ] + [fallback_error_doc],  # Always include a document block
+                    ]
+                    + [fallback_error_doc],  # Always include a document block
                 }
                 self.message_history.append(error_message)
                 # Log the error message
                 self._log_message(self.message_history[-1])
-
-    def _translate_with_fallback(self, arabic_text: str, target_lang: str = "en", source_lang: str = "ar") -> str:
-        """Translate text using asyncio method first, falling back to threads if in an event loop.
-
-        This helper function attempts to translate using the asyncio-based implementation first,
-        but gracefully falls back to the thread-based implementation if it detects that it's
-        running within an existing event loop
-        (which happens if AnsariClaude's caller is a coroutine with an active event loop).
-
-        Args:
-            arabic_text: The text to translate
-            target_lang: Target language code (default: "en")
-            source_lang: Source language code (default: "ar")
-
-        Returns:
-            The translated text
-
-        Raises:
-            Exception: If translation fails for reasons other than event loop conflicts
-        """
-        # Try to run with asyncio.run
-        try:
-            return asyncio.run(translate_texts_parallel_using_asyncio([arabic_text], target_lang, source_lang))[0]
-        except RuntimeError as e:
-            # If we get "asyncio.run() cannot be called from a running event loop" error,
-            # use the thread-based approach instead
-            if "cannot be called from a running event loop" in str(e):
-                logger.info("Detected active event loop, using thread-based translation instead")
-                return translate_texts_parallel_using_threads([arabic_text], target_lang, source_lang)[0]
-            else:
-                raise
-        except Exception:
-            raise
 
     def _finish_response(self, assistant_text, tool_calls):
         """Handle the completion of a response, adding citations and finalizing the assistant message.
@@ -1357,7 +1294,54 @@ class AnsariClaude(Ansari):
             citations_text = "\n\n**Citations**:\n"
             logger.debug(f"Full Citations: {self.citations}")
 
-            # Process each citation
+            ###############################################################
+            # First full pass: Collect all Arabic texts that need translation
+            #   by processing each citation
+            ###############################################################
+
+            ar_texts_to_translate = []
+            ar_citation_idxs = []  # Track which citations need translation
+            for i, citation in enumerate(self.citations, 0):  # 0-based index for tracking
+                cited_text = getattr(citation, "cited_text", "")
+
+                # Skip if the citation text has already been processed
+                if any(lang in cited_text for lang in ["Arabic: ", "English: "]):
+                    continue
+
+                # Parse the citation as a multilingual JSON object
+                # This handles cases where Claude cites entire document content (which should be JSON)
+                multilingual_data = parse_multilingual_data(cited_text)
+                arabic_text = multilingual_data.get("ar", "")
+                english_text = multilingual_data.get("en", "")
+
+                # If we have Arabic but no English, add to translation queue
+                if arabic_text and not multilingual_data.get("en"):
+                    ar_texts_to_translate.append(arabic_text)
+                    ar_citation_idxs.append(i)
+
+            #################################################################
+            # Second partial pass (using threads)
+            # Batch translate all Arabic texts at once if any need translation
+            #################################################################
+
+            translations = []
+            if ar_texts_to_translate:
+                try:
+                    translations = translate_texts_parallel(ar_texts_to_translate, "en", "ar")
+                    logger.debug(f"Successfully translated {len(translations)} citation texts")
+                except Exception as e:
+                    logger.error(f"Batch translation failed: {e}")
+                    # Create empty translations to maintain index alignment
+                    translations = ["[Translation unavailable]"] * len(ar_texts_to_translate)
+
+            # Build translation lookup for quick access
+            citation_idx_to_translation = {idx: trans for idx, trans in zip(ar_citation_idxs, translations)}
+
+            ##############################################################
+            # Third full pass: Format all citations with available translations
+            #   and add to `citations_text`, which will be used throughout the rest of this method
+            ##############################################################
+
             for i, citation in enumerate(self.citations, 1):
                 cited_text = getattr(citation, "cited_text", "")
                 title = getattr(citation, "document_title", "")
@@ -1365,17 +1349,14 @@ class AnsariClaude(Ansari):
                 title = trim_citation_title(title)
                 citations_text += f"[{i}] {title}:\n"
 
-                # First, check if the citation text has already been processed
+                # If citation is already processed, use as is
                 if any(lang in cited_text for lang in ["Arabic: ", "English: "]):
                     citations_text += f"{cited_text}\n\n"
                     continue
 
-                # Then, try to parse the citation as a multilingual JSON object
-                # This handles cases where Claude cites entire document content (which should be JSON)
                 try:
-                    # Attempt to parse as JSON
+                    # Try to parse as JSON
                     multilingual_data = parse_multilingual_data(cited_text)
-                    logger.debug(f"Successfully parsed multilingual data: {multilingual_data}")
 
                     # Extract Arabic and English text
                     arabic_text = multilingual_data.get("ar", "")
@@ -1385,43 +1366,15 @@ class AnsariClaude(Ansari):
                     if arabic_text:
                         citations_text += f" Arabic: {arabic_text}\n\n"
 
-                    # Add English text if available, otherwise translate from Arabic
+                    # Add English text (either from JSON or our translation)
                     if english_text:
                         citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
-                        english_translation = self._translate_with_fallback(arabic_text)
-                        citations_text += f" English: {english_translation}\n\n"
-
-                except json.JSONDecodeError:
-                    # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
-                    logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
-
-                    # Try to detect the language and handle accordingly
-                    try:
-                        # Use the imported function
-                        lang = get_language_from_text(cited_text)
-                        if lang == "ar":
-                            # It's Arabic text
-                            arabic_text = cited_text
-                            citations_text += f" Arabic: {arabic_text}\n\n"
-
-                            # Translate to English
-                            try:
-                                english_translation = self._translate_with_fallback(arabic_text)
-                                citations_text += f" English: {english_translation}\n\n"
-                            except Exception as e:
-                                logger.error(f"Translation failed: {e}")
-                                citations_text += " English: [Translation unavailable]\n\n"
-                        else:
-                            # It's likely English or other language - just show as is
-                            citations_text += f" Text: {cited_text}\n\n"
-                    except Exception as e:
-                        # If language detection fails, default to treating as English
-                        logger.error(f"Language detection failed: {e}")
-                        citations_text += f" Text: {cited_text}\n\n"
-
+                        # Use our pre-fetched translation if available
+                        translation = citation_idx_to_translation.get(i - 1, "[Translation unavailable]")
+                        citations_text += f" English: {translation}\n\n"
                 except Exception as e:
-                    # Log other errors clearly
+                    # Log any other errors clearly
                     logger.error(f"Citation processing error: {str(e)}")
                     logger.error(f"Raw citation data: {cited_text}")
                     citations_text += f" Text: {cited_text}\n\n"

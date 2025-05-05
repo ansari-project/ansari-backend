@@ -2,11 +2,8 @@
 
 import anthropic
 from typing import Dict, Optional
-import asyncio
 import json
-import threading
 import concurrent.futures
-
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_from_text
@@ -67,11 +64,9 @@ def translate_text(
         raise
 
 
-async def translate_texts_parallel_using_asyncio(
-    texts: list[str], target_lang: str = "en", source_lang: str = "ar"
-) -> list[str]:
+def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
     """
-    Translate multiple texts in parallel using asyncio.
+    Translate multiple texts in parallel using threads.
 
     Args:
         texts: List of texts to translate
@@ -84,32 +79,7 @@ async def translate_texts_parallel_using_asyncio(
     if not texts:
         return []
 
-    # Create translation tasks for all texts
-    tasks = [asyncio.to_thread(translate_text, text, target_lang, source_lang) for text in texts]
-
-    # Run all translations in parallel and return results
-    return await asyncio.gather(*tasks)
-
-
-def translate_texts_parallel_using_threads(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
-    """
-    Translate multiple texts in parallel using threads instead of asyncio.
-
-    This function provides a thread-based alternative to translate_texts_parallel_using_asyncio
-    for contexts where asyncio can't be used (like when already in an event loop).
-
-    Args:
-        texts: List of texts to translate
-        target_lang: Target language code (e.g., "ar", "en")
-        source_lang: Source language code (e.g., "ar", "en")
-
-    Returns:
-        List of translations
-    """
-    if not texts:
-        return []
-
-    logger.debug(f"Using thread-based translation for {len(texts)} text(s)")
+    logger.debug(f"Translating from {source_lang} to {target_lang}.")
 
     # Use ThreadPoolExecutor to parallelize the translations
     with concurrent.futures.ThreadPoolExecutor() as executor:
