@@ -682,8 +682,10 @@ class AnsariClaude(Ansari):
         # This helps prevent API errors by fixing message structure before sending
         self._validate_message_history()
 
-        # Log the final message history before sending to API
-        logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
+        # Log below floods the terminal, so will be disabled when locally developing for easier readability
+        if get_settings().DEPLOYMENT_TYPE != "development":
+            # Log the final message history before sending to API
+            logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
 
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
@@ -1311,13 +1313,16 @@ class AnsariClaude(Ansari):
                 # Parse the citation as a multilingual JSON object
                 # This handles cases where Claude cites entire document content (which should be JSON)
                 multilingual_data = parse_multilingual_data(cited_text)
+
                 arabic_text = multilingual_data.get("ar", "")
                 english_text = multilingual_data.get("en", "")
 
                 # If we have Arabic but no English, add to translation queue
-                if arabic_text and not multilingual_data.get("en"):
+                if arabic_text and not english_text:
                     ar_texts_to_translate.append(arabic_text)
                     ar_citation_idxs.append(i)
+
+            logger.debug(f"{ar_texts_to_translate=}")
 
             #################################################################
             # Second partial pass (using threads)
@@ -1334,8 +1339,8 @@ class AnsariClaude(Ansari):
                     # Create empty translations to maintain index alignment
                     translations = ["[Translation unavailable]"] * len(ar_texts_to_translate)
 
-            # Build translation lookup for quick access
-            citation_idx_to_translation = {idx: trans for idx, trans in zip(ar_citation_idxs, translations)}
+            # Build translation lookup for quick access, but only for non-None/empty translations
+            citation_idx_to_translation = {idx: trans for idx, trans in zip(ar_citation_idxs, translations) if trans}
 
             ##############################################################
             # Third full pass: Format all citations with available translations
@@ -1632,10 +1637,12 @@ class AnsariClaude(Ansari):
         max_iterations = 10  # Reasonable upper limit based on expected conversation flow
         while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant" and count < max_iterations:
             logger.debug(f"Processing message iteration: {count}")
-            logger.debug("Current message history:\n" + "-" * 60)
-            for i, msg in enumerate(self.message_history):
-                logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
-            logger.debug("-" * 60)
+            # Log below floods the terminal, so will be disabled when locally developing for easier readability
+            if get_settings().DEPLOYMENT_TYPE != "development":
+                logger.debug("Current message history:\n" + "-" * 60)
+                for i, msg in enumerate(self.message_history):
+                    logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
+                logger.debug("-" * 60)
 
             # This is pretty complicated so leaving a comment.
             # We want to yield from so that we can send the sequence through the input

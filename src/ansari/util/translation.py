@@ -12,8 +12,12 @@ logger = get_logger(__name__)
 
 
 def translate_text(
-    text: str, target_lang: str, source_lang: Optional[str] = None, model: str = "claude-3-5-haiku-20241022"
-) -> str:
+    text: str,
+    target_lang: str,
+    source_lang: Optional[str] = None,
+    idx: int = -1,
+    model: str = "claude-3-5-haiku-20241022",
+) -> tuple[str, int]:
     """Translates text using Claude models, defaulting to latest Haiku.
 
     Args:
@@ -21,15 +25,13 @@ def translate_text(
         target_lang (str): Target language code (e.g., "ar", "en") or name (e.g., "Arabic", "English")
         source_lang (Optional[str], optional): Source language code or name. If None, auto-detected.
         model (str, optional): Claude model to use. Defaults to "claude-3-5-haiku-20241022".
+        idx (int, optional): Index of the text in a batch of translations. Defaults to -1.
 
     Returns:
-        str: The translated text
-
-    Raises:
-        Exception: If translation fails
+        tuple[str, int]: The translated text and the index of the text in the batch
     """
     if not text:
-        return ""
+        return "", idx
 
     # Get settings and initialize Anthropic client
     settings = get_settings()
@@ -41,7 +43,7 @@ def translate_text(
 
     # Return original text if target language is the same as source
     if source_lang == target_lang:
-        return text
+        return text, idx
 
     try:
         # Call Claude for translation
@@ -55,9 +57,8 @@ def translate_text(
             ),
             messages=[{"role": "user", "content": f"Translate this text from {source_lang} to {target_lang}:\n\n{text}"}],
         )
-
         translation = response.content[0].text.strip()
-        return translation
+        return translation, idx
 
     except Exception as e:
         logger.error(f"Translation error: {str(e)}")
@@ -74,41 +75,36 @@ def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_l
         source_lang: Source language code (e.g., "ar", "en")
 
     Returns:
-        List of translations
+        List of translations in the same order as the input texts
     """
     if not texts:
         return []
 
-    logger.debug(f"Translating from {source_lang} to {target_lang}.")
+    logger.debug(f"Translating {len(texts)} texts from {source_lang} to {target_lang}")
 
     # Use ThreadPoolExecutor to parallelize the translations
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Submit all translation tasks to the executor
-        futures = [executor.submit(translate_text, text, target_lang, source_lang) for text in texts]
+        # Submit all translation tasks to the executor, passing the index with each text
+        futures = [executor.submit(translate_text, text, target_lang, source_lang, i) for i, text in enumerate(texts)]
 
-        # Wait for all futures to complete and collect results
-        results = []
+        # Create a list of the same length as texts
+        translations = [""] * len(texts)
+
+        # Process futures as they complete
         for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result()
-                results.append(result)
+                # Get the translation and its original index
+                # translation, idx = future.result()
+                trans_and_idx = future.result()
+                translation, idx = trans_and_idx
+                # Store the translation at the correct position
+                translations[idx] = translation
             except Exception as e:
                 logger.error(f"Error in thread-based translation: {e}")
-                # If translation fails, add empty string to maintain position
-                results.append("")
+                # We can't recover the index for failed translations, but this shouldn't happen
+                # as exceptions are handled inside translate_text
 
-        # Since concurrent.futures.as_completed returns results in order of completion,
-        # we need to sort results back to the original order
-        translations = []
-        futures_to_idxs = {future: i for i, future in enumerate(futures)}
-
-        # Create a list of the same length as texts, filled with None
-        translations = [None] * len(texts)
-
-        # Fill in the translations in the correct order
-        for future, result in zip(futures, results):
-            future_idx = futures_to_idxs[future]
-            translations[future_idx] = result
+        logger.debug(f"Translations completed: {translations}")
 
         return translations
 
