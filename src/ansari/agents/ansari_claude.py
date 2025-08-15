@@ -52,10 +52,14 @@ class AnsariClaude(Ansari):
         except Exception as e:
             logger.error(f"Error logging environment info: {str(e)}")
 
-        # Initialize Claude-specific client
+        # Initialize Claude-specific client with prompt caching support
         try:
-            self.client = anthropic.Anthropic()
-            logger.debug("Successfully initialized Anthropic client")
+            self.client = anthropic.Anthropic(
+                default_headers={
+                    "anthropic-beta": "prompt-caching-2024-07-31"
+                }
+            )
+            logger.debug("Successfully initialized Anthropic client with prompt caching support")
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {str(e)}")
             raise
@@ -688,16 +692,17 @@ class AnsariClaude(Ansari):
         # This creates a copy of the message history, preserving the original
         limited_history = self.limit_documents_in_message_history(max_documents=100)
 
-        # Add cache control to the last message for prompt caching optimization
+        # Add cache control to ONLY the LAST content block of the last message for prompt caching optimization
         if limited_history and len(limited_history) > 0:
             last_message = limited_history[-1]
-            # Add cache control to all content blocks in the last message
-            if isinstance(last_message.get("content"), list):
-                for block in last_message["content"]:
-                    if isinstance(block, dict):
-                        # Add ephemeral cache control to each content block
-                        block["cache_control"] = {"type": "ephemeral"}
-                logger.debug(f"Added ephemeral cache control to last message with role: {last_message.get('role')}")
+            # Add cache control only to the LAST content block in the last message
+            if isinstance(last_message.get("content"), list) and len(last_message["content"]) > 0:
+                # Only add to the last block
+                last_block = last_message["content"][-1]
+                if isinstance(last_block, dict):
+                    # Add ephemeral cache control to only the last content block
+                    last_block["cache_control"] = {"type": "ephemeral"}
+                logger.debug(f"Added ephemeral cache control to last content block of last message with role: {last_message.get('role')}")
             elif isinstance(last_message.get("content"), str):
                 # If content is a string, convert to list format with cache control
                 last_message["content"] = [
@@ -710,7 +715,13 @@ class AnsariClaude(Ansari):
         # Create API request parameters with the limited history
         params = {
             "model": self.settings.ANTHROPIC_MODEL,
-            "system": system_prompt,
+            "system": [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ],
             "messages": limited_history,  # Use the limited version for API call
             "max_tokens": 4096,
             "temperature": 0.0,
