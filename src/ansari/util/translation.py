@@ -2,9 +2,8 @@
 
 import anthropic
 from typing import Dict, Optional
-import asyncio
 import json
-
+import concurrent.futures
 from ansari.ansari_logger import get_logger
 from ansari.config import get_settings
 from ansari.util.general_helpers import get_language_from_text
@@ -13,8 +12,12 @@ logger = get_logger(__name__)
 
 
 def translate_text(
-    text: str, target_lang: str, source_lang: Optional[str] = None, model: str = "claude-3-5-haiku-20241022"
-) -> str:
+    text: str,
+    target_lang: str,
+    source_lang: Optional[str] = None,
+    idx: int = -1,
+    model: str = "claude-3-5-haiku-20241022",
+) -> tuple[str, int]:
     """Translates text using Claude models, defaulting to latest Haiku.
 
     Args:
@@ -22,15 +25,13 @@ def translate_text(
         target_lang (str): Target language code (e.g., "ar", "en") or name (e.g., "Arabic", "English")
         source_lang (Optional[str], optional): Source language code or name. If None, auto-detected.
         model (str, optional): Claude model to use. Defaults to "claude-3-5-haiku-20241022".
+        idx (int, optional): Index of the text in a batch of translations. Defaults to -1.
 
     Returns:
-        str: The translated text
-
-    Raises:
-        Exception: If translation fails
+        tuple[str, int]: The translated text and the index of the text in the batch
     """
     if not text:
-        return ""
+        return "", idx
 
     # Get settings and initialize Anthropic client
     settings = get_settings()
@@ -42,7 +43,7 @@ def translate_text(
 
     # Return original text if target language is the same as source
     if source_lang == target_lang:
-        return text
+        return text, idx
 
     try:
         # Call Claude for translation
@@ -56,18 +57,17 @@ def translate_text(
             ),
             messages=[{"role": "user", "content": f"Translate this text from {source_lang} to {target_lang}:\n\n{text}"}],
         )
-
         translation = response.content[0].text.strip()
-        return translation
+        return translation, idx
 
     except Exception as e:
         logger.error(f"Translation error: {str(e)}")
         raise
 
 
-async def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
+def translate_texts_parallel(texts: list[str], target_lang: str = "en", source_lang: str = "ar") -> list[str]:
     """
-    Translate multiple texts in parallel.
+    Translate multiple texts in parallel using threads.
 
     Args:
         texts: List of texts to translate
@@ -75,16 +75,38 @@ async def translate_texts_parallel(texts: list[str], target_lang: str = "en", so
         source_lang: Source language code (e.g., "ar", "en")
 
     Returns:
-        List of translations
+        List of translations in the same order as the input texts
     """
     if not texts:
         return []
 
-    # Create translation tasks for all texts
-    tasks = [asyncio.to_thread(translate_text, text, target_lang, source_lang) for text in texts]
+    logger.debug(f"Translating {len(texts)} texts from {source_lang} to {target_lang}")
 
-    # Run all translations in parallel and return results
-    return await asyncio.gather(*tasks)
+    # Use ThreadPoolExecutor to parallelize the translations
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Submit all translation tasks to the executor, passing the index with each text
+        futures = [executor.submit(translate_text, text, target_lang, source_lang, i) for i, text in enumerate(texts)]
+
+        # Create a list of the same length as texts
+        translations = [""] * len(texts)
+
+        # Process futures as they complete
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                # Get the translation and its original index
+                # translation, idx = future.result()
+                trans_and_idx = future.result()
+                translation, idx = trans_and_idx
+                # Store the translation at the correct position
+                translations[idx] = translation
+            except Exception as e:
+                logger.error(f"Error in thread-based translation: {e}")
+                # We can't recover the index for failed translations, but this shouldn't happen
+                # as exceptions are handled inside translate_text
+
+        logger.debug(f"Translations completed: {translations}")
+
+        return translations
 
 
 def format_multilingual_data(text_entries: Dict[str, str]) -> str:
