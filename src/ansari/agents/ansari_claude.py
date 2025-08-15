@@ -320,8 +320,7 @@ class AnsariClaude(Ansari):
                     if isinstance(tool_block, dict) and tool_block.get("type") == "tool_result":
                         # Check if this message has at least one document block
                         has_document = any(
-                            isinstance(block, dict) and block.get("type") == "document"
-                            for block in msg["content"]
+                            isinstance(block, dict) and block.get("type") == "document" for block in msg["content"]
                         )
                         if not has_document:
                             logger.warning(f"Found tool_result without document block: {tool_block.get('tool_use_id')}")
@@ -361,7 +360,7 @@ class AnsariClaude(Ansari):
                 logger.warning(f"Tool usage history: {self.tool_usage_history}")
                 # Log detailed information about each tool call
                 for i, call in enumerate(self.tool_calls_with_args):
-                    logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
+                    logger.warning(f"Tool call #{i + 1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
                 return True
 
         # Check if adding this tool would exceed 10 total calls
@@ -371,7 +370,7 @@ class AnsariClaude(Ansari):
             logger.warning(f"Tool usage history: {self.tool_usage_history}")
             # Log detailed information about each tool call
             for i, call in enumerate(self.tool_calls_with_args):
-                logger.warning(f"Tool call #{i+1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
+                logger.warning(f"Tool call #{i + 1}: {call['tool']} - Args: {call['args']} - ID: {call['tool_id']}")
             return True
 
         return False
@@ -408,9 +407,9 @@ class AnsariClaude(Ansari):
                                 "You've used the same search tool multiple times. Please stop searching and "
                                 "provide a complete answer based on the information you have. "
                                 "Format your answer properly with the information you've gathered so far."
-                            )
+                            ),
                         }
-                    ]
+                    ],
                 }
 
                 self.message_history.append(force_answer_message)
@@ -431,9 +430,9 @@ class AnsariClaude(Ansari):
                             "You've made multiple tool calls. Please stop using tools and "
                             "provide a complete answer based on the information you have. "
                             "Format your answer properly with the information you've gathered so far."
-                        )
+                        ),
                     }
-                ]
+                ],
             }
 
             self.message_history.append(force_answer_message)
@@ -456,25 +455,16 @@ class AnsariClaude(Ansari):
             # Format the tool limit message using our robust mechanism
             tool_document = {
                 "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": tool_limit_message
-                },
+                "source": {"type": "text", "media_type": "text/plain", "data": tool_limit_message},
                 "title": "Tool Usage Limit Notice",
                 "context": "System message",
-                "citations": {
-                    "enabled": False
-                }
+                "citations": {"enabled": False},
             }
 
             # Process the document to ensure it's properly formatted
             processed_document = process_document_source_data(tool_document)
 
-            return (
-                [tool_limit_message],
-                [processed_document]
-            )
+            return ([tool_limit_message], [processed_document])
 
         # If we didn't hit the limit, track tool usage now
         self.tool_usage_history.append(tool_name)
@@ -485,17 +475,18 @@ class AnsariClaude(Ansari):
         if tool_name not in self.tool_name_to_instance:
             logger.warning(f"Unknown tool name: {tool_name}")
             empty_result_message = f"Unknown tool: {tool_name}"
-            return ([empty_result_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": empty_result_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [empty_result_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
         try:
             query = tool_args["query"]  # tool_args is now a dict, not a string
@@ -503,17 +494,18 @@ class AnsariClaude(Ansari):
             logger.error(f"Failed to parse tool arguments: {e}")
             logger.error(f"Raw arguments: {tool_args}")
             error_message = f"Invalid tool arguments: {str(e)}"
-            return ([error_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": error_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [error_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
         try:
             tool_instance = self.tool_name_to_instance[tool_name]
@@ -532,17 +524,15 @@ class AnsariClaude(Ansari):
                 if multiple searches were performed in quick succession."""
                 return (
                     [empty_result_message],
-                    [{
-                        "type": "document",
-                        "source": {
-                            "type": "text",
-                            "media_type": "text/plain",
-                            "data": empty_result_message
-                        },
-                        "title": "No Results Found",
-                        "context": f"Search for '{query}'",
-                        "citations": {"enabled": False}
-                    }]
+                    [
+                        {
+                            "type": "document",
+                            "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
+                            "title": "No Results Found",
+                            "context": f"Search for '{query}'",
+                            "citations": {"enabled": False},
+                        }
+                    ],
                 )
 
             logger.debug(f"Got {len(reference_list)} results from {tool_name}")
@@ -553,17 +543,18 @@ class AnsariClaude(Ansari):
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {str(e)}")
             error_message = f"Error executing search: {str(e)}"
-            return ([error_message], [{
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": error_message
-                },
-                "title": "Error",
-                "context": "System message",
-                "citations": {"enabled": False}
-            }])
+            return (
+                [error_message],
+                [
+                    {
+                        "type": "document",
+                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
+                        "title": "Error",
+                        "context": "System message",
+                        "citations": {"enabled": False},
+                    }
+                ],
+            )
 
     def _separate_tool_result_from_preceding_text(self):
         """
@@ -696,6 +687,25 @@ class AnsariClaude(Ansari):
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
         limited_history = self.limit_documents_in_message_history(max_documents=100)
+
+        # Add cache control to the last message for prompt caching optimization
+        if limited_history and len(limited_history) > 0:
+            last_message = limited_history[-1]
+            # Add cache control to all content blocks in the last message
+            if isinstance(last_message.get("content"), list):
+                for block in last_message["content"]:
+                    if isinstance(block, dict):
+                        # Add ephemeral cache control to each content block
+                        block["cache_control"] = {"type": "ephemeral"}
+                logger.debug(f"Added ephemeral cache control to last message with role: {last_message.get('role')}")
+            elif isinstance(last_message.get("content"), str):
+                # If content is a string, convert to list format with cache control
+                last_message["content"] = [
+                    {"type": "text", "text": last_message["content"], "cache_control": {"type": "ephemeral"}}
+                ]
+                logger.debug(
+                    f"Converted string content to list format with cache control for role: {last_message.get('role')}"
+                )
 
         # Create API request parameters with the limited history
         params = {
@@ -1038,25 +1048,19 @@ class AnsariClaude(Ansari):
                 fallback_result = {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": "Please see the references below."
-                        },
+                        {"type": "tool_result", "tool_use_id": tool_id, "content": "Please see the references below."},
                         {
                             "type": "document",
                             "source": {
                                 "type": "text",
                                 "media_type": "text/plain",
-                                "data": f"No content found for this tool call. Tool: {tool_name}"
+                                "data": f"No content found for this tool call. Tool: {tool_name}",
                             },
                             "title": "No Results",
                             "context": f"Tool: {tool_name}",
-                            "citations": {
-                                "enabled": False
-                            }
-                        }
-                    ]
+                            "citations": {"enabled": False},
+                        },
+                    ],
                 }
 
                 # Insert it immediately after the tool_use message
@@ -1141,13 +1145,11 @@ class AnsariClaude(Ansari):
                     "source": {
                         "type": "text",
                         "media_type": "text/plain",
-                        "data": f"No content found for this query with tool: {tool_name}"
+                        "data": f"No content found for this query with tool: {tool_name}",
                     },
                     "title": "No Results",
                     "context": f"Tool: {tool_name}",
-                    "citations": {
-                        "enabled": False
-                    }
+                    "citations": {"enabled": False},
                 }
                 self.message_history[result_idx]["content"].append(fallback_doc)
 
@@ -1159,7 +1161,7 @@ class AnsariClaude(Ansari):
                 # If the result doesn't immediately follow the use, move it
                 if result_idx != use_idx + 1:
                     logger.warning(f"""Tool_result for ID {tool_id} is at wrong position (found at {result_idx},
-                                   should be {use_idx+1})""")
+                                   should be {use_idx + 1})""")
 
                     # Skip if the message was already removed
                     if result_idx in removed_messages:
@@ -1174,7 +1176,7 @@ class AnsariClaude(Ansari):
 
                     # Insert at the correct position
                     self.message_history.insert(use_idx + 1, result_msg)
-                    logger.debug(f"Moved tool_result for ID {tool_id} to position {use_idx+1}")
+                    logger.debug(f"Moved tool_result for ID {tool_id} to position {use_idx + 1}")
 
                     # Update the tool_result_info map
                     tool_result_info[tool_id] = use_idx + 1
@@ -1220,19 +1222,15 @@ class AnsariClaude(Ansari):
                     # Create a default fallback document block
                     logger.warning(f"No document blocks found for tool {tc['name']} - adding fallback document block")
                     fallback_message = f"No content found for the given query with tool: {tc['name']}"
-                    document_blocks = [{
-                        "type": "document",
-                        "source": {
-                            "type": "text",
-                            "media_type": "text/plain",
-                            "data": fallback_message
-                        },
-                        "title": "No Results",
-                        "context": f"Tool: {tc['name']}",
-                        "citations": {
-                            "enabled": False
+                    document_blocks = [
+                        {
+                            "type": "document",
+                            "source": {"type": "text", "media_type": "text/plain", "data": fallback_message},
+                            "title": "No Results",
+                            "context": f"Tool: {tc['name']}",
+                            "citations": {"enabled": False},
                         }
-                    }]
+                    ]
 
                 # Add tool result message with at least one document block
                 logger.debug("Adding a 'tool_result' message to history")
@@ -1267,16 +1265,10 @@ class AnsariClaude(Ansari):
                 # Add error as tool result, always including a document block
                 fallback_error_doc = {
                     "type": "document",
-                    "source": {
-                        "type": "text",
-                        "media_type": "text/plain",
-                        "data": f"Error processing tool: {str(e)}"
-                    },
+                    "source": {"type": "text", "media_type": "text/plain", "data": f"Error processing tool: {str(e)}"},
                     "title": "Error",
                     "context": f"Tool: {tc['name']}",
-                    "citations": {
-                        "enabled": False
-                    }
+                    "citations": {"enabled": False},
                 }
 
                 error_message = {
@@ -1287,7 +1279,8 @@ class AnsariClaude(Ansari):
                             "tool_use_id": tc["id"],
                             "content": str(e),
                         }
-                    ] + [fallback_error_doc],  # Always include a document block
+                    ]
+                    + [fallback_error_doc],  # Always include a document block
                 }
                 self.message_history.append(error_message)
                 # Log the error message
