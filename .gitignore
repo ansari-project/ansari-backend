@@ -23,3 +23,29 @@ dist/
 *.pyc
 pyvenv.cfg
 zrok.exe
+
+# Analysis data (local only)
+analysis/data-local/
+
+# MongoDB export data
+data/
+feedback_data/
+analyzed_data/
+
+# Temporary analysis files
+*.backup.json
+prod_threads_from_backup.json
+threads_export.json
+analysis_log.txt
+thread_analysis_report.json
+message_distribution_report.json
+feedback_analysis_report.json
+first_user_input_summary.json
+test_first_inputs.json
+quran_questions_no_pii.txt
+
+# MCP directories
+ansari-mcp/
+
+# Test scripts
+test_gemini.py
