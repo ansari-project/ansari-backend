@@ -997,10 +997,10 @@ async def mcp_complete(request: Request):
     )
 
     # Create a wrapper generator that adds attribution message at the end
-    def add_attribution(original_generator):
+    async def add_attribution(original_generator):
         """Wrapper to add attribution message to the streaming response."""
         # First, yield all the original content
-        for chunk in original_generator:
+        async for chunk in original_generator:
             yield chunk
 
         # Then add the critical attribution message
