@@ -986,8 +986,10 @@ async def mcp_complete(request: Request):
 
     # Create a message logger with MCP source type for tracking
     # Note: Since this is unauthenticated, we use a system user ID for MCP traffic
+    from bson import ObjectId
     mcp_user_id = "mcp_system_user"
-    thread_id = f"mcp_{datetime.now(timezone.utc).isoformat()}"
+    # Generate a new ObjectId for the thread
+    thread_id = str(ObjectId())
 
     message_logger = MessageLogger(
         db,

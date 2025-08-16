@@ -92,7 +92,10 @@ class TestMCPEndpoint:
         call_args = mock_message_logger.call_args
         assert call_args[0][1] == SourceType.MCP  # Second argument is source_type
         assert call_args[0][2] == "mcp_system_user"  # Third argument is user_id
-        assert call_args[0][3].startswith("mcp_")  # Fourth argument is thread_id
+        # Fourth argument is thread_id - should be a valid ObjectId string (24 hex chars)
+        thread_id = call_args[0][3]
+        assert len(thread_id) == 24  # ObjectId strings are 24 characters
+        assert all(c in '0123456789abcdef' for c in thread_id)  # All hex characters
 
     def test_mcp_endpoint_handles_empty_messages(self, client):
         """Test that the MCP endpoint handles empty message lists gracefully."""
@@ -164,10 +167,6 @@ class TestMCPIntegration:
             call_args = mock_message_logger.call_args
             thread_id = call_args[0][3]
 
-            # Verify thread_id starts with "mcp_" and contains ISO timestamp
-            assert thread_id.startswith("mcp_")
-            # The rest should be an ISO timestamp
-            timestamp_part = thread_id[4:]  # Remove "mcp_" prefix
-            # Basic check that it looks like an ISO timestamp
-            assert "T" in timestamp_part  # ISO format has T separator
-            assert ":" in timestamp_part  # Has time components
+            # Verify thread_id is a valid ObjectId string
+            assert len(thread_id) == 24  # ObjectId strings are 24 characters
+            assert all(c in '0123456789abcdef' for c in thread_id)  # All hex characters
