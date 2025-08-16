@@ -11,17 +11,18 @@
 3. [Analysis Methodology](#analysis-methodology)
 4. [Topic Distribution Analysis](#topic-distribution-analysis)
 5. [User Feedback Analysis](#user-feedback-analysis)
-6. [Language Analysis](#language-analysis)
-7. [PII Risk Assessment](#pii-risk-assessment)
-8. [Deep Dive: Quran Category](#deep-dive-quran-category)
-9. [Deep Dive: Category Examples](#deep-dive-category-examples)
-10. [Technical Implementation](#technical-implementation)
-11. [Tools & Scripts Inventory](#tools--scripts-inventory)
-12. [Key Insights & Patterns](#key-insights--patterns)
-13. [Strategic Recommendations](#strategic-recommendations)
-14. [Data Quality & Validation](#data-quality--validation)
-15. [Project Timeline](#project-timeline)
-16. [Appendices](#appendices)
+6. [Ansari Tool Usage Analysis](#ansari-tool-usage-analysis)
+7. [Language Analysis](#language-analysis)
+8. [PII Risk Assessment](#pii-risk-assessment)
+9. [Deep Dive: Quran Category](#deep-dive-quran-category)
+10. [Deep Dive: Category Examples](#deep-dive-category-examples)
+11. [Technical Implementation](#technical-implementation)
+12. [Tools & Scripts Inventory](#tools--scripts-inventory)
+13. [Key Insights & Patterns](#key-insights--patterns)
+14. [Strategic Recommendations](#strategic-recommendations)
+15. [Data Quality & Validation](#data-quality--validation)
+16. [Project Timeline](#project-timeline)
+17. [Appendices](#appendices)
 
 ---
 
@@ -266,6 +267,79 @@ Analysis of **885 user feedback submissions** reveals strong user satisfaction a
    - Implement feedback loop for corrections
    - Version control for answer updates
    - Community validation system
+
+---
+
+## Ansari Tool Usage Analysis
+
+### Tool Usage Overview
+Analysis of **23,087 threads** reveals extensive use of Ansari's Islamic knowledge tools.
+
+### Overall Tool Adoption
+| Metric | Count | Percentage |
+|--------|-------|------------|
+| **Total Threads** | 23,087 | 100% |
+| **Threads Using Tools** | 20,194 | 87.5% |
+| **Total Messages** | 236,605 | 100% |
+| **Messages with Tool Calls** | 50,527 | 21.4% |
+| **Total Tool Invocations** | 50,527 | - |
+
+**Key Finding**: 87.5% of threads utilize at least one Islamic knowledge tool, demonstrating strong feature adoption.
+
+### Tool Usage Distribution
+
+| Tool | Invocations | % of Total | Purpose |
+|------|-------------|------------|---------|
+| **search_quran** | 21,065 | 41.7% | Quranic verse search and retrieval |
+| **search_hadith** | 16,031 | 31.7% | Hadith database search |
+| **search_mawsuah** | 12,423 | 24.6% | Islamic encyclopedia search |
+| **search_tafsir_encyc** | 1,008 | 2.0% | Tafsir commentary search |
+
+### Tool Usage Patterns
+
+#### Monthly Usage Trends (May-Aug 2025)
+| Month | search_quran | search_hadith | search_mawsuah | search_tafsir |
+|-------|--------------|---------------|----------------|---------------|
+| May 2025 | 3,946 | 2,733 | 2,249 | 169 |
+| June 2025 | 7,039 | 5,348 | 4,117 | 349 |
+| July 2025 | 6,983 | 5,397 | 4,066 | 342 |
+| Aug 2025 | 3,097 | 2,553 | 1,991 | 148 |
+
+**Peak Usage**: June-July 2025 (Ramadan/post-Ramadan period)
+
+### Tool Combination Patterns
+
+| Tool Combination | Threads | Pattern |
+|------------------|---------|---------|
+| **Hadith + Quran** | 3,558 | Cross-referencing scripture |
+| **Hadith + Mawsuah + Quran** | 1,744 | Comprehensive research |
+| **Mawsuah + Quran** | 654 | Context with scripture |
+| **Hadith + Mawsuah** | 541 | Hadith verification |
+| **Quran + Tafsir** | 360 | Deep Quranic study |
+
+### Tool Usage Insights
+
+1. **Quran Dominance**: search_quran leads with 41.7% of all tool calls
+2. **Multi-tool Research**: 7,042 threads (34.9%) use multiple tools
+3. **Hadith-Quran Connection**: Most common combination (3,558 threads)
+4. **Tafsir Underutilized**: Only 2% usage despite 28% of Quran questions seeking interpretation
+5. **High Engagement**: 87.5% tool adoption rate indicates users actively leverage Islamic resources
+
+### Tool Usage by Category Correlation
+
+| Category | Primary Tool Used | Usage Pattern |
+|----------|------------------|---------------|
+| **Quran (8.5%)** | search_quran (89%) | Direct verse lookup |
+| **Hadith (6.5%)** | search_hadith (95%) | Authentication & retrieval |
+| **Fiqh (40.4%)** | search_mawsuah (42%) | Jurisprudence research |
+| **History (5.1%)** | search_mawsuah (68%) | Historical context |
+
+### Recommendations Based on Tool Usage
+
+1. **Enhance Tafsir Access**: Only 2% use search_tafsir despite 28% needing interpretation
+2. **Optimize search_quran**: Most used tool needs continuous improvement
+3. **Bundle Common Combinations**: Create unified search for Hadith+Quran
+4. **Expand Mawsuah**: 24.6% usage for general Islamic knowledge
 
 ---
 
@@ -556,7 +630,7 @@ def analyze_with_retry(thread, max_retries=3):
 
 ## Tools & Scripts Inventory
 
-### Core Analysis Scripts
+### Core Analysis Scripts (Total: 21 scripts)
 
 #### 1. analyze_threads_v2_parallel.py
 ```python
@@ -662,6 +736,59 @@ def analyze_with_retry(thread, max_retries=3):
 ```python
 # Extracts first message
 # Skips system messages
+```
+
+### Feedback Analysis Scripts
+
+#### 15. extract_feedback.py
+```python
+# Extracts feedback from MongoDB
+# Separates thumbs up/down and comments
+# Creates feedback batch files
+```
+
+#### 16. analyze_feedback.py
+```python
+# Main feedback analysis engine
+# Generates comprehensive feedback report
+# Analyzes themes, sentiment, temporal patterns
+# Output: feedback_analysis_report.json
+```
+
+#### 17. analyze_feedback_reasons.py
+```python
+# Analyzes feedback comment themes
+# Categorizes feedback reasons
+# Identifies common patterns
+```
+
+#### 18. analyze_freeform_feedback.py
+```python
+# Processes free-text feedback
+# NLP analysis of comments
+# Extracts key phrases and concerns
+```
+
+#### 19. print_negative_feedback.py
+```python
+# Extracts negative feedback for review
+# Helps identify problem areas
+# Prioritizes improvements
+```
+
+### Data Extraction Scripts
+
+#### 20. extract_threads.py
+```python
+# Original thread extraction
+# Single-threaded processing
+```
+
+#### 21. extract_threads_batched.py
+```python
+# Batched thread extraction
+# Optimized for large datasets
+# Creates numbered batch files
 ```
 
 ---
@@ -903,14 +1030,13 @@ Sample Size | Categories Found | Stability
 ```
 ansari-backend/
 ├── analysis/
-│   ├── scripts/                    # 23 Python scripts
-│   │   ├── analyze_threads_v2_parallel.py
-│   │   ├── comprehensive_analysis_summary.py
-│   │   ├── monitor_v2_progress.py
-│   │   ├── analyze_quran_*.py (4 files)
-│   │   ├── extract_*.py (3 files)
-│   │   ├── pii_*.py (2 files)
-│   │   └── [other utility scripts]
+│   ├── scripts/                    # 21 Python scripts
+│   │   ├── Core Analysis (3 scripts)
+│   │   ├── Quran Analysis (4 scripts)
+│   │   ├── PII Analysis (2 scripts)
+│   │   ├── Feedback Analysis (5 scripts)
+│   │   ├── Data Processing (7 scripts)
+│   │   └── Utility Scripts
 │   │
 │   ├── reports/                    # 9 reports total
 │   │   ├── FINAL_CONSOLIDATED_REPORT.md (THIS FILE)
