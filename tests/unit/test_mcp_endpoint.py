@@ -35,19 +35,19 @@ def mock_presenter():
 
 
 class TestMCPEndpoint:
-    """Test cases for the /api/v2/mcp endpoint."""
+    """Test cases for the /api/v2/mcp-complete endpoint."""
 
     def test_mcp_endpoint_exists(self, client):
         """Test that the MCP endpoint is registered."""
         # Send a request to the endpoint
-        response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test message"}]})
+        response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test message"}]})
         # Should not return 404
         assert response.status_code != 404
 
     def test_mcp_endpoint_no_authentication_required(self, client, mock_presenter):
         """Test that the MCP endpoint does not require authentication."""
         # Send a request without any authentication headers
-        response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test message"}]})
+        response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test message"}]})
 
         # Should not return 401 (Unauthorized) or 403 (Forbidden)
         assert response.status_code not in [401, 403]
@@ -63,25 +63,27 @@ class TestMCPEndpoint:
             ]
         }
 
-        response = client.post("/api/v2/mcp", json=test_messages)
+        response = client.post("/api/v2/mcp-complete", json=test_messages)
         assert response.status_code == 200
 
     def test_mcp_endpoint_returns_streaming_response(self, client, mock_presenter):
-        """Test that the MCP endpoint returns a streaming response."""
-        response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test"}]}, stream=True)
+        """Test that the MCP endpoint returns a streaming response with attribution."""
+        response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test"}]}, stream=True)
 
         assert response.status_code == 200
         # Collect the streamed content
         content = b"".join(response.iter_content())
         assert b"This is a test response" in content
         assert b"Citations" in content
+        # Check for attribution message
+        assert b"ansari.chat" in content
 
     @patch("src.ansari.app.main_api.MessageLogger")
     @patch("src.ansari.app.main_api.db")
     def test_mcp_endpoint_uses_mcp_source_type(self, mock_db, mock_message_logger, client, mock_presenter):
         """Test that the MCP endpoint uses MCP as the source type."""
         # Send a request to the MCP endpoint
-        response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test"}]})
+        response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test"}]})
 
         assert response.status_code == 200
 
@@ -94,19 +96,19 @@ class TestMCPEndpoint:
 
     def test_mcp_endpoint_handles_empty_messages(self, client):
         """Test that the MCP endpoint handles empty message lists gracefully."""
-        response = client.post("/api/v2/mcp", json={"messages": []})
+        response = client.post("/api/v2/mcp-complete", json={"messages": []})
         # Should handle gracefully, not crash
         assert response.status_code in [200, 400]
 
     def test_mcp_endpoint_handles_invalid_json(self, client):
         """Test that the MCP endpoint handles invalid JSON gracefully."""
-        response = client.post("/api/v2/mcp", data="invalid json")
+        response = client.post("/api/v2/mcp-complete", data="invalid json")
         # Should return a validation error
         assert response.status_code == 422  # Unprocessable Entity
 
     def test_mcp_endpoint_handles_missing_messages_field(self, client):
         """Test that the MCP endpoint handles missing 'messages' field."""
-        response = client.post("/api/v2/mcp", json={"wrong_field": "value"})
+        response = client.post("/api/v2/mcp-complete", json={"wrong_field": "value"})
         # Should handle the error gracefully
         # The actual behavior depends on how presenter.complete handles it
         assert response.status_code in [200, 400, 422, 500]
@@ -116,14 +118,14 @@ class TestMCPEndpoint:
         """Test that the MCP endpoint logs incoming requests."""
         test_messages = {"messages": [{"role": "user", "content": "Test"}]}
 
-        response = client.post("/api/v2/mcp", json=test_messages)
+        response = client.post("/api/v2/mcp-complete", json=test_messages)
         assert response.status_code == 200
 
         # Verify logging was called
         mock_logger.info.assert_called()
         # Check that the log message contains the expected information
         log_calls = [str(call) for call in mock_logger.info.call_args_list]
-        assert any("v2/mcp" in str(call) for call in log_calls)
+        assert any("v2/mcp-complete" in str(call) for call in log_calls)
 
 
 class TestMCPIntegration:
@@ -145,7 +147,7 @@ class TestMCPIntegration:
 
             mock_complete.return_value = StreamingResponse(generate())
 
-            response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test"}]})
+            response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test"}]})
 
             assert response.status_code == 200
             content = b"".join(response.iter_content())
@@ -154,7 +156,7 @@ class TestMCPIntegration:
     def test_mcp_endpoint_thread_id_format(self, client, mock_presenter):
         """Test that thread IDs are properly formatted with MCP prefix."""
         with patch("src.ansari.app.main_api.MessageLogger") as mock_message_logger:
-            response = client.post("/api/v2/mcp", json={"messages": [{"role": "user", "content": "Test"}]})
+            response = client.post("/api/v2/mcp-complete", json={"messages": [{"role": "user", "content": "Test"}]})
 
             assert response.status_code == 200
 
