@@ -288,12 +288,14 @@ Analysis of **22,081 analyzable threads** (those with user messages) reveals ext
 
 ### Tool Usage Distribution
 
-| Tool | Invocations | % of Total | Purpose |
-|------|-------------|------------|---------|
-| **search_quran** | 21,065 | 41.7% | Quranic verse search and retrieval |
-| **search_hadith** | 16,031 | 31.7% | Hadith database search |
-| **search_mawsuah** | 12,423 | 24.6% | Islamic encyclopedia search |
-| **search_tafsir_encyc** | 1,008 | 2.0% | Tafsir commentary search |
+| Tool | Total Invocations | Unique Threads | % of Analyzable Threads | Purpose |
+|------|-------------------|----------------|-------------------------|---------|
+| **search_quran** | 21,065 | 11,400 | 51.6% | Quranic verse search and retrieval |
+| **search_hadith** | 16,031 | 9,665 | 43.8% | Hadith database search |
+| **search_mawsuah** | 12,423 | 7,536 | 34.1% | Islamic encyclopedia search |
+| **search_tafsir_encyc** | 1,008 | 715 | 3.2% | Tafsir commentary search |
+
+*Note: Percentages don't sum to 100% as threads can use multiple tools*
 
 ### Tool Usage Patterns
 
@@ -319,10 +321,10 @@ Analysis of **22,081 analyzable threads** (those with user messages) reveals ext
 
 ### Tool Usage Insights
 
-1. **Quran Dominance**: search_quran leads with 41.7% of all tool calls
+1. **Quran Dominance**: search_quran used in 51.6% of analyzable threads (averaging 1.8 calls per thread)
 2. **Multi-tool Research**: 7,042 threads (31.9% of analyzable) use multiple tools
 3. **Hadith-Quran Connection**: Most common combination (3,558 threads)
-4. **Tafsir Underutilized**: Only 2% usage despite 28% of Quran questions seeking interpretation
+4. **Tafsir Underutilized**: Only 3.2% of threads use it despite 28% of Quran questions seeking interpretation
 5. **High Engagement**: 91.5% tool adoption rate indicates users actively leverage Islamic resources
 
 ### Tool Usage by Category Correlation
