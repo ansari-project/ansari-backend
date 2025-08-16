@@ -35,7 +35,7 @@ def migrate_database():
             feedback_operations = []
             message_operations = []
             for i, feedback in enumerate(feedbacks, 1):
-                logger.info(f"{i} Processing Feedback: {str(feedback["_id"])}")
+                logger.info(f"{i} Processing Feedback: {str(feedback['_id'])}")
                 message_id = feedback.get("original_message_id")
                 if message_id:
                     message = messages_collection.find_one({"original_id": message_id})
@@ -74,7 +74,7 @@ def migrate_database():
 
             operations = []
             for i, message in enumerate(messages, 1):
-                logger.info(f"{i} Processing Message: {str(message["_id"])}")
+                logger.info(f"{i} Processing Message: {str(message['_id'])}")
                 query = {"_id": message["_id"]}
 
                 original_message = (
@@ -118,7 +118,7 @@ def migrate_database():
 
             operations = []
             for i, thread in enumerate(threads, 1):
-                logger.info(f"{i} Migrating: {str(thread["_id"])}")
+                logger.info(f"{i} Migrating: {str(thread['_id'])}")
                 query = {"_id": thread["_id"]}
 
                 if thread.get("original_user_id") is None:
