@@ -1078,3 +1078,93 @@ async def answer_ayah_question(
     except Exception:
         logger.error("Error in answer_ayah_question", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/v2/ayah-claude")
+async def answer_ayah_question_claude(
+    req: AyahQuestionRequest,
+    settings: Settings = Depends(get_settings),
+    db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
+):
+    """Answer questions about specific Quranic verses using AnsariClaude.
+    
+    This endpoint provides similar functionality to /api/v2/ayah but uses AnsariClaude
+    for more advanced reasoning and citation capabilities while maintaining:
+    - API key authentication
+    - Ayah-specific system prompt
+    - Database caching for responses
+    - Tafsir search with ayah filtering
+    """
+    if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    try:
+        ayah_id = req.surah * 1000 + req.ayah
+        
+        # Check if the answer is already stored in the database
+        if req.use_cache:
+            stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
+            if stored_answer:
+                return {"response": stored_answer}
+        
+        # Create AnsariClaude instance with ayah-specific system prompt
+        logger.debug(f"Creating AnsariClaude instance for {req.surah}:{req.ayah}")
+        
+        # Load the ayah-specific system prompt
+        system_prompt_path = os.path.join(
+            os.path.dirname(__file__), 
+            "..", 
+            "system_prompts",
+            settings.AYAH_SYSTEM_PROMPT_FILE_NAME
+        )
+        
+        with open(system_prompt_path, "r") as f:
+            ayah_system_prompt = f.read()
+        
+        # Initialize AnsariClaude with the ayah-specific system prompt
+        ansari_claude = AnsariClaude(
+            settings,
+            system_prompt=ayah_system_prompt,
+            source_type=SourceType.WEB  # Using WEB for now, could add QURAN_COM if needed
+        )
+        
+        # Prepare the context with ayah information
+        ayah_context = f"Question about Surah {req.surah}, Ayah {req.ayah}"
+        
+        # Build the search query with metadata filter for the specific ayah
+        search_context = {
+            "tool_name": "search_tafsir",
+            "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}",
+        }
+        
+        # Create a message that includes the context and triggers appropriate searches
+        enhanced_question = f"{ayah_context}\n\n{req.question}"
+        
+        # If augment_question is enabled, add instructions for query enhancement
+        if req.augment_question:
+            enhanced_question += "\n\nPlease search relevant tafsir sources and provide a comprehensive answer."
+        
+        # Prepare messages for AnsariClaude
+        messages = [
+            {
+                "role": "user",
+                "content": enhanced_question
+            }
+        ]
+        
+        # Generate response using AnsariClaude
+        response_generator = ansari_claude.replace_message_history(messages)
+        
+        # Collect the full response (since we need to return JSON, not stream)
+        full_response = ""
+        for chunk in response_generator:
+            full_response += chunk
+        
+        # Store the answer in the database
+        db.store_quran_answer(req.surah, req.ayah, req.question, full_response)
+        
+        return {"response": full_response}
+        
+    except Exception as e:
+        logger.error(f"Error in answer_ayah_question_claude: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
