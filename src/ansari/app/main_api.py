@@ -19,6 +19,7 @@
 
 import logging
 import os
+from datetime import datetime, timezone
 
 import sentry_sdk
 from sentry_sdk.types import Event, Hint
@@ -47,8 +48,7 @@ logger = get_logger(__name__)
 deployment_type = get_settings().DEPLOYMENT_TYPE
 
 if get_settings().SENTRY_DSN and deployment_type != "development":
-
-    ignore_errors=[
+    ignore_errors = [
         "HTTP exception: 401",
         "HTTP exception: 403",
     ]
@@ -898,20 +898,13 @@ async def check_app_version(
 
         # If platform is web, we only check maintenance mode
         if req.platform.lower() == "web":
-            return {
-                "maintenance_mode": maintenance_mode,
-                "update_available": False,
-                "force_update_required": False
-            }
+            return {"maintenance_mode": maintenance_mode, "update_available": False, "force_update_required": False}
 
         # For mobile platforms, validate build version first
         try:
             build_version = int(req.native_build_version)
         except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid native_build_version: must be a valid integer"
-            )
+            raise HTTPException(status_code=400, detail="Invalid native_build_version: must be a valid integer")
 
         # Handle iOS platform
         if req.platform.lower() == "ios":
@@ -937,15 +930,12 @@ async def check_app_version(
 
         # Invalid platform
         else:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid platform: must be 'web', 'ios', or 'android'"
-            )
+            raise HTTPException(status_code=400, detail="Invalid platform: must be 'web', 'ios', or 'android'")
 
         return {
             "maintenance_mode": maintenance_mode,
             "update_available": update_available,
-            "force_update_required": force_update_required
+            "force_update_required": force_update_required,
         }
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -970,6 +960,43 @@ async def complete(request: Request):
     body = await request.json()
     logger.info(f"Request received > {body}.")
     return presenter.complete(body)
+
+
+@app.post("/api/v2/mcp")
+async def mcp_complete(request: Request):
+    """MCP (Model Context Protocol) endpoint for AI assistant completion.
+
+    This endpoint is designed for MCP integrations and:
+    - Does not require authentication
+    - Includes citations in the response
+    - Tracks usage with source type 'MCP'
+    - Suitable for public-facing integrations
+
+    The input is a list of messages, each with a role and content field.
+    Roles are typically 'user' or 'assistant.' The client should maintain the
+    record of the conversation client side.
+
+    It returns a stream of tokens (a token is a part of a word), including
+    formatted citations when applicable.
+    """
+    logger.debug(f"Raw request is {request.headers}")
+    body = await request.json()
+    logger.info(f"Request received to v2/mcp > {body}.")
+
+    # Create a message logger with MCP source type for tracking
+    # Note: Since this is unauthenticated, we use a system user ID for MCP traffic
+    mcp_user_id = "mcp_system_user"
+    thread_id = f"mcp_{datetime.now(timezone.utc).isoformat()}"
+
+    message_logger = MessageLogger(
+        db,
+        SourceType.MCP,
+        mcp_user_id,
+        thread_id,
+    )
+
+    # Use the presenter.complete method with the MCP message logger
+    return presenter.complete(body, message_logger=message_logger)
 
 
 class AyahQuestionRequest(BaseModel):

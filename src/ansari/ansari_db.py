@@ -25,6 +25,7 @@ class SourceType(str, Enum):
     IOS = "ios"
     WEB = "web"
     WHATSAPP = "whatsapp"
+    MCP = "mcp"
 
 
 class MessageLogger:
@@ -56,7 +57,7 @@ class AnsariDB:
         self.token_secret_key = settings.SECRET_KEY.get_secret_value()
         self.ALGORITHM = settings.ALGORITHM
         self.ENCODING = settings.ENCODING
-        self.bson_codec_options = CodecOptions(tz_aware = True)
+        self.bson_codec_options = CodecOptions(tz_aware=True)
         # MongoClient is thread-safe with connection pooling built-in
         self.mongo_connection = MongoClient(self.db_url)
         self.mongo_db = self.mongo_connection[self.db_name]
@@ -337,12 +338,9 @@ class AnsariDB:
                 "updated_at": datetime.now(timezone.utc),
             }
 
-            self.get_collection("threads").update_one({
-                    "_id": ObjectId(thread_id),
-                    "user_id": ObjectId(user_id),
-                    "messages.id": message_id
-                },
-                {"$set": {"messages.$.feedback": feedback}}
+            self.get_collection("threads").update_one(
+                {"_id": ObjectId(thread_id), "user_id": ObjectId(user_id), "messages.id": message_id},
+                {"$set": {"messages.$.feedback": feedback}},
             )
 
             return {"status": "success"}
@@ -425,10 +423,13 @@ class AnsariDB:
             new_message["source"] = source.value
             new_message["created_at"] = datetime.now(timezone.utc)
 
-            self.get_collection("threads").update_one({"_id": ObjectId(thread_id)}, {
-                "$push": {"messages": new_message},
-                "$set": {"updated_at": datetime.now(timezone.utc)},
-            })
+            self.get_collection("threads").update_one(
+                {"_id": ObjectId(thread_id)},
+                {
+                    "$push": {"messages": new_message},
+                    "$set": {"updated_at": datetime.now(timezone.utc)},
+                },
+            )
 
         except Exception as e:
             logger.warning(f"Error appending message to database: {e}")
@@ -667,8 +668,7 @@ class AnsariDB:
         return {"id": str(msg_id), "role": role, "content": content}
 
     def convert_message_llm(self, msg) -> list[dict]:
-        """Convert a message from database format to LLM format.
-        """
+        """Convert a message from database format to LLM format."""
         return {
             "role": msg["role"],
             "content": msg["content"],
