@@ -273,18 +273,18 @@ Analysis of **885 user feedback submissions** reveals strong user satisfaction a
 ## Ansari Tool Usage Analysis
 
 ### Tool Usage Overview
-Analysis of **23,087 threads** reveals extensive use of Ansari's Islamic knowledge tools.
+Analysis of **22,081 analyzable threads** (those with user messages) reveals extensive use of Ansari's Islamic knowledge tools.
 
 ### Overall Tool Adoption
 | Metric | Count | Percentage |
 |--------|-------|------------|
-| **Total Threads** | 23,087 | 100% |
-| **Threads Using Tools** | 20,194 | 87.5% |
-| **Total Messages** | 236,605 | 100% |
+| **Analyzable Threads** | 22,081 | 100% |
+| **Threads Using Tools** | 20,194 | 91.5% |
+| **Total Messages** | 236,605 | - |
 | **Messages with Tool Calls** | 50,527 | 21.4% |
 | **Total Tool Invocations** | 50,527 | - |
 
-**Key Finding**: 87.5% of threads utilize at least one Islamic knowledge tool, demonstrating strong feature adoption.
+**Key Finding**: 91.5% of analyzable threads utilize at least one Islamic knowledge tool, demonstrating exceptional feature adoption.
 
 ### Tool Usage Distribution
 
@@ -320,10 +320,10 @@ Analysis of **23,087 threads** reveals extensive use of Ansari's Islamic knowled
 ### Tool Usage Insights
 
 1. **Quran Dominance**: search_quran leads with 41.7% of all tool calls
-2. **Multi-tool Research**: 7,042 threads (34.9%) use multiple tools
+2. **Multi-tool Research**: 7,042 threads (31.9% of analyzable) use multiple tools
 3. **Hadith-Quran Connection**: Most common combination (3,558 threads)
 4. **Tafsir Underutilized**: Only 2% usage despite 28% of Quran questions seeking interpretation
-5. **High Engagement**: 87.5% tool adoption rate indicates users actively leverage Islamic resources
+5. **High Engagement**: 91.5% tool adoption rate indicates users actively leverage Islamic resources
 
 ### Tool Usage by Category Correlation
 
