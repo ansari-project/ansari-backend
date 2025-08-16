@@ -702,7 +702,10 @@ class AnsariClaude(Ansari):
                 if isinstance(last_block, dict):
                     # Add ephemeral cache control to only the last content block
                     last_block["cache_control"] = {"type": "ephemeral"}
-                logger.debug(f"Added ephemeral cache control to last content block of last message with role: {last_message.get('role')}")
+                logger.debug(
+                    f"Added ephemeral cache control to last content block of last message "
+                    f"with role: {last_message.get('role')}"
+                )
             elif isinstance(last_message.get("content"), str):
                 # If content is a string, convert to list format with cache control
                 last_message["content"] = [
