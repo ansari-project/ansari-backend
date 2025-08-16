@@ -159,7 +159,7 @@ PII_CONFIDENCE - Rate likelihood of personally identifiable information (0.0 to 
 | **Fiqh** | 8,921 | 40.4% | Islamic jurisprudence, legal rulings, halal/haram | "Is it permissible to pray with alcohol-based hand sanitizer?" |
 | **Islamic Life & Thought** | 5,283 | 23.9% | Philosophy, culture, lifestyle, contemporary issues | "How do I balance deen and dunya in modern life?" |
 | **Quran** | 1,875 | 8.5% | Verses, interpretation, tafsir, memorization | "What does Allah say about patience in the Quran?" |
-| **Other (Non-Islamic)** | 1,766 | 8.0% | General topics, technical questions | "How do I reset my password?" |
+| **Other (Non-Islamic)** | 1,766 | 8.0% | General topics, technical questions | "What approaches can help prevent burnout?" |
 | **Hadith** | 1,433 | 6.5% | Prophetic traditions, authentication | "Is there a hadith about seeking knowledge?" |
 | **History** | 1,119 | 5.1% | Islamic history, biographies | "Tell me about the life of Imam Abu Hanifa" |
 | **Dua** | 807 | 3.7% | Prayers, supplications | "What dua should I recite for anxiety?" |
@@ -338,10 +338,10 @@ Analysis of **22,081 analyzable threads** (those with user messages) reveals ext
 
 ### Recommendations Based on Tool Usage
 
-1. **Enhance Tafsir Access**: Only 2% use search_tafsir despite 28% needing interpretation
+1. **Enhance Tafsir Access**: Only 3.2% of threads use search_tafsir despite 28% needing interpretation
 2. **Optimize search_quran**: Most used tool needs continuous improvement
 3. **Bundle Common Combinations**: Create unified search for Hadith+Quran
-4. **Expand Mawsuah**: 24.6% usage for general Islamic knowledge
+4. **Expand Mawsuah**: 34.1% of threads use it for general Islamic knowledge
 
 ---
 
