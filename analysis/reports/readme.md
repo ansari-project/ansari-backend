@@ -1,44 +1,64 @@
 # Analysis Reports Directory
 
-This directory contains all generated reports from the MongoDB thread analysis project.
+This directory contains the definitive reports from the MongoDB thread analysis project.
 
-## ⚠️ IMPORTANT: Report Status
+## Report Files and Their Purpose
 
-**Current Definitive Report:**
-- `FINAL_CONSOLIDATED_REPORT.md` - **USE THIS** - Single source of truth (August 15, 2025)
+### 📊 `complete_analysis.md` 
+**THE MAIN REPORT - START HERE**
+- **Purpose**: Complete, comprehensive analysis results with all findings
+- **Contents**: 15 sections covering everything from data collection to strategic recommendations
+- **Use this for**: Getting the full picture, understanding findings, making decisions
+- **Length**: 945 lines
+- **Status**: Single source of truth - supersedes all other reports
 
-**Supporting Reports (Still Valid):**
-- `MASTER_COMPREHENSIVE_ANALYSIS_REPORT.md` - Detailed methodology and findings
-- `QURAN_TOP7_CLASSIFICATION_REPORT.md` - Quran subcategory deep dive
-- `ANSARI_V2_ANALYSIS_FINAL_REPORT.md` - V2 analysis methodology
+### 🔧 `v2_methodology.md`
+**TECHNICAL IMPLEMENTATION DETAILS**
+- **Purpose**: Documents HOW the V2 analysis was performed
+- **Contents**: Implementation details, code snippets, processing pipeline, V1 vs V2 comparison
+- **Use this for**: Understanding the technical approach, replicating the analysis, debugging
+- **Relationship to main report**: The main report shows WHAT we found; this shows HOW we found it
 
-**Historical/Superseded Reports:**
-- `ANSARI_FINAL_REPORT_CONSOLIDATED.md` - Superseded (used post-processing, reported 42.3% Fiqh)
-- `ANSARI_THREAD_ANALYSIS_FINAL_REPORT.md` - Superseded (V1 analysis)
-- `analysis_completion_summary.md` - Superseded (preliminary)
-- `analysis_final_corrected_summary.md` - Superseded (intermediate)
+### 🕌 `quran_subcategories.md`
+**SPECIALIZED QURAN ANALYSIS**
+- **Purpose**: Deep dive into the 1,875 Quran-related questions
+- **Contents**: Subcategory clustering, detailed examples, implementation recommendations
+- **Use this for**: Understanding Quran-specific user needs, building Quran features
+- **Relationship to main report**: Expands on the 8.5% of threads categorized as "Quran"
 
-## Key Corrections from Final Consolidation
+## Quick Reference - Which Report to Use?
 
-### Fiqh Percentage
-- **Correct**: 40.4% (from V2 fresh LLM analysis)
-- **Incorrect**: 42.3% (from post-processing reclassification)
+| If you want to... | Use this report |
+|-------------------|-----------------|
+| Understand the overall findings | `complete_analysis.md` |
+| See statistics and percentages | `complete_analysis.md` |
+| Get strategic recommendations | `complete_analysis.md` |
+| Understand how the analysis was done | `v2_methodology.md` |
+| Replicate the analysis process | `v2_methodology.md` |
+| Build Quran-specific features | `quran_subcategories.md` |
+| Understand Quran user patterns | `quran_subcategories.md` |
 
-### Date Range
-- **Correct**: May 15 - August 15, 2025
-- **Incorrect**: February 17 - May 17, 2025
+## Key Statistics (from complete_analysis.md)
 
-### Thread Counts
-- **Total in database**: 23,087
-- **Analyzable (with user messages)**: 22,081
-- **System/automated (no user messages)**: 1,006
+| Metric | Value |
+|--------|-------|
+| **Total Threads Analyzed** | 22,081 (of 23,087 total) |
+| **Fiqh (Islamic Jurisprudence)** | 40.4% |
+| **Islamic Life & Thought** | 23.9% |
+| **Quran** | 8.5% |
+| **Low PII Risk (<0.3)** | 97.7% |
+| **Zero PII** | 93.4% |
+| **Primary Language** | English (74.3%) |
+| **Total Languages** | 43 |
+| **Processing Success Rate** | 99.99% |
 
-## Report Purposes
+## Analysis Details
 
-| Report | Purpose | Status |
-|--------|---------|--------|
-| FINAL_CONSOLIDATED_REPORT | Single source of truth, resolves contradictions | **CURRENT** |
-| MASTER_COMPREHENSIVE_ANALYSIS_REPORT | Detailed analysis with all findings | Valid |
-| QURAN_TOP7_CLASSIFICATION_REPORT | Quran subcategory analysis | Valid |
-| ANSARI_V2_ANALYSIS_FINAL_REPORT | V2 methodology documentation | Valid |
-| Others | Historical versions | Superseded |
+- **Date Range**: May 15 - August 15, 2025 (3 months)
+- **LLM Used**: Google Gemini 2.5 Flash
+- **Processing**: 30 parallel workers, ~90 minutes total
+- **Total API Calls**: ~22,000
+
+## Historical Note
+
+Several preliminary reports were removed on August 15, 2025 to prevent confusion. All their content has been consolidated into `complete_analysis.md`.
