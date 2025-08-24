@@ -1003,9 +1003,10 @@ async def mcp_complete(request: Request):
     mcp_instruction = {
         "role": "user",
         "content": (
-            "Please provide a brief, concise answer without any citations or references. "
-            "Limit yourself to one search only. Do NOT include [1], [2] or any citation "
-            "numbers in your response. Keep the answer short and to the point."
+            "Please provide a brief, concise answer. First, carefully consider whether "
+            "searching references would improve the quality of your answer. Only search if "
+            "it would add significant value. Limit to one search maximum. Never include "
+            "[1], [2] or citation numbers in your response. Keep the answer short and clear."
         ),
     }
 
