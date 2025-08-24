@@ -1003,10 +1003,10 @@ async def mcp_complete(request: Request):
     mcp_instruction = {
         "role": "user",
         "content": (
-            "Please provide a concise and brief answer to the following question. "
-            "References are not required for this answer - do not include them unless "
-            "a subsequent request specifically asks for citations or sources. "
-            "Focus on delivering the key information clearly and succinctly."
+            "Please use references to compose your answer, but don't include them in "
+            "the final output to keep the content small and responses nimble. "
+            "Only include citations if a subsequent request specifically asks for them. "
+            "Focus on delivering accurate, well-sourced information concisely."
         ),
     }
 
