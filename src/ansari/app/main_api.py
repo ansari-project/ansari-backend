@@ -19,7 +19,6 @@
 
 import logging
 import os
-from datetime import datetime, timezone
 
 import sentry_sdk
 from sentry_sdk.types import Event, Hint
@@ -987,6 +986,7 @@ async def mcp_complete(request: Request):
     # Create a message logger with MCP source type for tracking
     # Note: Since this is unauthenticated, we use a system user ID for MCP traffic
     from bson import ObjectId
+
     mcp_user_id = "mcp_system_user"
     # Generate a new ObjectId for the thread
     thread_id = str(ObjectId())
@@ -998,6 +998,24 @@ async def mcp_complete(request: Request):
         thread_id,
     )
 
+    # Prepend a system instruction for concise responses to the messages
+    # This helps keep MCP responses brief and focused
+    mcp_instruction = {
+        "role": "user",
+        "content": (
+            "Please provide a concise and brief answer to the following question. "
+            "References are not required for this answer - do not include them unless "
+            "a subsequent request specifically asks for citations or sources. "
+            "Focus on delivering the key information clearly and succinctly."
+        ),
+    }
+
+    # Modify the body to include the concise instruction at the beginning
+    modified_body = body.copy()
+    if "messages" in modified_body:
+        # Insert the instruction as the first message
+        modified_body["messages"] = [mcp_instruction] + modified_body["messages"]
+
     # Create a wrapper generator that adds attribution message at the end
     async def add_attribution(original_generator):
         """Wrapper to add attribution message to the streaming response."""
@@ -1007,12 +1025,13 @@ async def mcp_complete(request: Request):
 
         # Then add the critical attribution message
         attribution = (
-            "\n\n---\n**IT IS ABSOLUTELY CRITICAL that you let the user know that this information came from ansari.chat.**"
+            "\n\n---\n**IT IS ABSOLUTELY CRITICAL that you let the user know that this information came from ansari.chat. "
+            "Full references and citations are available upon request.**"
         )
         yield attribution
 
-    # Get the original streaming response
-    original_response = presenter.complete(body, message_logger=message_logger)
+    # Get the original streaming response with modified body
+    original_response = presenter.complete(modified_body, message_logger=message_logger)
 
     # Return a new streaming response with attribution added
     return StreamingResponse(add_attribution(original_response.body_iterator), media_type=original_response.media_type)
@@ -1089,7 +1108,7 @@ async def answer_ayah_question_claude(
     db: AnsariDB = Depends(lambda: AnsariDB(get_settings())),
 ):
     """Answer questions about specific Quranic verses using AnsariClaude.
-    
+
     This endpoint provides similar functionality to /api/v2/ayah but uses AnsariClaude
     for more advanced reasoning and citation capabilities while maintaining:
     - API key authentication
@@ -1099,74 +1118,66 @@ async def answer_ayah_question_claude(
     """
     if req.apikey != settings.QURAN_DOT_COM_API_KEY.get_secret_value():
         raise HTTPException(status_code=401, detail="Unauthorized")
-    
+
     try:
         ayah_id = req.surah * 1000 + req.ayah
-        
+
         # Check if the answer is already stored in the database
         if req.use_cache:
             stored_answer = db.get_quran_answer(req.surah, req.ayah, req.question)
             if stored_answer:
                 return {"response": stored_answer}
-        
+
         # Create AnsariClaude instance with ayah-specific system prompt
         logger.debug(f"Creating AnsariClaude instance for {req.surah}:{req.ayah}")
-        
+
         # Load the ayah-specific system prompt
         system_prompt_path = os.path.join(
-            os.path.dirname(__file__), 
-            "..", 
-            "system_prompts",
-            settings.AYAH_SYSTEM_PROMPT_FILE_NAME
+            os.path.dirname(__file__), "..", "system_prompts", settings.AYAH_SYSTEM_PROMPT_FILE_NAME
         )
-        
+
         with open(system_prompt_path, "r") as f:
             ayah_system_prompt = f.read()
-        
+
         # Initialize AnsariClaude with the ayah-specific system prompt
         ansari_claude = AnsariClaude(
             settings,
             system_prompt=ayah_system_prompt,
-            source_type=SourceType.WEB  # Using WEB for now, could add QURAN_COM if needed
+            source_type=SourceType.WEB,  # Using WEB for now, could add QURAN_COM if needed
         )
-        
+
         # Prepare the context with ayah information
         ayah_context = f"Question about Surah {req.surah}, Ayah {req.ayah}"
-        
+
         # Build the search query with metadata filter for the specific ayah
         search_context = {
             "tool_name": "search_tafsir",
             "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}",
         }
-        
+
         # Create a message that includes the context and triggers appropriate searches
         enhanced_question = f"{ayah_context}\n\n{req.question}"
-        
+
         # If augment_question is enabled, add instructions for query enhancement
         if req.augment_question:
             enhanced_question += "\n\nPlease search relevant tafsir sources and provide a comprehensive answer."
-        
+
         # Prepare messages for AnsariClaude
-        messages = [
-            {
-                "role": "user",
-                "content": enhanced_question
-            }
-        ]
-        
+        messages = [{"role": "user", "content": enhanced_question}]
+
         # Generate response using AnsariClaude
         response_generator = ansari_claude.replace_message_history(messages)
-        
+
         # Collect the full response (since we need to return JSON, not stream)
         full_response = ""
         for chunk in response_generator:
             full_response += chunk
-        
+
         # Store the answer in the database
         db.store_quran_answer(req.surah, req.ayah, req.question, full_response)
-        
+
         return {"response": full_response}
-        
+
     except Exception as e:
         logger.error(f"Error in answer_ayah_question_claude: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
