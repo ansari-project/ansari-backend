@@ -39,6 +39,7 @@ from ansari.agents.ansari_workflow import AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.app.main_whatsapp import router as whatsapp_router
+from ansari.app.whatsapp_api_router import whatsapp_api_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
@@ -88,8 +89,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Include the WhatsApp router
+# TODO: prompt claude to "feature toggle" code of whatsapp before/after migration
+# Include the WhatsApp routers
 app.include_router(whatsapp_router)
+app.include_router(whatsapp_api_router)  # Include our new WhatsApp API router
 
 
 # Custom exception handler, which aims to log FastAPI-related exceptions before raising them
@@ -195,12 +198,6 @@ class RegisterRequest(BaseModel):
 #   https://fastapi.tiangolo.com/tutorial/dependencies/
 #   or this tutorial (clearer):
 #   https://www.youtube.com/watch?v=Kq7ezzVInCA&list=PLqAmigZvYxIL9dnYeZEhMoHcoP4zop8-p&index=22
-#   TL;DR: To explain `Depends`, it's as if the function `register_user` is saying this:
-#       * "I need to to first implicitly pass the `Request` object to `validate_cors` function,"
-#       * "then run `validate_cors` function,"
-#       * "then get the return value of `validate_cors` (`cors_ok`),"
-#       * "because the logic of my code is based on this returned value"
-#   TL;DR of TL;DR: "I *depend* on running `validate_cors` first to proceed with my logic"
 @app.post("/api/v2/users/register")
 async def register_user(req: RegisterRequest):
     """Register a new user.
@@ -248,7 +245,7 @@ async def register_user(req: RegisterRequest):
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         raise HTTPException(status_code=500)
 
 
