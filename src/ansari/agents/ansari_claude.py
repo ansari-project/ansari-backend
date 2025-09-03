@@ -22,16 +22,20 @@ logger = get_logger(__name__)
 class AnsariClaude(Ansari):
     """Claude-based implementation of the Ansari agent."""
 
-    def __init__(self, settings: Settings, message_logger: MessageLogger = None, json_format=False):
+    def __init__(self, settings: Settings, message_logger: MessageLogger = None, json_format=False, system_prompt_file=None):
         """Initialize the Claude-based Ansari agent.
 
         Args:
             settings: Application settings
             message_logger: Optional message logger instance
             json_format: Whether to use JSON format for responses
+            system_prompt_file: Optional system prompt file name (defaults to 'system_msg_claude')
         """
         # Call parent initialization
         super().__init__(settings, message_logger, json_format)
+        
+        # Set the system prompt file to use (can be overridden for specific use cases like ayah endpoint)
+        self.system_prompt_file = system_prompt_file or "system_msg_claude"
 
         # Log environment information for debugging
         try:
@@ -679,7 +683,7 @@ class AnsariClaude(Ansari):
         # 1. API REQUEST PREPARATION AND EXECUTION
         # ======================================================================
         prompt_mgr = PromptMgr()
-        system_prompt = prompt_mgr.bind("system_msg_claude").render()
+        system_prompt = prompt_mgr.bind(self.system_prompt_file).render()
 
         # Run pre-flight validation to ensure proper tool_use/tool_result relationship
         # This helps prevent API errors by fixing message structure before sending
