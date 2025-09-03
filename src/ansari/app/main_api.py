@@ -1131,19 +1131,10 @@ async def answer_ayah_question_claude(
         # Create AnsariClaude instance with ayah-specific system prompt
         logger.debug(f"Creating AnsariClaude instance for {req.surah}:{req.ayah}")
 
-        # Load the ayah-specific system prompt
-        system_prompt_path = os.path.join(
-            os.path.dirname(__file__), "..", "system_prompts", settings.AYAH_SYSTEM_PROMPT_FILE_NAME
-        )
-
-        with open(system_prompt_path, "r") as f:
-            ayah_system_prompt = f.read()
-
-        # Initialize AnsariClaude with the ayah-specific system prompt
+        # Initialize AnsariClaude with the ayah-specific system prompt file
         ansari_claude = AnsariClaude(
             settings,
-            system_prompt=ayah_system_prompt,
-            source_type=SourceType.WEB,  # Using WEB for now, could add QURAN_COM if needed
+            system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME
         )
 
         # Prepare the context with ayah information

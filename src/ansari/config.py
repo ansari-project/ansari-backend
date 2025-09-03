@@ -167,7 +167,7 @@ class Settings(BaseSettings):
 
     # Usul.ai API settings
     USUL_API_TOKEN: SecretStr = Field(default="")  # Set via environment variable
-    USUL_BASE_URL: str = Field(default="https://semantic-search.usul.ai/v1/vector-search")
+    USUL_BASE_URL: str = Field(default="https://api.usul.ai/v1/vector-search")
     USUL_TOOL_NAME_PREFIX: str = Field(default="search_usul")
     TAFSIR_ENCYC_BOOK_ID: str = Field(default="pet7s2sjr900zvxjsafa3s3b")
     TAFSIR_ENCYC_VERSION_ID: str = Field(default="MT3i8pDNoM")
