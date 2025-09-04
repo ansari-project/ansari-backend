@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import time
+import concurrent.futures
 from typing import Generator
 
 import sentry_sdk
@@ -689,8 +690,10 @@ class AnsariClaude(Ansari):
         # This helps prevent API errors by fixing message structure before sending
         self._validate_message_history()
 
-        # Log the final message history before sending to API
-        logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
+        # Log below floods the terminal, so will be disabled when locally developing for easier readability
+        if get_settings().DEPLOYMENT_TYPE != "development":
+            # Log the final message history before sending to API
+            logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
 
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
@@ -1330,7 +1333,57 @@ class AnsariClaude(Ansari):
             citations_text = "\n\n**Citations**:\n"
             logger.debug(f"Full Citations: {self.citations}")
 
-            # Process each citation
+            ###############################################################
+            # First full pass: Collect all Arabic texts that need translation
+            #   by processing each citation
+            ###############################################################
+
+            ar_texts_to_translate = []
+            ar_citation_idxs = []  # Track which citations need translation
+            for i, citation in enumerate(self.citations, 0):  # 0-based index for tracking
+                cited_text = getattr(citation, "cited_text", "")
+
+                # Skip if the citation text has already been processed
+                if any(lang in cited_text for lang in ["Arabic: ", "English: "]):
+                    continue
+
+                # Parse the citation as a multilingual JSON object
+                # This handles cases where Claude cites entire document content (which should be JSON)
+                multilingual_data = parse_multilingual_data(cited_text)
+
+                arabic_text = multilingual_data.get("ar", "")
+                english_text = multilingual_data.get("en", "")
+
+                # If we have Arabic but no English, add to translation queue
+                if arabic_text and not english_text:
+                    ar_texts_to_translate.append(arabic_text)
+                    ar_citation_idxs.append(i)
+
+            logger.debug(f"{ar_texts_to_translate=}")
+
+            #################################################################
+            # Second partial pass (using threads)
+            # Batch translate all Arabic texts at once if any need translation
+            #################################################################
+
+            translations = []
+            if ar_texts_to_translate:
+                try:
+                    translations = translate_texts_parallel(ar_texts_to_translate, "en", "ar")
+                    logger.debug(f"Successfully translated {len(translations)} citation texts")
+                except Exception as e:
+                    logger.error(f"Batch translation failed: {e}")
+                    # Create empty translations to maintain index alignment
+                    translations = ["[Translation unavailable]"] * len(ar_texts_to_translate)
+
+            # Build translation lookup for quick access, but only for non-None/empty translations
+            citation_idx_to_translation = {idx: trans for idx, trans in zip(ar_citation_idxs, translations) if trans}
+
+            ##############################################################
+            # Third full pass: Format all citations with available translations
+            #   and add to `citations_text`, which will be used throughout the rest of this method
+            ##############################################################
+
             for i, citation in enumerate(self.citations, 1):
                 cited_text = getattr(citation, "cited_text", "")
                 title = getattr(citation, "document_title", "")
@@ -1338,17 +1391,14 @@ class AnsariClaude(Ansari):
                 title = trim_citation_title(title)
                 citations_text += f"[{i}] {title}:\n"
 
-                # First, check if the citation text has already been processed
+                # If citation is already processed, use as is
                 if any(lang in cited_text for lang in ["Arabic: ", "English: "]):
                     citations_text += f"{cited_text}\n\n"
                     continue
 
-                # Then, try to parse the citation as a multilingual JSON object
-                # This handles cases where Claude cites entire document content (which should be JSON)
                 try:
-                    # Attempt to parse as JSON
+                    # Try to parse as JSON
                     multilingual_data = parse_multilingual_data(cited_text)
-                    logger.debug(f"Successfully parsed multilingual data: {multilingual_data}")
 
                     # Extract Arabic and English text
                     arabic_text = multilingual_data.get("ar", "")
@@ -1358,43 +1408,15 @@ class AnsariClaude(Ansari):
                     if arabic_text:
                         citations_text += f" Arabic: {arabic_text}\n\n"
 
-                    # Add English text if available, otherwise translate from Arabic
+                    # Add English text (either from JSON or our translation)
                     if english_text:
                         citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
-                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                        citations_text += f" English: {english_translation}\n\n"
-
-                except json.JSONDecodeError:
-                    # Handle as plain text (Claude sometimes cites substrings which won't be valid JSON)
-                    logger.debug(f"Citation is not valid JSON - treating as plain text: {cited_text[:100]}...")
-
-                    # Try to detect the language and handle accordingly
-                    try:
-                        # Use the imported function
-                        lang = get_language_from_text(cited_text)
-                        if lang == "ar":
-                            # It's Arabic text
-                            arabic_text = cited_text
-                            citations_text += f" Arabic: {arabic_text}\n\n"
-
-                            # Translate to English
-                            try:
-                                english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
-                                citations_text += f" English: {english_translation}\n\n"
-                            except Exception as e:
-                                logger.error(f"Translation failed: {e}")
-                                citations_text += " English: [Translation unavailable]\n\n"
-                        else:
-                            # It's likely English or other language - just show as is
-                            citations_text += f" Text: {cited_text}\n\n"
-                    except Exception as e:
-                        # If language detection fails, default to treating as English
-                        logger.error(f"Language detection failed: {e}")
-                        citations_text += f" Text: {cited_text}\n\n"
-
+                        # Use our pre-fetched translation if available
+                        translation = citation_idx_to_translation.get(i - 1, "[Translation unavailable]")
+                        citations_text += f" English: {translation}\n\n"
                 except Exception as e:
-                    # Log other errors clearly
+                    # Log any other errors clearly
                     logger.error(f"Citation processing error: {str(e)}")
                     logger.error(f"Raw citation data: {cited_text}")
                     citations_text += f" Text: {cited_text}\n\n"
@@ -1652,10 +1674,12 @@ class AnsariClaude(Ansari):
         max_iterations = 10  # Reasonable upper limit based on expected conversation flow
         while len(self.message_history) > 0 and self.message_history[-1]["role"] != "assistant" and count < max_iterations:
             logger.debug(f"Processing message iteration: {count}")
-            logger.debug("Current message history:\n" + "-" * 60)
-            for i, msg in enumerate(self.message_history):
-                logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
-            logger.debug("-" * 60)
+            # Log below floods the terminal, so will be disabled when locally developing for easier readability
+            if get_settings().DEPLOYMENT_TYPE != "development":
+                logger.debug("Current message history:\n" + "-" * 60)
+                for i, msg in enumerate(self.message_history):
+                    logger.debug(f"Message {i}:\n{json.dumps(msg, indent=2)}")
+                logger.debug("-" * 60)
 
             # This is pretty complicated so leaving a comment.
             # We want to yield from so that we can send the sequence through the input
