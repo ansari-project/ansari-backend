@@ -1362,7 +1362,8 @@ class AnsariClaude(Ansari):
                     if english_text:
                         citations_text += f" English: {english_text}\n\n"
                     elif arabic_text:
-                        english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                        english_translations = self._translate_with_event_loop_safety([arabic_text], "citation processing")
+                        english_translation = english_translations[0]
                         citations_text += f" English: {english_translation}\n\n"
 
                 except json.JSONDecodeError:
@@ -1380,7 +1381,10 @@ class AnsariClaude(Ansari):
 
                             # Translate to English
                             try:
-                                english_translation = asyncio.run(translate_texts_parallel([arabic_text], "en", "ar"))[0]
+                                english_translations = self._translate_with_event_loop_safety(
+                                    [arabic_text], "plain text citation"
+                                )
+                                english_translation = english_translations[0]
                                 citations_text += f" English: {english_translation}\n\n"
                             except Exception as e:
                                 logger.error(f"Translation failed: {e}")
@@ -1474,6 +1478,44 @@ class AnsariClaude(Ansari):
                     sentry_sdk.capture_exception(e)
 
         return citations_text
+
+    def _translate_with_event_loop_safety(self, arabic_texts: list[str], context: str = "citation") -> list[str]:
+        """
+        Safely translate multiple Arabic texts to English, handling both event loop contexts.
+
+        This helper function first tries to use asyncio.run() for parallel translation,
+        and falls back to sequential synchronous processing if already in an event loop.
+
+        Args:
+            arabic_texts: List of Arabic texts to translate
+            context: Description of the context for logging (e.g., "citation", "plain text citation")
+
+        Returns:
+            List of English translations
+        """
+        if not arabic_texts:
+            return []
+
+        try:
+            # First try to use asyncio.run() (works when not in event loop)
+            logger.info(f"Attempting parallel translation using asyncio.run() for {context}")
+            return asyncio.run(translate_texts_parallel(arabic_texts, "en", "ar"))
+        except RuntimeError as e:
+            # If we get RuntimeError, we're already in an event loop,
+            # so we're most likely running this function from a BackgroundTask in WhatsApp
+            # (so we can't create a new event loop, as we're already inside one!)
+            # Side NOTE: Currently, `_finish_response()` calls this function with `len(arabic_texts)==1`
+            #   So we won't see a performance difference, but in the future, we should either write code here
+            #   to send `translate_text()` to different processes (unstable), OR to make all the callers `async def` functions
+            #   which is a major code change, OR find alternative to `BackgroundTasks` in whatsapp logic
+            logger.info(f"asyncio.run() failed ({e}), using sequential translation to avoid complexity")
+            from ansari.util.translation import translate_text
+
+            results = []
+            for text in arabic_texts:
+                result = translate_text(text, "en", "ar")
+                results.append(result)
+            return results
 
     def limit_documents_in_message_history(self, max_documents=100):
         """

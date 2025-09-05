@@ -78,7 +78,7 @@ class WhatsAppPresenter:
     async def extract_relevant_whatsapp_message_details(
         self,
         body: dict[str, Any],
-    ) -> tuple[bool, str | None, str | None, dict | None, str | None, int | None]:
+    ) -> tuple[bool, str | None, str | None, dict | list | None, str | None, int | None]:
         """Extracts relevant whatsapp message details from the incoming webhook payload.
 
         Args:
@@ -91,6 +91,16 @@ class WhatsAppPresenter:
 
         Raises:
             Exception: If the payload structure is invalid or unsupported.
+
+        Notes:
+            Apparently, sometimes the recieved `incoming_msg_body` is a list not a dict, example:
+            [
+                {
+                    'name': {'first_name': 'Ansari', 'last_name': 'Chat', 'formatted_name': 'Ansari. Chat'},
+                    'phones': [{'phone': '+1 (234) 567-8999', 'wa_id': '12345678999', 'type': 'HOME'}]
+                }
+            ]
+            We don't support this yet, so we a later check should be performed to verify that it's a dict.
         """
         # logger.debug(f"Received payload from WhatsApp user:\n{body}")
 
@@ -143,7 +153,7 @@ class WhatsAppPresenter:
         # Extract the message of the WhatsApp sender (could be text, image, etc.)
         incoming_msg_body = incoming_msg[incoming_msg_type]
 
-        logger.info(f"Received a supported whatsapp message from {user_whatsapp_number}: {incoming_msg_body}")
+        logger.info(f"Received whatsapp message from {user_whatsapp_number}: {incoming_msg_body}")
 
         return (is_status, user_whatsapp_number, incoming_msg_type, incoming_msg_body, message_id, message_unix_time)
 
