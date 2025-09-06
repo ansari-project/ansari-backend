@@ -88,7 +88,7 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
 
     """
 
-    # # Logging the origin (host) of the incoming webhook message
+    # Logging the origin (host) of the incoming webhook message
     # logger.debug(f"ORIGIN of the incoming webhook message: {json.dumps(request, indent=4)}")
 
     # Wait for the incoming webhook message to be received as JSON
@@ -109,11 +109,12 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
         return Response(status_code=200)
 
     # Terminate if the incoming message is a status message (e.g., "delivered")
-    if not is_status:
-        logger.debug(f"Incoming whatsapp webhook message from {from_whatsapp_number}")
-    else:
-        # NOTE: This is a status message (e.g., "delivered"), not a user message, so doesn't need processing
+    #   or if the incoming message is in the form of a list, not dict
+    #   (shouldn't happen unless user sends a non-text message, which is not supported yet)
+    if is_status or isinstance(incoming_msg_body, list):
         return Response(status_code=200)
+    else:
+        logger.debug(f"Incoming whatsapp webhook message from {from_whatsapp_number}")
 
     # Terminate if whatsapp is not enabled (i.e., via .env configurations, etc)
     if not whatsapp_enabled:
@@ -127,7 +128,7 @@ async def main_webhook(request: Request, background_tasks: BackgroundTasks) -> R
         )
         return Response(status_code=200)
 
-    # Temporarycorner case while locally developing:
+    # Temporary corner case while locally developing:
     #   Since the staging server is always running,
     #   and since we currently have the same testing number for both staging and local testing,
     #   therefore we need an indicator that a message is meant for a dev who's testing locally now
