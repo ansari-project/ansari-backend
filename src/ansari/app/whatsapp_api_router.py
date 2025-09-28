@@ -53,14 +53,14 @@ async def register_whatsapp_user(req: WhatsAppUserRegisterRequest):
     try:
         logger.info(f"Registering WhatsApp user with phone: {req.phone_num}")
 
-        result = db.register_user(
+        result = db.register(
+            source=SourceType.WHATSAPP,
             email=None,
-            password=None,
+            password_hash=None,
             first_name=None,
             last_name=None,
             phone_num=req.phone_num,
-            preferred_language=req.preferred_language,
-            source=SourceType.WHATSAPP
+            preferred_language=req.preferred_language
         )
 
         logger.info(f"Successfully registered WhatsApp user: {req.phone_num}")
@@ -150,7 +150,8 @@ async def create_whatsapp_thread(req: WhatsAppThreadRequest):
         if isinstance(user_id, tuple):
             user_id = user_id[0]
 
-        thread_id = db.create_thread(user_id=user_id, title=req.title)
+        result = db.create_thread(source=SourceType.WHATSAPP, user_id=user_id, thread_name=req.title)
+        thread_id = result.get("thread_id") or result.get("_id")
 
         logger.info(f"Successfully created thread {thread_id} for WhatsApp user: {req.phone_num}")
         return {"thread_id": str(thread_id)}

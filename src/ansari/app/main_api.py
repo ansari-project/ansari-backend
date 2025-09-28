@@ -151,6 +151,7 @@ presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 
+
 if __name__ == "__main__" and get_settings().DEV_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     #   I.e., just run:
@@ -178,6 +179,10 @@ if __name__ == "__main__" and get_settings().DEV_MODE:
         log_level="debug",
     )
 
+@app.get("/")
+async def root():
+    """Root endpoint for health checks."""
+    return {"status": "ok", "message": "Ansari Backend service is running"}
 
 class RegisterRequest(BaseModel):
     email: EmailStr
