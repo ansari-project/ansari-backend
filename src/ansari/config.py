@@ -195,7 +195,7 @@ class Settings(BaseSettings):
     AYAH_SYSTEM_PROMPT_FILE_NAME: str = Field(default="system_msg_ayah")
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
     AGENT: str = Field(default="AnsariClaude")
-    ANTHROPIC_MODEL: str = Field(default="claude-sonnet-4-20250514")
+    ANTHROPIC_MODEL: str = Field(default="claude-sonnet-4-5")
     LOGGING_LEVEL: str = Field(default="INFO")
     DEV_MODE: bool = Field(default=False)
 
