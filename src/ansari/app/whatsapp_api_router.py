@@ -23,12 +23,6 @@ class WhatsAppUserRegisterRequest(BaseModel):
     preferred_language: str
 
 
-class WhatsAppLocationRequest(BaseModel):
-    phone_num: str
-    latitude: float
-    longitude: float
-
-
 class WhatsAppThreadRequest(BaseModel):
     phone_num: str
     title: str
@@ -92,35 +86,6 @@ async def check_whatsapp_user_exists(phone_num: str):
     except Exception as e:
         logger.error(f"Error checking WhatsApp user existence {phone_num}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"User existence check failed: {str(e)}")
-
-
-@router.put("/api/v2/whatsapp/users/location")
-async def update_whatsapp_user_location(req: WhatsAppLocationRequest):
-    """Update a WhatsApp user's location in the Ansari backend.
-
-    Args:
-        req: Location update request containing phone_num, latitude, and longitude
-
-    Returns:
-        dict: Update result status
-    """
-    try:
-        logger.info(f"Updating location for WhatsApp user: {req.phone_num}")
-
-        result = db.update_user_by_phone_num(
-            phone_num=req.phone_num,
-            db_cols_to_vals={
-                "latitude": req.latitude,
-                "longitude": req.longitude
-            }
-        )
-
-        logger.info(f"Successfully updated location for WhatsApp user: {req.phone_num}")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error updating location for WhatsApp user {req.phone_num}: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Location update failed: {str(e)}")
 
 
 @router.post("/api/v2/whatsapp/threads")
