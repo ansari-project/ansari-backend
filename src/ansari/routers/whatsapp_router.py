@@ -1,7 +1,7 @@
 # WhatsApp API Router for ansari-backend
 """FastAPI router containing WhatsApp-specific API endpoints for the ansari-whatsapp microservice."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -33,8 +33,7 @@ class WhatsAppMessageRequest(BaseModel):
     thread_id: str
     message: str
 
-
-@router.post("/api/v2/whatsapp/users/register")
+@router.post("/whatsapp/v2/users/register")
 async def register_whatsapp_user(req: WhatsAppUserRegisterRequest):
     """Register a new WhatsApp user with the Ansari backend.
 
@@ -65,7 +64,7 @@ async def register_whatsapp_user(req: WhatsAppUserRegisterRequest):
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
 
 
-@router.get("/api/v2/whatsapp/users/exists")
+@router.get("/whatsapp/v2/users/exists")
 async def check_whatsapp_user_exists(phone_num: str):
     """Check if a WhatsApp user exists in the Ansari backend.
 
@@ -88,7 +87,7 @@ async def check_whatsapp_user_exists(phone_num: str):
         raise HTTPException(status_code=400, detail=f"User existence check failed: {str(e)}")
 
 
-@router.post("/api/v2/whatsapp/threads")
+@router.post("/whatsapp/v2/threads")
 async def create_whatsapp_thread(req: WhatsAppThreadRequest):
     """Create a new thread for a WhatsApp user in the Ansari backend.
 
@@ -128,7 +127,7 @@ async def create_whatsapp_thread(req: WhatsAppThreadRequest):
         raise HTTPException(status_code=400, detail=f"Thread creation failed: {str(e)}")
 
 
-@router.get("/api/v2/whatsapp/threads/last")
+@router.get("/whatsapp/v2/threads/last")
 async def get_last_whatsapp_thread(phone_num: str):
     """Get information about the last active thread for a WhatsApp user.
 
@@ -172,7 +171,7 @@ async def get_last_whatsapp_thread(phone_num: str):
         raise HTTPException(status_code=400, detail=f"Failed to get last thread info: {str(e)}")
 
 
-@router.get("/api/v2/whatsapp/threads/{thread_id}/history")
+@router.get("/whatsapp/v2/threads/{thread_id}/history")
 async def get_whatsapp_thread_history(thread_id: str, phone_num: str):
     """Get the message history for a WhatsApp user's thread from the Ansari backend.
 
@@ -216,7 +215,7 @@ async def get_whatsapp_thread_history(thread_id: str, phone_num: str):
         raise HTTPException(status_code=400, detail=f"Failed to get thread history: {str(e)}")
 
 
-@router.post("/api/v2/whatsapp/messages/process")
+@router.post("/whatsapp/v2/messages/process")
 def process_whatsapp_message(req: WhatsAppMessageRequest) -> StreamingResponse:
     """Process a message from a WhatsApp user with streaming response.
 

@@ -38,7 +38,7 @@ from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
-from ansari.app.whatsapp_api_router import router as whatsapp_api_router
+from ansari.routers.whatsapp_router import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # Include the WhatsApp API router
-app.include_router(whatsapp_api_router)
+app.include_router(whatsapp_router)
 
 
 # Custom exception handler, which aims to log FastAPI-related exceptions before raising them

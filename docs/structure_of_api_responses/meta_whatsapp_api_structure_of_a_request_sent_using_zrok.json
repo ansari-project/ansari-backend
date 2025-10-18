@@ -11,8 +11,8 @@
         "scheme": "https",
         "method": "POST",
         "root_path": "",
-        "path": "/whatsapp/v1",
-        "raw_path": "/whatsapp/v1",
+        "path": "/whatsapp/v2",
+        "raw_path": "/whatsapp/v2",
         "query_string": "",
         "headers": [
             ["host", "YOUR_ZROK_SHARE_TOKEN.share.zrok.io"],
@@ -41,7 +41,7 @@
         "endpoint": "<function main_webhook>",
         "path_params": {},
         "route": {
-            "path": "/whatsapp/v1",
+            "path": "/whatsapp/v2",
             "name": "main_webhook",
             "methods": ["POST"]
         }
