@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = Field(default="https://ansari.chat")
     SENTRY_DSN: HttpUrl | None = None
 
+    # Service-to-service authentication
+    WHATSAPP_SERVICE_API_KEY: SecretStr  # Shared secret for authenticating ansari-whatsapp requests
+
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari",
     )

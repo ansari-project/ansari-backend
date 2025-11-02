@@ -1,12 +1,13 @@
 # WhatsApp API Router for ansari-backend
 """FastAPI router containing WhatsApp-specific API endpoints for the ansari-whatsapp microservice."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ansari.ansari_db import SourceType, MessageLogger
 from ansari.ansari_logger import get_logger
+from ansari.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -15,6 +16,39 @@ router = APIRouter()
 
 # Get database connection
 from ansari.app.main_api import db, presenter
+
+
+# Dependency for verifying WhatsApp service API key
+# References:
+# - https://fastapi.tiangolo.com/tutorial/security/
+# - https://fastapi.tiangolo.com/advanced/security/http-basic-auth/
+async def verify_whatsapp_api_key(x_whatsapp_api_key: str = Header(...)) -> None:
+    """
+    Verify that the request comes from the authorized ansari-whatsapp microservice.
+
+    This dependency checks the X-Whatsapp-Api-Key header against the configured
+    shared secret to ensure requests are coming from our trusted WhatsApp service.
+
+    Args:
+        x_whatsapp_api_key: The API key from the X-Whatsapp-Api-Key header
+
+    Raises:
+        HTTPException: 401 Unauthorized if the API key is missing or invalid
+
+    References:
+        - https://fastapi.tiangolo.com/tutorial/security/
+        - https://fastapi.tiangolo.com/advanced/security/http-basic-auth/
+    """
+    settings = get_settings()
+    expected_key = settings.WHATSAPP_SERVICE_API_KEY.get_secret_value()
+
+    if not x_whatsapp_api_key or x_whatsapp_api_key != expected_key:
+        logger.error("Invalid or missing X-Whatsapp-Api-Key header")
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Invalid or missing API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
 
 # Pydantic models for WhatsApp API requests
@@ -34,7 +68,10 @@ class WhatsAppMessageRequest(BaseModel):
     message: str
 
 @router.post("/whatsapp/v2/users/register")
-async def register_whatsapp_user(req: WhatsAppUserRegisterRequest):
+async def register_whatsapp_user(
+    req: WhatsAppUserRegisterRequest,
+    _: None = Depends(verify_whatsapp_api_key)
+):
     """Register a new WhatsApp user with the Ansari backend.
 
     Args:
@@ -65,7 +102,10 @@ async def register_whatsapp_user(req: WhatsAppUserRegisterRequest):
 
 
 @router.get("/whatsapp/v2/users/exists")
-async def check_whatsapp_user_exists(phone_num: str):
+async def check_whatsapp_user_exists(
+    phone_num: str,
+    _: None = Depends(verify_whatsapp_api_key)
+):
     """Check if a WhatsApp user exists in the Ansari backend.
 
     Args:
@@ -88,7 +128,10 @@ async def check_whatsapp_user_exists(phone_num: str):
 
 
 @router.post("/whatsapp/v2/threads")
-async def create_whatsapp_thread(req: WhatsAppThreadRequest):
+async def create_whatsapp_thread(
+    req: WhatsAppThreadRequest,
+    _: None = Depends(verify_whatsapp_api_key)
+):
     """Create a new thread for a WhatsApp user in the Ansari backend.
 
     Args:
@@ -128,7 +171,10 @@ async def create_whatsapp_thread(req: WhatsAppThreadRequest):
 
 
 @router.get("/whatsapp/v2/threads/last")
-async def get_last_whatsapp_thread(phone_num: str):
+async def get_last_whatsapp_thread(
+    phone_num: str,
+    _: None = Depends(verify_whatsapp_api_key)
+):
     """Get information about the last active thread for a WhatsApp user.
 
     Args:
@@ -172,7 +218,11 @@ async def get_last_whatsapp_thread(phone_num: str):
 
 
 @router.get("/whatsapp/v2/threads/{thread_id}/history")
-async def get_whatsapp_thread_history(thread_id: str, phone_num: str):
+async def get_whatsapp_thread_history(
+    thread_id: str,
+    phone_num: str,
+    _: None = Depends(verify_whatsapp_api_key)
+):
     """Get the message history for a WhatsApp user's thread from the Ansari backend.
 
     Args:
@@ -216,7 +266,10 @@ async def get_whatsapp_thread_history(thread_id: str, phone_num: str):
 
 
 @router.post("/whatsapp/v2/messages/process")
-def process_whatsapp_message(req: WhatsAppMessageRequest) -> StreamingResponse:
+def process_whatsapp_message(
+    req: WhatsAppMessageRequest,
+    _: None = Depends(verify_whatsapp_api_key)
+) -> StreamingResponse:
     """Process a message from a WhatsApp user with streaming response.
 
     Args:
