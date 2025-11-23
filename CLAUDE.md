@@ -31,8 +31,18 @@
 - Delete branches after they're merged to keep the repository clean
 
 ## Build/Test/Lint Commands
-- Install dependencies: `pip install -r requirements.txt`
-- Run backend service: `uvicorn main_api:app --reload`
+- Install dependencies: `uv sync` - Installs all dependencies from pyproject.toml and uv.lock
+- Run backend service:
+  1. Use venv python directly: `.venv/Scripts/python.exe src/ansari/app/main_api.py`
+  - Alternative (if uvicorn is available): `uvicorn main_api:app --reload`
+
+  **Note**: Direct venv python path is used because `source .venv/Scripts/activate` may not properly activate the virtual environment in bash.
+
+  **Testing changes**: Auto-reload can be unreliable. For reliable testing after code changes:
+  1. Kill the running server (`KillShell` tool)
+  2. Start new server: `.venv/Scripts/python.exe src/ansari/app/main_api.py`
+  3. Wait 10 seconds for startup to complete
+  4. Then test with curl
 - Run CLI version (interactive):
   - Claude: `python src/ansari/app/main_stdio.py -a AnsariClaude`
   - OpenAI: `python src/ansari/app/main_stdio.py -a Ansari`
@@ -47,6 +57,14 @@
 - Package commands:
   - Build package: `python -m build`
   - Upload to PyPI: `twine upload dist/*` (requires PyPI credentials)
+
+## Package Management
+- **Install dependencies**: `uv sync` - Installs all dependencies from pyproject.toml and uv.lock
+- **Add new package**: `uv add <package>` - Adds package to dependencies and updates lock file
+- **Add development dependency**: `uv add --dev <package>` - Adds package to dev dependencies
+- **Remove package**: `uv remove <package>` - Removes package from dependencies
+- **Create virtual environment**: `uv venv` - Creates .venv directory (if not exists)
+- **Update dependencies**: `uv lock` - Updates uv.lock file with latest compatible versions
 
 ## Code Style Guidelines
 - **Imports**: Use absolute imports within the `ansari` package

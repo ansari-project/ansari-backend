@@ -65,6 +65,7 @@ jobs:
           USUL_API_TOKEN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'usul-api-token') }}
           SENTRY_DSN: ${{ format('{0}{1}', secrets.SSM_ROOT, 'sentry-dsn') }}
 
+          WHATSAPP_SERVICE_API_KEY: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-service-api-key') }}
           WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-access-token-from-sys-user') }}
           WHATSAPP_BUSINESS_PHONE_NUMBER_ID: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-business-phone-number-id') }}
           WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ format('{0}{1}', secrets.SSM_ROOT, 'whatsapp-verify-token-for-webhook') }}
@@ -109,6 +110,7 @@ jobs:
             USUL_API_TOKEN
             SENTRY_DSN
 
+            WHATSAPP_SERVICE_API_KEY
             WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER
             WHATSAPP_BUSINESS_PHONE_NUMBER_ID
             WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK

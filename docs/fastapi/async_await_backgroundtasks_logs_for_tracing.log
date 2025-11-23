@@ -1,4 +1,4 @@
-(manually inserted log) ------------------------------------------------------------------------------ FastAPI receives a message from a whatsapp user on /whatsapp/v1 endpoint, so the event loop picks the `main_webhook()` to be executed now ------------------------------------------------------------------------------
+(manually inserted log) ------------------------------------------------------------------------------ FastAPI receives a message from a whatsapp user on /whatsapp/v2 endpoint, so the event loop picks the `main_webhook()` to be executed now ------------------------------------------------------------------------------
 (manually inserted log) ------------------------------------------------------------------------------ Execution in `main_webhook()` starts ------------------------------------------------------------------------------
 2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! Before `background_tasks -> send_typing_indicator_then_start_loop`
 2025-04-20 07:56:22 | DEBUG | ansari.app.main_whatsapp:main_webhook:112 | ! After `background_tasks -> send_typing_indicator_then_start_loop`

@@ -38,7 +38,7 @@ from ansari.agents import Ansari, AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
-from ansari.app.main_whatsapp import router as whatsapp_router
+from ansari.routers.whatsapp_router import router as whatsapp_router
 from ansari.config import Settings, get_settings
 from ansari.presenters.api_presenter import ApiPresenter
 from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Include the WhatsApp router
+# Include the WhatsApp API router
 app.include_router(whatsapp_router)
 
 
@@ -151,6 +151,7 @@ presenter.present()
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 
+
 if __name__ == "__main__" and get_settings().DEV_MODE:
     # Programatically start a Uvicorn server while debugging (development) for easier control/accessibility
     #   I.e., just run:
@@ -178,6 +179,10 @@ if __name__ == "__main__" and get_settings().DEV_MODE:
         log_level="debug",
     )
 
+@app.get("/")
+async def root():
+    """Root endpoint for health checks."""
+    return {"status": "ok", "message": "Ansari Backend service is running"}
 
 class RegisterRequest(BaseModel):
     email: EmailStr

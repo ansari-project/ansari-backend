@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = Field(default="https://ansari.chat")
     SENTRY_DSN: HttpUrl | None = None
 
+    # Service-to-service authentication
+    WHATSAPP_SERVICE_API_KEY: SecretStr  # Shared secret for authenticating ansari-whatsapp requests
+
     DATABASE_URL: PostgresDsn = Field(
         default="postgresql://postgres:password@localhost:5432/ansari",
     )
@@ -179,12 +182,6 @@ class Settings(BaseSettings):
     MAILCHIMP_SERVER_PREFIX: str | None = Field(default=None)
     MAILCHIMP_LIST_ID: str | None = Field(default=None)
     QURAN_DOT_COM_API_KEY: SecretStr = Field(alias="QURAN_DOT_COM_API_KEY")
-    WHATSAPP_ENABLED: bool = Field(default=True)
-    WHATSAPP_API_VERSION: str | None = Field(default="v22.0")
-    WHATSAPP_BUSINESS_PHONE_NUMBER_ID: SecretStr | None = Field(default=None)
-    WHATSAPP_ACCESS_TOKEN_FROM_SYS_USER: SecretStr | None = Field(default=None)
-    WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: SecretStr | None = Field(default=None)
-    WHATSAPP_CHAT_RETENTION_HOURS: float = Field(default=3)
     ZROK_SHARE_TOKEN: SecretStr = Field(default="")
     template_dir: DirectoryPath = Field(default=get_resource_path("templates"))
     diskcache_dir: str = Field(default="diskcache_dir")

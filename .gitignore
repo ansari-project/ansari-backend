@@ -1,6 +1,7 @@
 # Folders
 .conda/
 .claude/
+.specstory/
 .venv/
 .vscode/
 abandoned/
