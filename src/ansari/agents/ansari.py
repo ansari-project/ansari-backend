@@ -12,6 +12,7 @@ import time
 import traceback
 
 import litellm
+import tiktoken
 
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
@@ -45,6 +46,11 @@ class Ansari:
         self.message_history = [{"role": "system", "content": self.sys_msg}]
 
         self.model = settings.MODEL
+        try:
+            self.encoder = tiktoken.encoding_for_model(self.model)
+        except Exception:
+            logger.warning(f"Could not get encoding for model {self.model}, falling back to cl100k_base")
+            self.encoder = tiktoken.get_encoding("cl100k_base")
 
     def _initialize_tools(self):
         """Initialize tool instances. Can be overridden by subclasses."""
@@ -115,6 +121,16 @@ class Ansari:
         return litellm.completion(**kwargs)
 
     def process_message_history(self, use_tool=True):
+        if self._check_token_limit():
+            msg = "The conversation has become too long. Please start a new conversation."
+            # We don't append to history here to avoid growing it further, 
+            # but we should probably log it if we want to show it in the UI history?
+            # Actually, the UI displays what we yield.
+            # But if we don't append it, the next request will still have the long history.
+            # The user is instructed to start a NEW conversation, so the history will be reset.
+            yield msg
+            return
+
         common_params = {
             "model": self.model,
             "messages": self.message_history,
@@ -452,3 +468,22 @@ class Ansari:
             + f"\n{trunc_msg_hist}\n"
             + "-" * 60,
         )
+
+    def _check_token_limit(self):
+        try:
+            num_tokens = 0
+            for message in self.message_history:
+                # Approximate token count
+                content = message.get("content", "")
+                if isinstance(content, str):
+                    num_tokens += len(self.encoder.encode(content))
+                elif isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and "text" in item:
+                            num_tokens += len(self.encoder.encode(item["text"]))
+            
+            logger.debug(f"Current token count: {num_tokens}")
+            return num_tokens > self.settings.MAX_TOKEN_LIMIT
+        except Exception as e:
+            logger.warning(f"Error checking token limit: {e}")
+            return False
