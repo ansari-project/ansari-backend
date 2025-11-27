@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # Get database connection
-from ansari.app.main_api import db, presenter
+from ansari.dependencies import db, presenter
 
 
 # Dependency for verifying WhatsApp service API key

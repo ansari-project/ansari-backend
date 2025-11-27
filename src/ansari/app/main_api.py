@@ -34,13 +34,12 @@ from sendgrid.helpers.mail import Mail, Email, To, HtmlContent
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from zxcvbn import zxcvbn
 
-from ansari.agents import Ansari, AnsariClaude
+from ansari.agents import AnsariClaude
 from ansari.agents.ansari_workflow import AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
-from ansari.routers.whatsapp_router import router as whatsapp_router
 from ansari.config import Settings, get_settings
-from ansari.presenters.api_presenter import ApiPresenter
+from ansari.dependencies import db, presenter
 from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
 
 logger = get_logger(__name__)
@@ -75,8 +74,6 @@ if get_settings().SENTRY_DSN and deployment_type != "development":
         before_send=sentry_before_send,
     )
 
-db = AnsariDB(get_settings())
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -87,9 +84,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-# Include the WhatsApp API router
-app.include_router(whatsapp_router)
 
 
 # Custom exception handler, which aims to log FastAPI-related exceptions before raising them
@@ -136,18 +130,12 @@ def add_app_middleware():
 
 add_app_middleware()
 
-agent_type = get_settings().AGENT
-
-if agent_type == "Ansari":
-    ansari = Ansari(get_settings())
-elif agent_type == "AnsariClaude":
-    ansari = AnsariClaude(get_settings())
-else:
-    raise ValueError(f"Unknown agent type: {agent_type}. Must be one of: Ansari, AnsariClaude")
-
-
-presenter = ApiPresenter(app, ansari)
 presenter.present()
+
+# Include the WhatsApp API router
+from ansari.routers.whatsapp_router import router as whatsapp_router
+
+app.include_router(whatsapp_router)
 
 cache = FanoutCache(get_settings().diskcache_dir, shards=4, timeout=1)
 
