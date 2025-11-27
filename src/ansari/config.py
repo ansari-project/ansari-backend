@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     VECTARA_API_KEY: SecretStr
 
     MAX_FAILURES: int = Field(default=3)
+    MAX_TOKEN_LIMIT: int = Field(default=100000)
 
     MAWSUAH_VECTARA_CORPUS_KEY: str = Field(
         alias="MAWSUAH_VECTARA_CORPUS_KEY",
