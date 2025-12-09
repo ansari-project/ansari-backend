@@ -167,10 +167,12 @@ if __name__ == "__main__" and get_settings().DEV_MODE:
         log_level="debug",
     )
 
+
 @app.get("/")
 async def root():
     """Root endpoint for health checks."""
     return {"status": "ok", "message": "Ansari Backend service is running"}
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
@@ -1113,7 +1115,14 @@ async def answer_ayah_question_claude(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        ayah_id = req.surah * 1000 + req.ayah
+        # Calculate ayah_id for potential metadata filtering
+        ayah_id = req.surah * 1000 + req.ayah  # noqa: F841
+
+        # TODO: Implement metadata filtering for tafsir search
+        # search_context = {
+        #     "tool_name": "search_tafsir",
+        #     "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}",
+        # }
 
         # Check if the answer is already stored in the database
         if req.use_cache:
@@ -1125,19 +1134,10 @@ async def answer_ayah_question_claude(
         logger.debug(f"Creating AnsariClaude instance for {req.surah}:{req.ayah}")
 
         # Initialize AnsariClaude with the ayah-specific system prompt file
-        ansari_claude = AnsariClaude(
-            settings,
-            system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME
-        )
+        ansari_claude = AnsariClaude(settings, system_prompt_file=settings.AYAH_SYSTEM_PROMPT_FILE_NAME)
 
         # Prepare the context with ayah information
         ayah_context = f"Question about Surah {req.surah}, Ayah {req.ayah}"
-
-        # Build the search query with metadata filter for the specific ayah
-        search_context = {
-            "tool_name": "search_tafsir",
-            "metadata_filter": f"part.from_ayah_int<={ayah_id} AND part.to_ayah_int>={ayah_id}",
-        }
 
         # Create a message that includes the context and triggers appropriate searches
         enhanced_question = f"{ayah_context}\n\n{req.question}"

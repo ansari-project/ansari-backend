@@ -19,10 +19,7 @@ class TestMultilingualDataParsing:
     def test_valid_json_parsing(self):
         """Test parsing valid JSON-formatted multilingual data."""
         # Create a valid JSON string
-        data = json.dumps([
-            {"lang": "ar", "text": "النص العربي"},
-            {"lang": "en", "text": "English text"}
-        ])
+        data = json.dumps([{"lang": "ar", "text": "النص العربي"}, {"lang": "en", "text": "English text"}])
 
         # Parse the data with original parser
         result_original = original_parse(data)
@@ -42,7 +39,7 @@ class TestMultilingualDataParsing:
     def test_malformed_json_handling(self):
         """Test handling of malformed JSON data."""
         # Malformed JSON string (missing quotes, commas, etc.)
-        malformed_data = '{lang: ar, text: النص العربي}'
+        malformed_data = "{lang: ar, text: النص العربي}"
 
         # Original parser raises JSONDecodeError
         with pytest.raises(json.JSONDecodeError):
@@ -90,16 +87,10 @@ class TestMultilingualDataParsing:
         arabic_text = "وذهب أكثر الفقهاء إلى أن الإكراه على التلفظ بلفظ ما يمنع ترتيب أثره عليه"
         arabic_doc = {
             "type": "document",
-            "source": {
-                "type": "text",
-                "media_type": "text/plain",
-                "data": arabic_text
-            },
+            "source": {"type": "text", "media_type": "text/plain", "data": arabic_text},
             "title": "Test Document",
             "context": "Test Context",
-            "citations": {
-                "enabled": True
-            }
+            "citations": {"enabled": True},
         }
 
         # Process the document
@@ -123,16 +114,10 @@ class TestMultilingualDataParsing:
         """
         real_doc = {
             "type": "document",
-            "source": {
-                "type": "text",
-                "media_type": "text/plain",
-                "data": real_example
-            },
+            "source": {"type": "text", "media_type": "text/plain", "data": real_example},
             "title": "Encyclopedia of Quranic Interpretation",
             "context": "Retrieved from the Encyclopedia",
-            "citations": {
-                "enabled": True
-            }
+            "citations": {"enabled": True},
         }
 
         # Process the document with the real example
@@ -144,22 +129,13 @@ class TestMultilingualDataParsing:
         assert "Arabic:" in processed_real_data, "Should detect Arabic in real example"
 
         # Test with valid JSON data
-        json_data = json.dumps([
-            {"lang": "ar", "text": "النص العربي"},
-            {"lang": "en", "text": "English text"}
-        ])
+        json_data = json.dumps([{"lang": "ar", "text": "النص العربي"}, {"lang": "en", "text": "English text"}])
         json_doc = {
             "type": "document",
-            "source": {
-                "type": "text",
-                "media_type": "text/plain",
-                "data": json_data
-            },
+            "source": {"type": "text", "media_type": "text/plain", "data": json_data},
             "title": "Test Document",
             "context": "Test Context",
-            "citations": {
-                "enabled": True
-            }
+            "citations": {"enabled": True},
         }
 
         # Process the document with JSON data

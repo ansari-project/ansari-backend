@@ -33,7 +33,7 @@ class AnsariClaude(Ansari):
         """
         # Call parent initialization
         super().__init__(settings, message_logger, json_format)
-        
+
         # Set the system prompt file to use (can be overridden for specific use cases like ayah endpoint)
         self.system_prompt_file = system_prompt_file or "system_msg_claude"
 
@@ -58,11 +58,7 @@ class AnsariClaude(Ansari):
 
         # Initialize Claude-specific client with prompt caching support
         try:
-            self.client = anthropic.Anthropic(
-                default_headers={
-                    "anthropic-beta": "prompt-caching-2024-07-31"
-                }
-            )
+            self.client = anthropic.Anthropic(default_headers={"anthropic-beta": "prompt-caching-2024-07-31"})
             logger.debug("Successfully initialized Anthropic client with prompt caching support")
         except Exception as e:
             logger.error(f"Error initializing Anthropic client: {str(e)}")
@@ -722,13 +718,7 @@ class AnsariClaude(Ansari):
         # Create API request parameters with the limited history
         params = {
             "model": self.settings.ANTHROPIC_MODEL,
-            "system": [
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"}
-                }
-            ],
+            "system": [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
             "messages": limited_history,  # Use the limited version for API call
             "max_tokens": 4096,
             "temperature": 0.0,

@@ -91,23 +91,23 @@ class TestAnsariClaudeEmptyTextBlock(unittest.TestCase):
 
         # Verify process_tool_call was called instead
         self.agent.process_tool_call.assert_called_with("test_tool", {"query": "test"}, "tool_123")
-        
+
     def test_tool_call_error_handling(self):
         """Test that tool call errors are properly handled without empty messages."""
         # Set up a tool that will raise an exception
         self.agent.tool_name_to_instance = {"test_tool": MagicMock()}
         self.agent.tool_name_to_instance["test_tool"].run = MagicMock(side_effect=Exception("Test error"))
         self.agent._log_message = MagicMock()  # Mock the logging method
-        
+
         # Remember the initial message history length
         initial_length = len(self.agent.message_history)
-        
+
         # Execute tool call process
         tool_calls = [{"type": "tool_use", "id": "tool_123", "name": "test_tool", "input": {"query": "test"}}]
-        
+
         # Process the tool calls
         self.agent._process_tool_calls(tool_calls)
-        
+
         # Check that an error message was added to the message history
         self.assertEqual(len(self.agent.message_history), initial_length + 1)
         last_message = self.agent.message_history[-1]
@@ -115,6 +115,6 @@ class TestAnsariClaudeEmptyTextBlock(unittest.TestCase):
         self.assertEqual(last_message["content"][0]["type"], "tool_result")
         self.assertEqual(last_message["content"][0]["tool_use_id"], "tool_123")
         self.assertIn("Test error", last_message["content"][0]["content"])
-        
+
         # Verify log_message was called
         self.agent._log_message.assert_called_once()

@@ -58,6 +58,7 @@ def register_to_mailing_list(email: str, first_name: str, last_name: str) -> boo
         logger.error(f"Failed to register {email} to Mailchimp: {e}")
         return False
 
+
 def get_extended_origins(settings: Settings = Depends(get_settings)):
     origins = get_settings().ORIGINS
 
