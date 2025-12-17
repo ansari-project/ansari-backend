@@ -450,25 +450,15 @@ class AnsariClaude(Ansari):
         # Check if we need to force an answer due to tool usage patterns BEFORE tracking this tool
         # This prevents counting the current tool if we're already at the limit
         if self._check_tool_limit(tool_name, tool_args):
-            # Return non-empty results with a standard document to avoid API errors
-            tool_limit_message = """Tool usage limit reached. Please synthesize a complete answer
-            based on the information you've already gathered, maintaining any requested format."""
+            tool_limit_message = (
+                "Tool usage limit reached. Please synthesize a complete answer "
+                "based on the information you've already gathered, maintaining any requested format."
+            )
             logger.warning(f"Tool usage limit reached: {tool_limit_message}")
 
-            # Include a minimal document to ensure there's content in the tool_result
-            # Format the tool limit message using our robust mechanism
-            tool_document = {
-                "type": "document",
-                "source": {"type": "text", "media_type": "text/plain", "data": tool_limit_message},
-                "title": "Tool Usage Limit Notice",
-                "context": "System message",
-                "citations": {"enabled": False},
-            }
-
-            # Process the document to ensure it's properly formatted
-            processed_document = process_document_source_data(tool_document)
-
-            return ([tool_limit_message], [processed_document])
+            # Return as error tuple: (message, None, is_error=True)
+            # Using is_error flag avoids citation consistency issues with document blocks
+            return (tool_limit_message, None, True)
 
         # If we didn't hit the limit, track tool usage now
         self.tool_usage_history.append(tool_name)
@@ -478,19 +468,9 @@ class AnsariClaude(Ansari):
 
         if tool_name not in self.tool_name_to_instance:
             logger.warning(f"Unknown tool name: {tool_name}")
-            empty_result_message = f"Unknown tool: {tool_name}"
-            return (
-                [empty_result_message],
-                [
-                    {
-                        "type": "document",
-                        "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
-                        "title": "Error",
-                        "context": "System message",
-                        "citations": {"enabled": False},
-                    }
-                ],
-            )
+            error_message = f"Unknown tool: {tool_name}"
+            # Return as error tuple to avoid citation consistency issues
+            return (error_message, None, True)
 
         try:
             query = tool_args["query"]  # tool_args is now a dict, not a string
@@ -498,18 +478,8 @@ class AnsariClaude(Ansari):
             logger.error(f"Failed to parse tool arguments: {e}")
             logger.error(f"Raw arguments: {tool_args}")
             error_message = f"Invalid tool arguments: {str(e)}"
-            return (
-                [error_message],
-                [
-                    {
-                        "type": "document",
-                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
-                        "title": "Error",
-                        "context": "System message",
-                        "citations": {"enabled": False},
-                    }
-                ],
-            )
+            # Return as error tuple to avoid citation consistency issues
+            return (error_message, None, True)
 
         try:
             tool_instance = self.tool_name_to_instance[tool_name]
@@ -524,20 +494,12 @@ class AnsariClaude(Ansari):
             # Check for empty results - possibly due to rate limiting
             if not reference_list:
                 logger.warning(f"No results returned for {tool_name} with query '{query}'. Possible rate limiting.")
-                empty_result_message = """No results found for this query. This might be due to rate limiting
-                if multiple searches were performed in quick succession."""
-                return (
-                    [empty_result_message],
-                    [
-                        {
-                            "type": "document",
-                            "source": {"type": "text", "media_type": "text/plain", "data": empty_result_message},
-                            "title": "No Results Found",
-                            "context": f"Search for '{query}'",
-                            "citations": {"enabled": False},
-                        }
-                    ],
+                error_message = (
+                    "No results found for this query. This might be due to rate limiting "
+                    "if multiple searches were performed in quick succession."
                 )
+                # Return as error tuple to avoid citation consistency issues
+                return (error_message, None, True)
 
             logger.debug(f"Got {len(reference_list)} results from {tool_name}")
 
@@ -547,18 +509,8 @@ class AnsariClaude(Ansari):
         except Exception as e:
             logger.error(f"Error executing tool {tool_name}: {str(e)}")
             error_message = f"Error executing search: {str(e)}"
-            return (
-                [error_message],
-                [
-                    {
-                        "type": "document",
-                        "source": {"type": "text", "media_type": "text/plain", "data": error_message},
-                        "title": "Error",
-                        "context": "System message",
-                        "citations": {"enabled": False},
-                    }
-                ],
-            )
+            # Return as error tuple to avoid citation consistency issues
+            return (error_message, None, True)
 
     def _separate_tool_result_from_preceding_text(self):
         """
@@ -1162,8 +1114,25 @@ class AnsariClaude(Ansari):
         for tc in tool_calls:
             try:
                 # Process the tool call
-                (tool_result, reference_list) = self.process_tool_call(tc["name"], tc["input"], tc["id"])
+                result = self.process_tool_call(tc["name"], tc["input"], tc["id"])
 
+                # Check if this is an error return (3-tuple) vs success (2-tuple)
+                if len(result) == 3:
+                    # Error case: (message, None, is_error)
+                    error_message, _, _ = result
+                    logger.debug(f"Tool {tc['name']} returned error: {error_message}")
+                    all_tool_result_content.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tc["id"],
+                            "content": error_message,
+                            "is_error": True,
+                        }
+                    )
+                    continue  # Skip document processing for errors
+
+                # Success case: (tool_result, reference_list)
+                tool_result, reference_list = result
                 logger.debug(f"Reference list: {json.dumps(reference_list, indent=2)}")
 
                 # Process references - ALWAYS apply special formatting
