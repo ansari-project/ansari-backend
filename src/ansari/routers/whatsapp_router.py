@@ -105,26 +105,41 @@ async def register_whatsapp_user(
 async def check_whatsapp_user_exists(
     phone_num: str,
     _: None = Depends(verify_whatsapp_api_key)
-):
-    """Check if a WhatsApp user exists in the Ansari backend.
+) -> str:
+    """Get user ID for a WhatsApp phone number.
 
     Args:
         phone_num: User's WhatsApp phone number
 
     Returns:
-        dict: Contains 'exists' boolean indicating if user exists
+        str: The user's ID
+
+    Raises:
+        HTTPException: 404 if user not found, 500 for other errors
     """
     try:
-        logger.info(f"Checking existence for WhatsApp user: {phone_num}")
+        logger.info(f"Getting user ID for WhatsApp user: {phone_num}")
 
         exists = db.account_exists(phone_num=phone_num)
 
-        logger.info(f"WhatsApp user {phone_num} exists: {exists}")
-        return {"exists": exists}
+        if not exists:
+            logger.warning(f"WhatsApp user {phone_num} not found")
+            raise HTTPException(status_code=404, detail="User not found")
 
+        user_id = db.get_user_id_by_phone(phone_num)
+
+        if not user_id:
+            logger.error(f"User {phone_num} exists but no user_id found (data inconsistency)")
+            raise HTTPException(status_code=500, detail="User ID retrieval failed")
+
+        logger.info(f"Found user_id for WhatsApp user {phone_num}: {user_id}")
+        return user_id
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error checking WhatsApp user existence {phone_num}: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"User existence check failed: {str(e)}")
+        logger.error(f"Error getting user ID for {phone_num}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"User ID retrieval failed: {str(e)}")
 
 
 @router.post("/whatsapp/v2/threads")
