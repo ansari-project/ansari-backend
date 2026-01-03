@@ -2,8 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch, AsyncMock
-from fastapi.responses import StreamingResponse
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -55,12 +54,12 @@ class TestMCPAsyncFix:
 
         # Collect the streamed content
         content = response.content
-        
+
         # Verify the original content is present
         assert b"This is an async response" in content
         assert b"Citations" in content
         assert b"[1] Test Source" in content
-        
+
         # Verify the attribution message is added
         assert b"ansari.chat" in content
         assert b"IT IS ABSOLUTELY CRITICAL" in content
@@ -73,7 +72,7 @@ class TestMCPAsyncFix:
         )
 
         assert response.status_code == 200
-        
+
         # Get content
         full_content = response.content
         assert b"This is an async response" in full_content
@@ -102,7 +101,7 @@ class TestMCPAsyncFix:
             )
 
             assert response.status_code == 200
-            
+
             # Verify content
             content = response.content
             assert b"Hello from async generator" in content
@@ -128,7 +127,7 @@ class TestMCPAsyncFix:
                 json={"messages": [{"role": "user", "content": "Test"}]},
             )
 
-            # Should succeed with the async generator  
+            # Should succeed with the async generator
             assert response.status_code == 200
             content = response.content
             assert b"Start Middle End" in content

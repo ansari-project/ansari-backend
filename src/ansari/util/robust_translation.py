@@ -64,11 +64,11 @@ def parse_multilingual_data(data: str) -> Dict[str, str]:
                 logger.warning("JSON item missing 'lang' or 'text' fields")
                 continue
             result[item["lang"]] = item["text"]
-        
+
         # If we extracted any languages, return them
         if result:
             return result
-        
+
         # Otherwise, treat as plain text
         logger.warning("No valid language entries found in JSON")
         return {"text": data}
@@ -76,28 +76,28 @@ def parse_multilingual_data(data: str) -> Dict[str, str]:
     except json.JSONDecodeError:
         # If JSON parsing fails, try to detect if it's Arabic text
         logger.debug("JSON parsing failed, attempting language detection")
-        
+
         try:
             # If it contains Arabic characters, it's likely Arabic text
             if any(0x0600 <= ord(c) <= 0x06FF for c in data[:50]):
                 logger.debug("Detected Arabic text based on character range")
                 return {"ar": data}
-            
+
             # Otherwise use language detection
             lang = get_language_from_text(data)
             logger.debug(f"Detected language: {lang}")
-            
+
             if lang == "ar":
                 return {"ar": data}
             else:
                 # Use the detected language
                 return {lang: data}
-                
+
         except Exception as e:
             logger.error(f"Error during language detection: {e}")
             # Fall back to treating as generic text
             return {"text": data}
-    
+
     except Exception as e:
         logger.error(f"Unexpected error in parse_multilingual_data: {e}")
         # Create a safe fallback dictionary
@@ -118,12 +118,12 @@ def process_document_source_data(doc: dict) -> dict:
     """
     if "source" not in doc or "data" not in doc["source"]:
         return doc
-    
+
     try:
         # Try to parse the source data as multilingual data
         original_data = doc["source"]["data"]
         parsed_data = parse_multilingual_data(original_data)
-        
+
         # Format the data based on the parsed result
         text_list = []
         if "ar" in parsed_data:
@@ -132,11 +132,11 @@ def process_document_source_data(doc: dict) -> dict:
             text_list.append(f"English: {parsed_data['en']}")
         if not text_list and "text" in parsed_data:
             text_list.append(f"Text: {parsed_data['text']}")
-        
+
         # Set the source data to the formatted text
         if text_list:
             doc["source"]["data"] = "\n\n".join(text_list)
-        
+
     except Exception as e:
         logger.error(f"Error processing document source data: {e}")
         # Try a simple fallback
@@ -147,5 +147,5 @@ def process_document_source_data(doc: dict) -> dict:
                 doc["source"]["data"] = f"Text: {original_text}"
         except Exception:
             pass
-    
+
     return doc

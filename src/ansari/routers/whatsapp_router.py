@@ -1,7 +1,7 @@
 # WhatsApp API Router for ansari-backend
 """FastAPI router containing WhatsApp-specific API endpoints for the ansari-whatsapp microservice."""
 
-from fastapi import APIRouter, HTTPException, Request, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -67,11 +67,9 @@ class WhatsAppMessageRequest(BaseModel):
     thread_id: str
     message: str
 
+
 @router.post("/whatsapp/v2/users/register")
-async def register_whatsapp_user(
-    req: WhatsAppUserRegisterRequest,
-    _: None = Depends(verify_whatsapp_api_key)
-):
+async def register_whatsapp_user(req: WhatsAppUserRegisterRequest, _: None = Depends(verify_whatsapp_api_key)):
     """Register a new WhatsApp user with the Ansari backend.
 
     Args:
@@ -90,7 +88,7 @@ async def register_whatsapp_user(
             first_name=None,
             last_name=None,
             phone_num=req.phone_num,
-            preferred_language=req.preferred_language
+            preferred_language=req.preferred_language,
         )
 
         logger.info(f"Successfully registered WhatsApp user: {req.phone_num}")
@@ -143,10 +141,7 @@ async def check_whatsapp_user_exists(
 
 
 @router.post("/whatsapp/v2/threads")
-async def create_whatsapp_thread(
-    req: WhatsAppThreadRequest,
-    _: None = Depends(verify_whatsapp_api_key)
-):
+async def create_whatsapp_thread(req: WhatsAppThreadRequest, _: None = Depends(verify_whatsapp_api_key)):
     """Create a new thread for a WhatsApp user in the Ansari backend.
 
     Args:
@@ -162,7 +157,7 @@ async def create_whatsapp_thread(
         user_id = db.retrieve_user_info(
             source=SourceType.WHATSAPP,
             phone_num=req.phone_num,
-            db_cols=["id"] if hasattr(db, '_execute_query') else None  # SQL vs MongoDB compatibility
+            db_cols=["id"] if hasattr(db, "_execute_query") else None,  # SQL vs MongoDB compatibility
         )
 
         if not user_id:
@@ -186,10 +181,7 @@ async def create_whatsapp_thread(
 
 
 @router.get("/whatsapp/v2/threads/last")
-async def get_last_whatsapp_thread(
-    phone_num: str,
-    _: None = Depends(verify_whatsapp_api_key)
-):
+async def get_last_whatsapp_thread(phone_num: str, _: None = Depends(verify_whatsapp_api_key)):
     """Get information about the last active thread for a WhatsApp user.
 
     Args:
@@ -203,9 +195,7 @@ async def get_last_whatsapp_thread(
 
         # Get the user ID for the WhatsApp user
         user_id = db.retrieve_user_info(
-            source=SourceType.WHATSAPP,
-            phone_num=phone_num,
-            db_cols=["id"] if hasattr(db, '_execute_query') else None
+            source=SourceType.WHATSAPP, phone_num=phone_num, db_cols=["id"] if hasattr(db, "_execute_query") else None
         )
 
         if not user_id:
@@ -219,7 +209,7 @@ async def get_last_whatsapp_thread(
 
         result = {
             "thread_id": str(thread_id) if thread_id else None,
-            "last_message_time": last_message_time.isoformat() if last_message_time else None
+            "last_message_time": last_message_time.isoformat() if last_message_time else None,
         }
 
         logger.info(f"Last thread info for WhatsApp user {phone_num}: {result}")
@@ -233,11 +223,7 @@ async def get_last_whatsapp_thread(
 
 
 @router.get("/whatsapp/v2/threads/{thread_id}/history")
-async def get_whatsapp_thread_history(
-    thread_id: str,
-    phone_num: str,
-    _: None = Depends(verify_whatsapp_api_key)
-):
+async def get_whatsapp_thread_history(thread_id: str, phone_num: str, _: None = Depends(verify_whatsapp_api_key)):
     """Get the message history for a WhatsApp user's thread from the Ansari backend.
 
     Args:
@@ -252,9 +238,7 @@ async def get_whatsapp_thread_history(
 
         # Verify the user exists and has access to this thread
         user_id = db.retrieve_user_info(
-            source=SourceType.WHATSAPP,
-            phone_num=phone_num,
-            db_cols=["id"] if hasattr(db, '_execute_query') else None
+            source=SourceType.WHATSAPP, phone_num=phone_num, db_cols=["id"] if hasattr(db, "_execute_query") else None
         )
 
         if not user_id:
@@ -281,10 +265,7 @@ async def get_whatsapp_thread_history(
 
 
 @router.post("/whatsapp/v2/messages/process")
-def process_whatsapp_message(
-    req: WhatsAppMessageRequest,
-    _: None = Depends(verify_whatsapp_api_key)
-) -> StreamingResponse:
+def process_whatsapp_message(req: WhatsAppMessageRequest, _: None = Depends(verify_whatsapp_api_key)) -> StreamingResponse:
     """Process a message from a WhatsApp user with streaming response.
 
     Args:
@@ -298,9 +279,7 @@ def process_whatsapp_message(
 
         # Verify the user exists and get user_id
         user_id = db.retrieve_user_info(
-            source=SourceType.WHATSAPP,
-            phone_num=req.phone_num,
-            db_cols=["id"] if hasattr(db, '_execute_query') else None
+            source=SourceType.WHATSAPP, phone_num=req.phone_num, db_cols=["id"] if hasattr(db, "_execute_query") else None
         )
 
         if not user_id:

@@ -95,7 +95,7 @@ class TestMCPEndpoint:
         # Fourth argument is thread_id - should be a valid ObjectId string (24 hex chars)
         thread_id = call_args[0][3]
         assert len(thread_id) == 24  # ObjectId strings are 24 characters
-        assert all(c in '0123456789abcdef' for c in thread_id)  # All hex characters
+        assert all(c in "0123456789abcdef" for c in thread_id)  # All hex characters
 
     def test_mcp_endpoint_handles_empty_messages(self, client):
         """Test that the MCP endpoint handles empty message lists gracefully."""
@@ -169,4 +169,4 @@ class TestMCPIntegration:
 
             # Verify thread_id is a valid ObjectId string
             assert len(thread_id) == 24  # ObjectId strings are 24 characters
-            assert all(c in '0123456789abcdef' for c in thread_id)  # All hex characters
+            assert all(c in "0123456789abcdef" for c in thread_id)  # All hex characters
