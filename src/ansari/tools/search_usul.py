@@ -140,7 +140,7 @@ class SearchUsul(BaseSearchTool):
         """
         # Check for empty results in different ways
         if not results or "results" not in results or not results.get("results", []):
-            return ["No results found."]
+            return []
 
         documents = []
         for result in results.get("results", []):

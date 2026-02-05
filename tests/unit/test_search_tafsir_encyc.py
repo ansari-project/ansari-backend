@@ -173,8 +173,7 @@ class TestSearchTafsirEncyc:
 
         # Check the formatted versions for empty results
         formatted_list = self.search_tool.format_as_ref_list(empty_results)
-        assert len(formatted_list) == 1
-        assert formatted_list[0] == "No results found."
+        assert len(formatted_list) == 0
 
         formatted_tool_result = self.search_tool.format_as_tool_result(empty_results)
         assert formatted_tool_result["type"] == "text"

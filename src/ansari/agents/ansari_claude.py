@@ -320,14 +320,25 @@ class AnsariClaude(Ansari):
         # Check for tool_result blocks without document blocks
         for msg in self.message_history:
             if msg.get("role") == "user" and isinstance(msg.get("content"), list):
-                for tool_block in msg["content"]:
-                    if isinstance(tool_block, dict) and tool_block.get("type") == "tool_result":
-                        # Check if this message has at least one document block
-                        has_document = any(
-                            isinstance(block, dict) and block.get("type") == "document" for block in msg["content"]
-                        )
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        # Skip error tool_results — they intentionally have no documents
+                        if block.get("is_error"):
+                            continue
+                        # Skip tool_results with no content — valid for no-results cases
+                        if "content" not in block:
+                            continue
+                        # Check for documents as siblings (old format) or
+                        # nested inside tool_result.content (current format)
+                        has_document = any(isinstance(b, dict) and b.get("type") == "document" for b in msg["content"])
                         if not has_document:
-                            logger.warning(f"Found tool_result without document block: {tool_block.get('tool_use_id')}")
+                            tool_content = block.get("content", [])
+                            if isinstance(tool_content, list):
+                                has_document = any(
+                                    isinstance(item, dict) and item.get("type") == "document" for item in tool_content
+                                )
+                        if not has_document:
+                            logger.warning(f"Found tool_result without document block: {block.get('tool_use_id')}")
                             needs_repair = True
                             break
 
@@ -1509,6 +1520,19 @@ class AnsariClaude(Ansari):
                         logger.debug(f"Found tool_use block with ID: {block['id']}")
 
         logger.debug(f"Found tool_use_ids: {tool_use_ids}")
+
+        # Sanitize tool_result.content: fix existing DB records where tools returned
+        # ["No results found."] (bare string) instead of [].
+        for msg in self.message_history:
+            if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+                for block in msg["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        tool_content = block.get("content", [])
+                        if isinstance(tool_content, list) and "No results found." in tool_content:
+                            logger.warning(
+                                f"Removing tool_result.content containing 'No results found.' for {block.get('tool_use_id')}"
+                            )
+                            del block["content"]
 
         # Second pass: ensure all messages have proper format for the API
         for i in range(len(self.message_history)):

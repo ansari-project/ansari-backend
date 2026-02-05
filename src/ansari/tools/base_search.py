@@ -57,7 +57,7 @@ class BaseSearchTool(ABC):
                 {"lang": "en", "text": "English translation"} # Optional
             ]
 
-            Or a list containing a single string "No results found." if no results.
+            Or an empty list if no results were found.
         """
         pass
 
