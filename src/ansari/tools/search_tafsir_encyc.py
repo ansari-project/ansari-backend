@@ -73,7 +73,7 @@ class SearchTafsirEncyc(SearchUsul):
         """
         # Check for empty results in different ways:
         if not results or "results" not in results or not results.get("results", []):
-            return ["No results found."]
+            return []
 
         formatted_results = []
         for result in results.get("results", []):
@@ -131,7 +131,7 @@ class SearchTafsirEncyc(SearchUsul):
 
             formatted_results.append(formatted_text)
 
-        return formatted_results if formatted_results else ["No results found."]
+        return formatted_results if formatted_results else []
 
     def format_as_ref_list(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Format raw results as a list of reference documents for Claude.
@@ -144,7 +144,7 @@ class SearchTafsirEncyc(SearchUsul):
         """
         # Check for empty results in different ways:
         if not results or "results" not in results or not results.get("results", []):
-            return ["No results found."]
+            return []
 
         documents = []
         for result in results.get("results", []):
@@ -218,7 +218,7 @@ class SearchTafsirEncyc(SearchUsul):
                 }
             )
 
-        return documents if documents else ["No results found."]
+        return documents if documents else []
 
     def _ref_object_to_string(self, ref_obj: Dict[str, Any]) -> str:
         """Convert a reference object to a string representation.
@@ -277,11 +277,11 @@ class SearchTafsirEncyc(SearchUsul):
         Returns:
             Dict containing formatted results for Claude
         """
-        formatted_refs = self.format_as_ref_list(results)
+        # Check for empty results
+        if not results or "results" not in results or not results.get("results", []):
+            return {"type": "text", "text": "No results found."}
 
-        # Check if we have actual results or just a "no results" message
-        if len(formatted_refs) == 1 and isinstance(formatted_refs[0], str):
-            return {"type": "text", "text": formatted_refs[0]}
+        formatted_refs = self.format_as_ref_list(results)
 
         # Otherwise, convert each reference to a tool result item
         formatted_items = []

@@ -51,7 +51,7 @@ class SearchMawsuah(SearchVectara):
         documents = super().format_as_ref_list(response)
 
         if not documents:
-            return ["No results found."]
+            return []
 
         # Update documents with just Arabic text and citation support
         for doc in documents:
