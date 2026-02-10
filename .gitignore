@@ -51,3 +51,9 @@ ansari-mcp/
 
 # Test scripts
 test_gemini.py
+
+# Codev
+.agent-farm/
+.consult/
+codev/.update-hashes.json
+.builders/
