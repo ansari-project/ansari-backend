@@ -32,8 +32,8 @@ jobs:
       WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ secrets.WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK }}
       PYTHONPATH: src
 
-    # Use a Python 3.10 container
-    container: python:3.10
+    # Use a Python 3.13 container
+    container: python:3.13
 
     steps:
 
