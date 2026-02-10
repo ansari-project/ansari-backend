@@ -64,5 +64,6 @@ jobs:
     - name: Test with pytest
       env:
         SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
+        WHATSAPP_SERVICE_API_KEY: "test-service-key" # Required field for Settings validation in tests.
       run: |
         pytest --capture=tee-sys --cov=.
