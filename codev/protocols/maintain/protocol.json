@@ -1,0 +1,141 @@
+{
+  "$schema": "../../protocol-schema.json",
+  "name": "maintain",
+  "alias": "maint",
+  "version": "2.0.0",
+  "description": "Codebase maintenance - dead code removal, doc sync, hygiene with 3-way review",
+  "input": {
+    "type": "protocol",
+    "required": false,
+    "default_for": ["--protocol maintain"]
+  },
+  "phases": [
+    {
+      "id": "audit",
+      "name": "Audit",
+      "description": "Analyze codebase for dead code, unused dependencies, stale docs",
+      "type": "build_verify",
+      "build": {
+        "prompt": "audit.md",
+        "artifact": "codev/maintain/*.md"
+      },
+      "verify": {
+        "type": "impl-review",
+        "models": ["gemini", "codex", "claude"],
+        "parallel": true
+      },
+      "max_iterations": 3,
+      "on_complete": {
+        "commit": true,
+        "push": true
+      },
+      "next": "clean"
+    },
+    {
+      "id": "clean",
+      "name": "Clean",
+      "description": "Remove identified dead code and unused dependencies",
+      "type": "build_verify",
+      "build": {
+        "prompt": "clean.md",
+        "artifact": "src/**/*.{ts,tsx,js,jsx}"
+      },
+      "verify": {
+        "type": "impl-review",
+        "models": ["gemini", "codex", "claude"],
+        "parallel": true
+      },
+      "max_iterations": 5,
+      "on_complete": {
+        "commit": true,
+        "push": true
+      },
+      "checks": {
+        "build": {
+          "command": "npm run build",
+          "on_fail": "retry",
+          "max_retries": 2
+        },
+        "tests": {
+          "command": "npm test -- --exclude='**/e2e/**'",
+          "on_fail": "retry",
+          "max_retries": 2
+        }
+      },
+      "next": "sync"
+    },
+    {
+      "id": "sync",
+      "name": "Sync Documentation",
+      "description": "Update documentation to match current codebase",
+      "type": "build_verify",
+      "build": {
+        "prompt": "sync.md",
+        "artifact": "codev/resources/*.md"
+      },
+      "verify": {
+        "type": "impl-review",
+        "models": ["gemini", "codex", "claude"],
+        "parallel": true
+      },
+      "max_iterations": 5,
+      "on_complete": {
+        "commit": true,
+        "push": true
+      },
+      "next": "verify"
+    },
+    {
+      "id": "verify",
+      "name": "Verify",
+      "description": "Final validation and PR creation",
+      "type": "build_verify",
+      "build": {
+        "prompt": "verify.md",
+        "artifact": "codev/maintain/*.md"
+      },
+      "verify": {
+        "type": "pr-ready",
+        "models": ["gemini", "codex", "claude"],
+        "parallel": true
+      },
+      "max_iterations": 3,
+      "on_complete": {
+        "commit": true,
+        "push": true
+      },
+      "checks": {
+        "build": {
+          "command": "npm run build",
+          "on_fail": "retry",
+          "max_retries": 2
+        },
+        "tests": {
+          "command": "npm test",
+          "on_fail": "retry",
+          "max_retries": 2
+        }
+      },
+      "gate": "maintain-complete",
+      "next": null
+    }
+  ],
+  "signals": {
+    "PHASE_COMPLETE": {
+      "description": "Signal current phase is complete",
+      "transitions_to": "verify"
+    },
+    "BLOCKED": {
+      "description": "Signal maintenance is blocked",
+      "requires": "reason"
+    }
+  },
+  "defaults": {
+    "mode": "strict",
+    "max_iterations": 5,
+    "verify": {
+      "models": ["gemini", "codex", "claude"],
+      "parallel": true
+    }
+  }
+}
