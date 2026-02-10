@@ -47,11 +47,11 @@ jobs:
         pip install uv
         # TODO(abdullah): create a venv using uv
 
-    # Install Python dependencies, including `ruff`, `pytest`, `pytest-asyncio`, and `pytest-cov`.
+    # Install Python dependencies from pyproject.toml plus test/lint tools.
     - name: Install dependencies
       run: |
-        uv pip install --system ruff pytest pytest-asyncio pytest-cov 
-        if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
+        uv pip install --system ruff pytest pytest-asyncio pytest-cov
+        uv pip install --system .
 
 
     # Lint the code using `ruff` and stop the build if there are lint errors.
