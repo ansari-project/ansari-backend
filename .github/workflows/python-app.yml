@@ -32,8 +32,8 @@ jobs:
       WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK: ${{ secrets.WHATSAPP_VERIFY_TOKEN_FOR_WEBHOOK }}
       PYTHONPATH: src
 
-    # Use a Python 3.10 container
-    container: python:3.10
+    # Use a Python 3.13 container
+    container: python:3.13
 
     steps:
 
@@ -47,11 +47,11 @@ jobs:
         pip install uv
         # TODO(abdullah): create a venv using uv
 
-    # Install Python dependencies, including `ruff`, `pytest`, `pytest-asyncio`, and `pytest-cov`.
+    # Install Python dependencies from pyproject.toml plus test/lint tools.
     - name: Install dependencies
       run: |
-        uv pip install --system ruff pytest pytest-asyncio pytest-cov 
-        if [ -f requirements.txt ]; then uv pip install --system -r requirements.txt; fi
+        uv pip install --system ruff pytest pytest-asyncio pytest-cov
+        uv pip install --system .
 
 
     # Lint the code using `ruff` and stop the build if there are lint errors.
@@ -64,5 +64,6 @@ jobs:
     - name: Test with pytest
       env:
         SECRET_KEY: "secret" # This is a required field. Setting it to a random value to pass the tests.
+        WHATSAPP_SERVICE_API_KEY: "test-service-key" # Required field for Settings validation in tests.
       run: |
         pytest --capture=tee-sys --cov=.
