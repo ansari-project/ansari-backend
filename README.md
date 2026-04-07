@@ -65,7 +65,7 @@ ansari -a AnsariClaude
 
 # What can Ansari do?
 
-A complete list of what Ansari can do can be found [here](https://ansari.chat/docs/capabilities/).
+A complete list of what Ansari can do can be found [here](https://docs.ansari.chat/capabilities/).
 
 # What is logged with Ansari?
 
