@@ -51,7 +51,7 @@ Add a `_filter_results()` method that removes results where both `text` and `en_
 Same pattern but checks `ar_text` and `en_text` (hadith uses `ar_text`, not `text`).
 
 **`pp_hadith` safe access**:
-Replace all direct key access (`h["en_text"]`, `h["grade_en"]`, `h["source_book"]`, etc.) with `.get("key", "")`.
+Replace all direct key access (`h["en_text"]`, `h["grade_en"]`, `h["source_book"]`, etc.) with `.get("key", "")`. For fields that are subsequently called with `.strip()` (like `grade_en`), use the pattern `(h.get("grade_en") or "").strip()` to handle both missing keys and `None` values.
 
 #### Acceptance Criteria
 - [ ] Query "Ayat Ul Kursi" no longer produces empty/placeholder entries
