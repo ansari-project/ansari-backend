@@ -29,7 +29,7 @@ Filter out results without text content from the Kalimat API response in `Search
 
 ### Phase 1: Filter and defensive access
 **Dependencies**: None
-**Status**: pending
+**Status**: completed
 
 #### Objectives
 - Filter out results lacking text content in `SearchQuran.run()` and `SearchHadith.run()`
