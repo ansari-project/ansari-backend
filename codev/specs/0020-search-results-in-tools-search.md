@@ -23,9 +23,10 @@ The Kalimat search API (`api.kalimat.dev/search`) can return results where certa
 - No filtering of navigational results is done; they are passed through to the LLM as content-bearing results.
 
 ## Desired State
-- Navigational results (those with `navigational: 1` and missing `text`/`en_text`) are filtered out before formatting, since they carry no textual content to present.
-- `search_hadith.py:pp_hadith` uses safe `.get()` access for all fields, consistent with the defensive pattern already partially used in `search_quran.py`.
-- Logging records when navigational results are filtered, for debugging.
+- Results lacking text content are filtered out before formatting. The filter predicate is: a result is removed if it has **no non-empty text field** — specifically, for Quran results, both `text` and `en_text` must be absent or empty; for Hadith results, both `ar_text` and `en_text` must be absent or empty. Empty strings and whitespace-only strings count as "missing." This is independent of the `navigational` flag — any result without text content is filtered regardless of the reason.
+- When all results are filtered out, the tool returns an empty list, consistent with existing empty-result behavior (the caller already handles this case with "No results found").
+- `search_hadith.py:pp_hadith` uses safe `.get()` access with string defaults (e.g., `""`) for all fields, consistent with the defensive pattern already partially used in `search_quran.py`.
+- Logging records when results are filtered: the log message includes the count of filtered results and their IDs/types for debugging.
 
 ## Stakeholders
 - **Primary Users**: End users querying Quran/Hadith through Ansari
@@ -112,3 +113,21 @@ The Kalimat search API (`api.kalimat.dev/search`) can return results where certa
 |------|------------|--------|-------------------|
 | Kalimat API changes navigational result format | Low | Low | Filtering checks for absence of both text fields, not for `navigational` flag specifically |
 | Hadith API returns similar incomplete results | Low | Medium | Apply same defensive pattern to `search_hadith.py` |
+
+## Expert Consultation
+**Date**: 2026-04-12
+**Models Consulted**: Gemini Pro and GPT-5 Codex
+
+### Gemini Pro Feedback
+- **APPROVE** (HIGH confidence)
+- Key issue: Hadith API uses `ar_text` (not `text`) for Arabic text — filter predicate must check the correct field per tool
+- Key issue: `.get()` calls in `pp_hadith` need string defaults to avoid `TypeError` during string formatting
+
+### GPT-5 Codex Feedback
+- **COMMENT** (HIGH confidence)
+- Clarify the exact filter predicate: filter on absence of text content, not on `navigational` flag
+- Define whether empty/whitespace-only strings count as "missing" (decision: yes, they do)
+- Clarify empty-result behavior (decision: return empty list, consistent with existing handling)
+- Logging should include count and IDs of filtered results
+
+All feedback has been incorporated into the Desired State and Solution Approaches sections above.
