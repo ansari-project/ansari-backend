@@ -18,8 +18,6 @@ from ansari.ansari_logger import get_logger
 from ansari.config import Settings
 from ansari.tools.search_hadith import SearchHadith
 from ansari.tools.search_quran import SearchQuran
-from ansari.tools.search_tafsir_encyc import SearchTafsirEncyc
-from ansari.tools.search_mawsuah import SearchMawsuah
 from ansari.util.prompt_mgr import PromptMgr
 
 # previous logger name: __name__ + ".Ansari"
@@ -50,16 +48,9 @@ class Ansari:
         """Initialize tool instances. Can be overridden by subclasses."""
         sq = SearchQuran(self.settings.KALEMAT_API_KEY.get_secret_value())
         sh = SearchHadith(self.settings.KALEMAT_API_KEY.get_secret_value())
-        sm = SearchMawsuah(
-            self.settings.VECTARA_API_KEY.get_secret_value(),
-            self.settings.MAWSUAH_VECTARA_CORPUS_KEY,
-        )
-        ste = SearchTafsirEncyc(self.settings.USUL_API_TOKEN.get_secret_value())
         return {
             sq.get_tool_name(): sq,
             sh.get_tool_name(): sh,
-            sm.get_tool_name(): sm,
-            ste.get_tool_name(): ste,
         }
 
     def set_message_logger(self, message_logger: MessageLogger):
