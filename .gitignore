@@ -21,6 +21,8 @@ dist/
 # Files
 .__atomic-write*
 .env
+.env.*
+!.env.example
 .history
 *.pyc
 pyvenv.cfg
