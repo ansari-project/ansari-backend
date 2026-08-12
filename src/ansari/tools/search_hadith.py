@@ -55,14 +55,38 @@ class SearchHadith:
             )
             response.raise_for_status()
 
-        return response.json()
+        results = response.json()
+        return self._filter_results(results)
+
+    def _filter_results(self, results):
+        """Filter out results that lack text content.
+
+        A result is removed if both 'ar_text' and 'en_text' are absent or empty/whitespace.
+        """
+        filtered = []
+        removed = []
+        for r in results:
+            ar_text = (r.get("ar_text") or "").strip()
+            en_text = (r.get("en_text") or "").strip()
+            if ar_text or en_text:
+                filtered.append(r)
+            else:
+                removed.append(r)
+        if removed:
+            removed_info = [(r.get("id", "?"), r.get("type", "?")) for r in removed]
+            logger.debug(f"Filtered {len(removed)} results without text content: {removed_info}")
+        return filtered
 
     def pp_hadith(self, h):
-        en = h["en_text"]
-        grade = h["grade_en"].strip()
+        en = h.get("en_text", "")
+        grade = (h.get("grade_en") or "").strip()
         if grade:
             grade = f"\nGrade: {grade}\n"
-        src = f"Collection: {h['source_book']} Chapter: {h['chapter_number']} Hadith: {h['hadith_number']} LK id: {h['id']}"
+        source_book = h.get("source_book", "")
+        chapter_number = h.get("chapter_number", "")
+        hadith_number = h.get("hadith_number", "")
+        lk_id = h.get("id", "")
+        src = f"Collection: {source_book} Chapter: {chapter_number} Hadith: {hadith_number} LK id: {lk_id}"
         result = f"{src}\n{en}\n{grade}"
         return result
 
