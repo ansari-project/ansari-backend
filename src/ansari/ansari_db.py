@@ -253,6 +253,28 @@ class AnsariDB:
             logger.debug(f"Warning (possible error): {e}")
             return False
 
+    def get_user_id_by_phone(self, phone_num):
+        """
+        Get user_id for a user by their phone number.
+
+        Args:
+            phone_num (str): User's phone number.
+
+        Returns:
+            str: User's ID as a string, or None if not found.
+        """
+        try:
+            if not phone_num:
+                raise ValueError("phone_num must be provided")
+
+            result = self.get_collection("users").find_one({"phone_num": phone_num})
+            if result and "_id" in result:
+                return str(result["_id"])
+            return None
+        except Exception as e:
+            logger.debug(f"Warning (possible error): {e}")
+            return None
+
     def save_access_token(self, user_id, token):
         try:
             result = self.get_collection("access_tokens").insert_one({"user_id": ObjectId(user_id), "token": token})
