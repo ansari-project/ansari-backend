@@ -1,5 +1,16 @@
 # Ansari - Overview
 
+> [!IMPORTANT]
+> **This repository is no longer maintained.** Development of Ansari has moved to
+> **[iaser-ai/ansari](https://github.com/iaser-ai/ansari)**. Please open new issues
+> and pull requests there.
+>
+> The code here is kept for reference only and will not receive updates, bug fixes
+> or security patches.
+>
+> The backend now lives in [`apps/api`](https://github.com/iaser-ai/ansari/tree/develop/apps/api)
+> in the new repository.
+
 _Try Ansari now at [ansari.chat](https://ansari.chat)!_
 
 Ansari is an **experimental open source project** that explores the application of large language models in helping Muslims improve their practice of Islam and non-Muslims develop an accurate understanding of the teachings of Islam.
