@@ -10,6 +10,7 @@ from ansari.agents.ansari import Ansari
 from ansari.ansari_db import MessageLogger
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
+from ansari.util.attachments import redact_images
 from ansari.util.prompt_mgr import PromptMgr
 from ansari.util.robust_translation import parse_multilingual_data, process_document_source_data
 from ansari.util.translation import translate_texts_parallel
@@ -193,16 +194,16 @@ class AnsariClaude(Ansari):
 
         # Validate message structure
         if not self.validate_message(message):
-            logger.warning(f"Invalid message structure: {message}")
+            logger.warning(f"Invalid message structure: {redact_images(message)}")
             return
 
-        logger.debug(f"Logging {message}")
+        logger.debug(f"Logging {redact_images(message)}")
         try:
             self.message_logger.log(message)
             logger.debug(f"Successfully logged message with role: {message['role']}")
         except Exception as e:
             logger.error(f"Error logging message: {str(e)}")
-            logger.error(f"Message that failed to log: {message}")
+            logger.error(f"Message that failed to log: {redact_images(message)}")
 
     def process_input(self, user_input: str):
         """Process user input and generate a response."""
@@ -649,7 +650,7 @@ class AnsariClaude(Ansari):
         self._validate_message_history()
 
         # Log the final message history before sending to API
-        logger.debug(f"Sending messages to Claude: {json.dumps(self.message_history, indent=2)}")
+        logger.debug(f"Sending messages to Claude: {json.dumps(redact_images(self.message_history), indent=2)}")
 
         # Limit documents in message history to prevent Claude from crashing
         # This creates a copy of the message history, preserving the original
