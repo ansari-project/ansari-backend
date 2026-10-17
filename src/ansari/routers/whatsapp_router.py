@@ -91,19 +91,23 @@ async def register_whatsapp_user(req: WhatsAppUserRegisterRequest, _: None = Dep
             preferred_language=req.preferred_language,
         )
 
-        logger.info(f"Successfully registered WhatsApp user: {req.phone_num}")
-        return {"status": "success", "user_id": result}
+        if result.get("status") != "success":
+            raise HTTPException(status_code=400, detail=f"Registration failed: {result.get('error')}")
 
+        user_id = db.get_user_id_by_phone(req.phone_num)
+
+        logger.info(f"Successfully registered WhatsApp user: {req.phone_num} (user_id: {user_id})")
+        return {"status": "success", "user_id": user_id}
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error registering WhatsApp user {req.phone_num}: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
 
 
 @router.get("/whatsapp/v2/users/exists")
-async def check_whatsapp_user_exists(
-    phone_num: str,
-    _: None = Depends(verify_whatsapp_api_key)
-) -> str:
+async def check_whatsapp_user_exists(phone_num: str, _: None = Depends(verify_whatsapp_api_key)) -> str:
     """Get user ID for a WhatsApp phone number.
 
     Args:
