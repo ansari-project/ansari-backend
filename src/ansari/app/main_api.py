@@ -39,6 +39,7 @@ from ansari.agents.ansari_workflow import AnsariWorkflow
 from ansari.ansari_db import AnsariDB, MessageLogger, SourceType
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
+from ansari.util.attachments import add_omitted_image_notes, decode_and_validate_image, make_image_block
 from ansari.dependencies import db, presenter
 from ansari.util.general_helpers import CORSMiddlewareWithLogging, get_extended_origins, register_to_mailing_list
 
@@ -519,10 +520,43 @@ async def get_all_threads(
         raise HTTPException(status_code=500)
 
 
+class ImageAttachment(BaseModel):
+    media_type: str  # image/jpeg, image/png, image/gif or image/webp
+    data: str  # base64-encoded image bytes (a "data:...;base64," prefix is tolerated)
+
+
 class AddMessageRequest(BaseModel):
     role: str
-    content: str
+    content: str = ""
     source: SourceType = SourceType.WEB
+    attachments: list[ImageAttachment] = []
+
+
+def _build_user_message(req: AddMessageRequest, settings: Settings) -> dict:
+    """Validate the request's text and images and build the user message in LLM format.
+
+    Raises:
+        HTTPException: 400 if the message is empty or an image is invalid.
+    """
+    if not req.content.strip() and not req.attachments:
+        raise HTTPException(status_code=400, detail="Message must contain text or at least one image")
+    if len(req.attachments) > settings.MAX_IMAGES_PER_MESSAGE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"At most {settings.MAX_IMAGES_PER_MESSAGE} images can be attached to a message",
+        )
+
+    blocks = []
+    for attachment in req.attachments:
+        try:
+            data = decode_and_validate_image(attachment.data, attachment.media_type, settings.MAX_IMAGE_BYTES)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        blocks.append(make_image_block(attachment.media_type, data))
+    # Images go before the text, as recommended by Anthropic
+    if req.content:
+        blocks.append({"type": "text", "text": req.content})
+    return {"role": "user", "content": blocks}
 
 
 @app.post("/api/v2/threads/{thread_id}")
@@ -538,6 +572,10 @@ def add_message(
 
     logger.info(f"Token_params is {token_params}")
 
+    # Validate before streaming starts, so bad images get a proper 400 instead of a broken stream
+    user_msg = _build_user_message(req, settings)
+    thread_name = req.content or "Image"
+
     try:
         # Get the thread history (excluding incoming user's message, as it will be logged later)
         history = db.get_thread_llm(thread_id, token_params["user_id"])
@@ -548,24 +586,26 @@ def add_message(
             db.set_thread_name(
                 thread_id,
                 token_params["user_id"],
-                req.content,
+                thread_name,
             )
             logger.info(f"Added thread {thread_id}")
         elif history["thread_name"] is None:
             db.set_thread_name(
                 thread_id,
                 token_params["user_id"],
-                req.content,
+                thread_name,
             )
             logger.info(f"Added thread {thread_id}")
 
         # Get the thread history
         history = db.get_thread(thread_id, token_params["user_id"])
 
+        # Images are not stored, so earlier ones are only mentioned to the LLM
+        history["messages"] = add_omitted_image_notes(history["messages"])
+
         # Append the user's message to the history retrieved from the DB
         # NOTE: "user" is used instead of `req.role`, as we don't want to change the frontend's code
         #   In the event of our LLM provider (e.g., OpenaAI) decide to the change how the user's role is represented
-        user_msg = {"role": "user", "content": [{"type": "text", "text": req.content}]}
         history["messages"].append(user_msg)
 
         # Send the thread's history to the Ansari agent which will

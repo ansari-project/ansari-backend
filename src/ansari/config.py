@@ -193,6 +193,11 @@ class Settings(BaseSettings):
     PROMPT_PATH: str = Field(default=str(get_resource_path("prompts")))
     AGENT: str = Field(default="AnsariClaude")
     ANTHROPIC_MODEL: str = Field(default="claude-sonnet-4-5")
+    # Image attachments in chat messages (sent to the LLM for that turn only; never stored)
+    # 3.75 MB decoded keeps the base64 payload under Anthropic's 5 MB per-image limit
+    MAX_IMAGE_BYTES: int = Field(default=3_750_000)
+    MAX_IMAGES_PER_MESSAGE: int = Field(default=4)
+
     LOGGING_LEVEL: str = Field(default="INFO")
     DEV_MODE: bool = Field(default=False)
 

@@ -16,6 +16,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 
 from ansari.ansari_logger import get_logger
 from ansari.config import Settings, get_settings
+from ansari.util.attachments import count_image_placeholders, replace_images_with_placeholders
 
 logger = get_logger("DEBUG")
 
@@ -437,10 +438,11 @@ class AnsariDB:
         Args:
             user_id: The user ID (ObjectId)
             thread_id: The thread ID (ObjectId)
-            message: The message content
+            message: The message content. Image blocks are replaced with placeholders; image data is never stored.
         """
         try:
             new_message = {**message}
+            new_message["content"] = replace_images_with_placeholders(new_message.get("content"))
             new_message["id"] = str(ObjectId())
             new_message["source"] = source.value
             new_message["created_at"] = datetime.now(timezone.utc)
@@ -680,14 +682,23 @@ class AnsariDB:
 
         logger.info(f"Content is {content}")
 
+        image_count = count_image_placeholders(content)
+
         # If content is a list, find the first element with type "text"
         if isinstance(content, list):
             for item in content:
                 if isinstance(item, dict) and item.get("type") == "text":
                     content = item.get("text", "")
                     break
+            else:
+                # Image-only user message: there is no text to show
+                if image_count:
+                    content = ""
 
-        return {"id": str(msg_id), "role": role, "content": content}
+        converted = {"id": str(msg_id), "role": role, "content": content}
+        if image_count:
+            converted["image_count"] = image_count
+        return converted
 
     def convert_message_llm(self, msg) -> list[dict]:
         """Convert a message from database format to LLM format."""
