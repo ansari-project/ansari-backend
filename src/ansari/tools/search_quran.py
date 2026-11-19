@@ -60,8 +60,27 @@ class SearchQuran:
             )
             response.raise_for_status()
 
-        # Return the JSON response directly as in the original implementation
-        return response.json()
+        results = response.json()
+        return self._filter_results(results)
+
+    def _filter_results(self, results):
+        """Filter out results that lack text content (e.g., navigational results).
+
+        A result is removed if both 'text' and 'en_text' are absent or empty/whitespace.
+        """
+        filtered = []
+        removed = []
+        for r in results:
+            text = (r.get("text") or "").strip()
+            en_text = (r.get("en_text") or "").strip()
+            if text or en_text:
+                filtered.append(r)
+            else:
+                removed.append(r)
+        if removed:
+            removed_info = [(r.get("id", "?"), r.get("type", "?")) for r in removed]
+            logger.debug(f"Filtered {len(removed)} results without text content: {removed_info}")
+        return filtered
 
     def pp_ayah(self, ayah):
         # Added debug logging to understand the ayah structure
