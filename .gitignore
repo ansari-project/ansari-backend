@@ -59,3 +59,8 @@ test_gemini.py
 .consult/
 codev/.update-hashes.json
 .builders/
+
+# macOS system files
+**/.DS_Store
+**/.AppleDouble
+**/.LSOverride
