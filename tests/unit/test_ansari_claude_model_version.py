@@ -10,7 +10,7 @@ def mock_settings():
     settings = MagicMock()
     settings.ANTHROPIC_API_KEY = MagicMock()
     settings.ANTHROPIC_API_KEY.get_secret_value.return_value = "test-api-key"
-    settings.ANTHROPIC_MODEL = "claude-sonnet-4-5"
+    settings.ANTHROPIC_MODEL = "claude-sonnet-4-6"
     settings.KALEMAT_API_KEY = MagicMock()
     settings.KALEMAT_API_KEY.get_secret_value.return_value = "test-kalemat-key"
     settings.VECTARA_API_KEY = MagicMock()
@@ -30,8 +30,8 @@ def mock_settings():
 class TestAnsariClaudeModelVersion:
     """Test AnsariClaude model version configuration."""
 
-    def test_model_version_is_sonnet_4_5(self, mock_settings):
-        """Test that AnsariClaude uses Sonnet 4.5 model."""
+    def test_model_version_is_sonnet_4_6(self, mock_settings):
+        """Test that AnsariClaude uses Sonnet 4.6 model."""
         with patch("anthropic.Anthropic"), patch("ansari.agents.ansari.PromptMgr") as mock_prompt_mgr:
             # Mock the prompt manager
             mock_prompt = MagicMock()
@@ -43,8 +43,8 @@ class TestAnsariClaudeModelVersion:
             # Initialize AnsariClaude
             ansari = AnsariClaude(mock_settings)
 
-            # Verify the model version is Sonnet 4.5
-            assert ansari.settings.ANTHROPIC_MODEL == "claude-sonnet-4-5"
+            # Verify the model version is Sonnet 4.6
+            assert ansari.settings.ANTHROPIC_MODEL == "claude-sonnet-4-6"
 
     def test_model_sent_to_api(self, mock_settings):
         """Test that the correct model version is sent to the Anthropic API."""
@@ -77,10 +77,10 @@ class TestAnsariClaudeModelVersion:
             # Verify the correct model was sent to the API
             mock_client.messages.create.assert_called_once()
             call_args = mock_client.messages.create.call_args
-            assert call_args[1]["model"] == "claude-sonnet-4-5"
+            assert call_args[1]["model"] == "claude-sonnet-4-6"
 
-    def test_default_config_uses_sonnet_4_5(self):
-        """Test that the default configuration in Settings uses Sonnet 4.5."""
+    def test_default_config_uses_sonnet_4_6(self):
+        """Test that the default configuration in Settings uses Sonnet 4.6."""
         from src.ansari.config import Settings
 
         # Create settings with defaults (no overrides)
@@ -92,5 +92,5 @@ class TestAnsariClaudeModelVersion:
             QURAN_DOT_COM_API_KEY="test-key",
         )
 
-        # Verify the default model is Sonnet 4.5
-        assert settings.ANTHROPIC_MODEL == "claude-sonnet-4-5"
+        # Verify the default model is Sonnet 4.6
+        assert settings.ANTHROPIC_MODEL == "claude-sonnet-4-6"
